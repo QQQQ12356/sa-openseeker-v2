@@ -1,0 +1,9 @@
+# 30 Beacon 训练与评测
+
+主入口为 `scripts/sh/30_beacon_train.sh`，使用方式与 Plain 相同。模型支持 Qwen3 和 Qwen3.5，默认 whole observation 压缩。OpenSeeker 中只有 `tool_response` 的正文进入压缩区域：工具调用 JSON、system、问题、推理和原始回答都保留。训练和 agent 评测共用序列化与 observation 区域定义。
+
+可修改 `beacon_ratio`、LoRA、分段损失、续写损失、information/readout/output 蒸馏等。默认关闭需要完整 teacher 的额外输出蒸馏。模型结构、Qwen3.5 线性状态处理、continuation、问题记忆等已有实现和测试均保留，详见 60—65 文档。默认各主 CE 片段权重均为 1，可设置 `{}` 恢复默认。
+
+多卡使用 DDP 或 ZeRO-2。Beacon 动态分段和压缩训练不支持 ZeRO-3，launcher 会在启动前明确拒绝。CPU activation offload 默认保留；开启 teacher 蒸馏会增加内存和显存需求。
+
+评测用 `31_beacon_eval.sh`；多卡评测每个 GPU 加载一份模型，按样本索引分片，并恢复原始顺序汇总指标。`35_beacon_merge_adapter.sh` 保留适配器恢复合并入口，脚本顶部填写 TARGET 即可。`37_beacon_memory_probe.sh` 用于长样本短步数测试。本次没有运行真实模型训练或生成。

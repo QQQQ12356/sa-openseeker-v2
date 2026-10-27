@@ -1,0 +1,9 @@
+# 01 运行环境
+
+训练环境定义保留在根目录 `environment.train-cu126.yml`、`requirements.train-cu126.txt` 和 `requirements.txt`。已有环境为 `search-comp-qwen3.5`。`scripts/sh/00_common.sh` 优先使用脚本里的 `PYTHON`，其次通过 conda 或 `~/miniconda3/envs/<CONDA_ENV>/bin/python` 查找，最后使用当前 Python。迁移服务器时直接修改脚本顶部 `PYTHON` / `CONDA_ENV`。
+
+预处理仅加载 tokenizer，不占模型训练显存；`OFFLINE=1` 只使用本地缓存。默认 `Qwen/Qwen3.5-4B`，切换模型或 tokenizer 后必须重新测量训练数据。不要将 Qwen3.5 长度直接当成 Qwen3 长度。
+
+测试使用 tiny 随机模型、CPU 和离线模拟器，不下载或训练真实模型。`01_test.sh` 默认不开启 `FULL_MODEL_TEST`；显式开启才会加载真实模型执行额外验证。HTML 与 observation 单独过滤只需 Python 标准库。图表需要 matplotlib，Excel 需要 openpyxl。
+
+`03_check_environment.sh` 是供目标训练服务器执行的 CUDA/CPUAdam 环境探针，会做小张量反向传播与优化器检查，本次没有执行。更完整环境细节见 [67 环境细节](67_environment_details.md)。

@@ -1,0 +1,30 @@
+{
+  "reference": "/home/huangzj/proj/searchagent/sa-qwen-openseeker/tmp/openseeker_v1_length_distribution.tokens.json",
+  "identity": {
+    "source": "/home/huangzj/proj/searchagent/sa-qwen-openseeker/outputs/data/raw/polar/openseeker_v1_data.jsonl",
+    "source_bytes": 3538289087,
+    "source_mtime_ns": 1792484375895825593,
+    "model": "Qwen/Qwen3.5-4B",
+    "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+    "tokenizer_sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+    "method": "sum_content_tokens;add_special_tokens=False;no_truncation"
+  },
+  "count": 11677,
+  "min": 1178,
+  "max": 368161,
+  "mean": 74506.67842767834,
+  "percentiles": {
+    "50": 67744,
+    "90": 137605,
+    "95": 157068,
+    "99": 193366
+  },
+  "bins": {
+    "8192": 208,
+    "16384": 817,
+    "32768": 2370,
+    "65536": 5652,
+    "131072": 10234,
+    "262144": 11659
+  }
+}
