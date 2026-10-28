@@ -1,4 +1,4 @@
-# Beacon / plain 多卡训练
+# 66 Beacon / Plain 多卡实现细节
 
 默认 Qwen3.5 Beacon 基础配置为 `configs/train/beacon_qwen35_whole_searchr1.yaml`，plain 为 `configs/train/qwen35_plain_sft.yaml`。现有单卡命令保持可用。
 
@@ -39,6 +39,9 @@ CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.run \
 `DISTRIBUTED_BACKEND` 接受 `zero2`（多卡默认）、`zero3`（仅 plain）、`ddp`。启动器选择的 DeepSpeed 配置优先于传入的同名覆盖参数。单卡时如需 DeepSpeed，可显式传 `--set deepspeed=configs/train/ds_zero2.json`。它使用 CPU AdamW 优化器，替代基础配置中的 bitsandbytes 优化器；需要足够的 CPU 内存和 CPU/GPU 传输带宽。
 
 ## 显存边界
+
+OpenSeeker 的30/37入口已显式启用 `beacon_checkpoint_blocks=true`，并选择SDPA、1024-token keep分块。新增38四卡入口复用30；Search-R1基础配置不自动开启blocks，需要显式覆盖。该开关只重算无状态模块，不重放跨窗状态更新；顶层 `gradient_checkpointing` 仍不启用Beacon重计算。完整原因分析、参数和修改位置见 [52 长轨迹 OOM](52_beacon_oom.md)。
+
 
 - DDP 每卡保留完整模型、梯度和优化器状态，主要增加吞吐，不降低单条样本的激活峰值。
 - ZeRO-2 分片梯度、优化器状态，并将优化器卸载到 CPU；每卡仍保留完整模型参数。

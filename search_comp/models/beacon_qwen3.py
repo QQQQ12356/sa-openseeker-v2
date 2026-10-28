@@ -245,12 +245,13 @@ class BeaconQwen3ForCausalLM(BeaconCausalLMMixin, Qwen3ForCausalLM):
         new_past = []
         for idx, layer in enumerate(self.model.layers):
             residual = hidden
-            out, current = layer.self_attn(
+            out, current = self._checkpoint_block(
+                layer.self_attn,
                 layer.input_layernorm(hidden), position_embeddings=position_embeddings,
                 attention_mask=attn_mask, past_key_value=past[idx][1],
             )
             hidden = residual + out
-            hidden = hidden + layer.mlp(layer.post_attention_layernorm(hidden))
+            hidden = hidden + self._checkpoint_block(layer.mlp, layer.post_attention_layernorm(hidden))
             new_past.append((idx, current))
         return new_past, hidden
 

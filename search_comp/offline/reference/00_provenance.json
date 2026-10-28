@@ -1,0 +1,21 @@
+{
+  "browsecomp-plus": {
+    "repo": "texttron/BrowseComp-Plus",
+    "revision": "046949032b0328319cc9a02663a759ec601d9402",
+    "sha256": {
+      "scripts_evaluation/evaluate_run.py": "1a21233937c377ab6323c98ff9af67742756a57fbacab4ebf9bc30852eae530a",
+      "scripts_build_index/decrypt_dataset.py": "d25c7565ee7c1d9c8ec37f610b1f67756db8f8924ac6b8175ffff6d261a0e32d",
+      "topics-qrels/qrel_evidence.txt": "a6f594975be57339de9e4e9f67f13c044f647feda77c0b84c45a1581e3041bd1",
+      "topics-qrels/qrel_golds.txt": "b875af4a745712bee7a94f464ed989232f8c77977c31824428470e11dcb28c73",
+      "LICENSE": "a580afd0716e99a1c43fb297a950620a55980305aae9fcd236141101a7e21803"
+    }
+  },
+  "hotpotqa": {
+    "repo": "hotpotqa/hotpot",
+    "revision": "3635853403a8735609ee997664e1528f4480762a",
+    "sha256": {
+      "hotpot_evaluate_v1.py": "d35fc91a6db21d791dbdda11daf3856e9359f5701d54e3eefba20d88fecc02c0",
+      "LICENSE.txt": "9c264489d021e5905c0544f75e292c63f78dca56acd2aec395dd36dcc41940c7"
+    }
+  }
+}

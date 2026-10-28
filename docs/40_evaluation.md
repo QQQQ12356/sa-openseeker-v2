@@ -21,3 +21,7 @@
 ## 40.1 独立 Benchmark 与官方裁判
 
 新增 [42 OpenSeeker Benchmark](42_openseeker_benchmark.md) 流程以 BrowseComp 为默认独立测试集，固定官方代码版本并直接调用官方生成/裁判脚本；Beacon 通过 native 模式保留压缩并采用同一裁判。新结果写入独立目录，不替换上述 EM/F1 汇总。native 的序列化、解码和预算与官方不同，详见对齐表；官方 accuracy 与 EM/F1 必须分别报告。原有入口仍不自动调用裁判 API。
+
+## 40.2 固定语料离线评分
+
+新增 56/57 的离线 search/visit 与本地推理共享现有 Plain/Beacon Agent。BCP 使用固定官方 prompt/parser、本地裁判和 evidence/gold 累积检索召回；Hotpot 执行官方 EM/F1、SP/Joint（仅模型生成的支持事实），保留 yes/no/noanswer 特例，不替换历史 EM/F1 的行为。漏题与失败保留分母，裁判未知会使评分非零退出。完整参数和指标定义见 [43](43_offline_benchmarks.md)。

@@ -27,8 +27,12 @@ DRY_RUN=1 bash scripts/sh/47_openseeker_benchmark.sh  # 审查官方 Benchmark �
 
 目录分工：`search_comp/` 为核心实现，`search_comp/workflows/` 为可导入的流程实现，`scripts/sh/` 为编号的一键入口，`scripts/py/` 为编号的 Python 薄入口，`scripts/templates/` 为编号的 HTML 模板，`tests/` 为回归测试，`configs/` 为训练配置，`docs/` 为编号文档。
 
-本次已生成可用的默认数据（train/validation/test=644/9/11）、43 条约 64k 的显存测试数据和数据 HTML。已有输出无需重复生成，详情见 [数据说明](docs/10_data.md) 与 [验证记录](docs/99_validation.md)。加入官方 Benchmark 流程后，全量回归为 **483 通过、2 项 GPU 专用测试跳过**。
+本次已生成可用的默认数据（train/validation/test=644/9/11）、43 条约 64k 的显存测试数据和数据 HTML。已有输出无需重复生成，详情见 [数据说明](docs/10_data.md) 与 [验证记录](docs/99_validation.md)。加入官方 Benchmark 流程后，全量回归为 **508 通过、2 项 GPU 专用测试跳过**。
 
 Beacon 训练支持固定/随机压缩比：修改 `30_beacon_train.sh` 的 `COMPRESSION_MODE`、`BEACON_RATIO` 和 `COMPRESSION_RATIOS` 即可，详见 [31 随机压缩说明](docs/31_random_compression.md)。默认保持固定压缩。
 
 训练后独立 Benchmark：Plain 用 `48_serve_checkpoint.sh` 读取训练产物并提供 completion 服务，再用 `47_openseeker_benchmark.sh` 运行官方 v1/v2；Beacon 用 `MODE=native RUN_DIR=...` 直接运行 47，保留压缩、采用官方 search/visit 和裁判。先配置私有 API 环境文件；实际在线测试会调用这些服务。原有 21/31 的 EM/F1 测试继续保留。完整依赖、参数、失败分母和对齐边界见 [42 说明](docs/42_openseeker_benchmark.md)。
+
+固定语料离线评测现已接入：`56_browsecomp_plus.sh` 使用独立 BCP corpus、持久化 BM25 与本地裁判；`57_hotpotqa_offline.sh` 使用有标注 dev、完整官方 Wiki 摘要库和官方 EM/F1。先 `ACTION=download` 一次性准备，之后 prepare/index/run/score/all 均严格离线。两者都支持从 RUN_DIR 读取 Plain/Beacon 训练产物。详细参数、逐步运行与修改提示见 [43 离线基准手册](docs/43_offline_benchmarks.md)，官方版本及许可证见 [44 来源说明](docs/44_offline_sources.md)。
+
+四卡 A800 的 Beacon 长轨迹训练：先修改 `scripts/sh/30_beacon_train.sh` 中模型和数据路径，再用 `ACTION=plan bash scripts/sh/38_beacon_4xa800.sh` 只生成配置；实际训练运行 `bash scripts/sh/38_beacon_4xa800.sh`。显存原因、重计算修复和参数修改提示见 [52 四卡 A800 长轨迹 OOM](docs/52_beacon_oom.md)。

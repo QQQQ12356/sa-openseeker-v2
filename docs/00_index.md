@@ -11,9 +11,13 @@
 | [40 评测](40_evaluation.md) | OpenSeeker 参考实现、答案提取、EM/F1 与工具后端 |
 | [41 HTML](41_html.md) | 数据与预测的离线浏览 |
 | [42 官方 Benchmark](42_openseeker_benchmark.md) | BrowseComp、固定官方 v1/v2、Beacon native、LLM 裁判、覆盖审计、一键运行 |
+| [43 离线基准](43_offline_benchmarks.md) | BrowseComp-Plus / HotpotQA、持久化 BM25、断网构建与评测、参数和修改提示 |
+| [44 离线来源](44_offline_sources.md) | 固定官方代码、数据版本、许可证与升级规则 |
 | [50 多卡](50_multigpu.md) | torchrun、DDP、ZeRO-2/3、每卡日志 |
 | [51 显存测试](51_memory_probe.md) | 特定长度数据、短步数训练、峰值显存 |
+| [52 四卡 A800 长轨迹 OOM](52_beacon_oom.md) | 原因、重计算修复、参数说明与修改提示 |
 | [60 架构](60_architecture.md) | 保留的核心实现、训练协议与分段损失 |
+| [66 多卡实现细节](66_distributed_details.md) | 设备绑定、DeepSpeed、日志和保存约定 |
 | [90 迁移](90_migration.md) | 来源、目录重组、保留范围与入口映射 |
 | [99 验证](99_validation.md) | 本次实际检查、结果和未实测范围 |
 
@@ -26,9 +30,9 @@
 | 00—09 | 公共环境、回归、总入口 | `00_common.sh`、`01_test.sh`、`02_workflow.sh`、`03_check_environment.sh` |
 | 10—19 | 数据准备、筛选、证据库、审计 | `10_prepare.sh`、`11_select.sh`、`12_select_memory_probe.sh`、`13_filter_observations.sh`、`15_build_corpus.sh` |
 | 20—29 | Plain 训练、评测、显存实验 | `20_plain_train.sh`、`21_plain_eval.sh`、`26_plain_memory_probe.sh` |
-| 30—39 | Beacon 训练、评测、合并、显存实验 | `30_beacon_train.sh`、`31_beacon_eval.sh`、`35_beacon_merge_adapter.sh`、`37_beacon_memory_probe.sh` |
+| 30—39 | Beacon 训练、评测、合并、显存实验 | `30_beacon_train.sh`、`31_beacon_eval.sh`、`35_beacon_merge_adapter.sh`、`37_beacon_memory_probe.sh`、`38_beacon_4xa800.sh` |
 | 40—49 | HTML、指标汇总、图表、官方 Benchmark | `40_dataset_html.sh`、`41_predictions_html.sh`、`42_summarize_results.sh`、`43_export_excel.sh`、`44_plot.sh`、`45_report.sh` |
-| 50—59 | Plain/Beacon 共享实验调度实现 | Python `50_evaluate.py`、`51_experiment.py`；通常通过 20/30 入口使用 |
+| 50—59 | 共享实验调度、固定语料离线基准 | Python `50_evaluate.py`、`51_experiment.py`、`52_offline_benchmark.py`；shell `56_browsecomp_plus.sh`、`57_hotpotqa_offline.sh`、共享 `58_offline_common.sh` |
 | 60—69 | 保留的早期能力探针 | `60_searchagent_probe.sh` |
 
 22—25、32—34 为保留的 Search-R1 入口，其数据不随本次迁移，需要另行准备。`scripts/py/` 保留参数接口便于自动化；日常运行优先修改 shell 顶部变量。

@@ -4,13 +4,13 @@ set -euo pipefail
 
 # ===== 运行环境 =====
 # 留空时按 common.sh 的规则选择 Python；也可填当前服务器的 Python 绝对路径。
-PYTHON=""
-CONDA_ENV="search-comp-qwen3.5"
+PYTHON="${PYTHON:-}"
+CONDA_ENV="${CONDA_ENV:-search-comp-qwen3.5}"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 # 设置可见卡列表，例如 0,1,2,3；NPROC_PER_NODE 默认随可见卡数自动推断。
 export DISTRIBUTED_BACKEND="${DISTRIBUTED_BACKEND:-zero2}"  # ddp / zero2；plain 另支持 zero3
 # export NPROC_PER_NODE=4
-ACTION="train"                       # train：生成新实验并训练；plan：只生成配置
+ACTION="${ACTION:-train}"                       # train：生成新实验并训练；plan：只生成配置
 
 # ===== 压缩比：fixed 使用 BEACON_RATIO；random 每条训练轨迹均匀采样一次 =====
 COMPRESSION_MODE="fixed"               # fixed / random
@@ -85,6 +85,9 @@ beacon:
   beacon_output_distill_weight: 0.0  # >0 会额外加载 teacher
   beacon_output_distill_strategy: all
   beacon_readout_distill_weight: 0.0
+  beacon_attention_backend: sdpa
+  beacon_keep_window: 1024
+  beacon_checkpoint_blocks: true     # 无状态子模块重算；支持 whole，不重放记忆更新
   beacon_loss_chunk_size: 32
   beacon_checkpoint_loss: true
   beacon_cpu_offload_activations: true

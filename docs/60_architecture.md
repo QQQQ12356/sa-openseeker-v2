@@ -13,3 +13,7 @@ continuation、information、output KL、readout 蒸馏仍各有独立总权重�
 ## 新增官方 Benchmark 适配层
 
 `search_comp/evaluation/benchmark_data.py` 负责 BrowseComp 解密与严格 query/answer 适配；`workflows/benchmark_openseeker.py` 负责固定官方 checkout、官方子进程、native 模型桥接、预测对齐与评分覆盖审计；`workflows/serve_openseeker.py` 负责 Plain 训练结果解析和 SGLang 服务启动。它们通过 47/48 Python 薄入口和 46—49 shell 入口使用，不修改原训练器或旧 EM/F1 流程。细节见 [42](42_openseeker_benchmark.md)。
+
+## 固定语料离线适配层
+
+新增 search_comp/offline 包：assets 管理固定官方来源和离线网络约束；data 流式规范化官方源；index 构建只读 SQLite FTS5 BM25 与正文存储；tools 提供预算明确的本地 search/visit；scoring 复用官方 Hotpot 指标与 BCP 裁判纯函数。workflows/offline_benchmark.py 调度各阶段，通过既有 ModelGenerator/run_agent 保留 Beacon observation 压缩。原模型、训练器和在线工具后端未改写。操作手册见 [43](43_offline_benchmarks.md)。

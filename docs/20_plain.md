@@ -12,3 +12,5 @@
 
 训练后可增加独立 BrowseComp 测试：用 48 读取 RUN_DIR 并部署 Plain，配置 API 后运行 47 的官方模式。
 原有测试入口继续保留，准备依赖、完整示例与比较边界见 [42 官方 Benchmark](42_openseeker_benchmark.md)。
+
+无需外部 API 的固定语料测试使用 56（BrowseComp-Plus）或 57（HotpotQA），参数顶部填 RUN_DIR 即可连接训练产物；先离线建库和持久化索引，原 21/31/47 入口保留。两套基准的运行、评分与预算差异见 [43 离线手册](43_offline_benchmarks.md)。

@@ -381,7 +381,8 @@ class BeaconQwen3_5ForCausalLM(BeaconCausalLMMixin, Qwen3_5ForCausalLM):
             hidden = layer.input_layernorm(hidden)
             if self._mem.layer_types[idx] == "full_attention":
                 pkv = next(pv for li, pv in past if li == idx)
-                out, npv = layer.self_attn(
+                out, npv = self._checkpoint_block(
+                    layer.self_attn,
                     hidden, position_embeddings=position_embeddings,
                     attention_mask=attn_mask, past_key_value=pkv,
                 )
@@ -394,8 +395,8 @@ class BeaconQwen3_5ForCausalLM(BeaconCausalLMMixin, Qwen3_5ForCausalLM):
                 if self._mem._store == "beacon":
                     reader_initial_recurrent = previous_recurrent.clone() if previous_recurrent is not None else None
                     reader_initial_conv = previous_conv.clone() if previous_conv is not None else None
-                out, reader_recurrent, reader_conv = self._linear_attention_forward(
-                    layer.linear_attn,
+                out, reader_recurrent, reader_conv = self._checkpoint_block(
+                    self._linear_attention_forward, layer.linear_attn,
                     hidden,
                     reader_initial_recurrent,
                     reader_initial_conv,
@@ -403,7 +404,7 @@ class BeaconQwen3_5ForCausalLM(BeaconCausalLMMixin, Qwen3_5ForCausalLM):
             hidden = residual + out
             residual = hidden
             hidden = layer.post_attention_layernorm(hidden)
-            hidden = layer.mlp(hidden)
+            hidden = self._checkpoint_block(layer.mlp, hidden)
             hidden = residual + hidden
             if self._mem.layer_types[idx] == "linear_attention":
                 if (
@@ -414,14 +415,14 @@ class BeaconQwen3_5ForCausalLM(BeaconCausalLMMixin, Qwen3_5ForCausalLM):
                     beacon_hidden = hidden[:, beacon_mask]
                     writer = self.model.beacon_linear_writers[str(idx)]
                     if self.beacon_config.beacon_question_memory_v1:
-                        written = writer(beacon_hidden, previous_recurrent, self._mem._question)
+                        written = self._checkpoint_block(writer, beacon_hidden, previous_recurrent, self._mem._question)
                         self._mem._linear_recurrent[idx] = written
                         if self.training and win_labels is not None and self.beacon_config.beacon_readout_distill_weight > 0:
                             self._mem._readout_losses.append(
                                 writer.readout_loss(written, reader_recurrent, self._mem._question)
                             )
                     else:
-                        self._mem._linear_recurrent[idx] = writer(beacon_hidden, previous_recurrent)
+                        self._mem._linear_recurrent[idx] = self._checkpoint_block(writer, beacon_hidden, previous_recurrent)
                     self._mem._linear_conv.pop(idx, None)
                 else:
                     self._mem._linear_recurrent[idx] = reader_recurrent

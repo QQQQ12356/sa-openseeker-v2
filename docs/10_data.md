@@ -48,3 +48,7 @@
 `outputs/reports/dataset.html` 已从默认训练集实际导出 644 条记录，可离线打开。上述输出目录已存在，再执行同名生成脚本会按设计拒绝覆盖；重新实验时修改 OUTPUT 变量。
 
 另已实际生成 `polar_memory_exact_65117`：1 条恰好 65,117 token 的 Correct、有 observation 训练样本，并验证长度精确相等；仅用于显存测试。
+
+## 独立离线 Benchmark 数据
+
+新增 BrowseComp-Plus 与 HotpotQA 的数据适配独立于 Polar 训练准备。56 使用官方 BCP 加密问题、独立 corpus 和 qrels；57 使用有标注 dev 与官方 2017 Wikipedia 摘要库，丢弃 dev 候选 context。结果、明文问题、规范化 corpus 与持久化索引都放在 outputs，不混入训练 split。首次下载与离线导入、字段映射和版本校验见 [43](43_offline_benchmarks.md)，来源和许可证见 [44](44_offline_sources.md)。

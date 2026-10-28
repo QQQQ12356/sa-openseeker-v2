@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List, Optional, Tuple
 import torch
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from .beacon_config import BeaconConfig
 from .modeling_utils import beacon_intersect_order, cat_tensor, slice_tensor
@@ -371,6 +372,16 @@ class BeaconCausalLMMixin:
             )
         # 返回 ModelOutput，兼容 transformers.Trainer（取 outputs["loss"]）
         return CausalLMOutputWithPast(loss=loss, logits=logits)
+
+    def _checkpoint_block(self, function, *args, **kwargs):
+        """Recompute pure blocks only; never replay mutations of BeaconMemory.
+
+        Pass states explicitly, including nested KV tuples. Non-reentrant mode
+        supports frozen embeddings / LoRA and preserves dropout RNG state.
+        """
+        if self.training and torch.is_grad_enabled() and self.beacon_config.beacon_checkpoint_blocks:
+            return checkpoint(function, *args, use_reentrant=False, **kwargs)
+        return function(*args, **kwargs)
 
     def _embed(self, input_ids, beacon_size):
         """分开嵌入普通 token 与 beacon token（beacon id == vocab_size）。"""

@@ -200,7 +200,7 @@ def main_train(
     if cfg.get("gradient_checkpointing", False):
         print(
             "[beacon] 警告：混合 Beacon 使用显式跨窗状态，当前不启用 Trainer 的层级重计算；"
-            "该配置仅保留在运行记录中。",
+            "该配置仅保留在运行记录中；请改用 beacon.beacon_checkpoint_blocks=true。",
             flush=True,
         )
 

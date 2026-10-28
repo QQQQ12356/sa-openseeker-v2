@@ -45,3 +45,34 @@ CUDA/NCCL、实际四卡训练、目标服务器 CPUAdam 编译、4B 模型显�
 - 官方 v1/v2 生成脚本的 `--help`、新增入口的 dry-run、Python 编译、shell 语法和 diff 空白检查通过。
 
 未执行真实训练、真实 checkpoint 在线生成、GPU SGLang 部署、真实外部搜索/visit/E2B 或付费裁判。实际成绩需要训练后的 checkpoint、支持目标模型的服务环境、搜索/摘要/裁判 API 配置。native 的完整模型和真实工具联调仍待用户在目标环境执行；它的序列化、解码与预算差异在 [42](42_openseeker_benchmark.md) 中明确说明。
+
+## 2026-10-28 固定语料离线 Benchmark 验证
+
+新增 56/57 两条完整流程：独立数据导入、持久化 SQLite FTS5 BM25、Plain/Beacon native 工具循环、本地评分与版本/覆盖审计。没有删除原有训练或在线评测实现。
+
+- 新增 25 项离线回归通过，覆盖官方参考文件指纹、加密 BCP Parquet 解密、独立 corpus 与 dev context 隔离、tar.bz2 内 bz2 分片不解包读取、HTML 与句号/句子编号保留、索引跨进程复用/只读/拒绝重复 ID、预算与 local URL 限制、完整 search→visit→answer 的 Plain/Beacon 路径和 observation 压缩区域。
+- 直接执行随代码附带的固定 Hotpot evaluator，覆盖归一化、yes/no/noanswer 特例、漏题/失败分母、模型预测 supporting facts、SP/Joint，以及无效 sp 不改变答案 EM/F1。
+- 固定 BCP 官方 prompt/parser/citation/qrels 驱动模拟裁判回归，覆盖累计召回、漏题、未知标签与 confidence 样本不足标记；另在真实子进程中跑通 retrieval-only CLI，不加载任何裁判模型。
+- 全量回归 **508 passed、2 skipped、3 warnings**。日志：`outputs/reports/verification/offline_benchmarks_pytest.log`。一项为既有 PEFT tiny 模型提示；两项为固定 BCP 上游 prompt 的 `\%` 转义警告，未改写上游源文件。
+- 真实 IP socket 与 DNS 连接在子进程中被离线 audit hook 拒绝；默认 dry-run 不创建目录。shell 语法、Python 编译、文档链接与 diff 空白检查通过。
+- 已生成可查看的小样本持久化索引与评分产物：`outputs/reports/verification/offline_benchmarks_smoke/`。00_scope.json 明确标注其为**合成协议样本**；其中 Hotpot 执行真实官方指标，BCP 使用真实 qrels/prompt/parser 和模拟裁判。任何其中的正确率都不是实际模型基准成绩。
+- reference 文件与对应固定提交的官方源逐字节一致，许可证和 00_provenance.json 随代码保留；未提交问题明文、corpus、权重、索引或日志。
+
+未下载完整 GB 级 corpus、未完成 fullwiki 全量索引、未加载真实训练 checkpoint 或 Qwen3-32B 裁判，也未测量真实 GPU 显存/吞吐。历史 CMU dev 下载主机在本环境解析失败，代码提供官方 HF fullwiki validation 备选和显式镜像地址；HF 与 Stanford 全量资源下载需在目标联网准备环境执行。完整参数和复现步骤见 [43](43_offline_benchmarks.md)，固定来源和授权见 [44](44_offline_sources.md)。
+
+补充使用本地保存的 tiny 随机 Qwen3 checkpoint，真实运行 LocalJudge 的 HF tokenizer/chat template/权重加载与 generate，并验证裁判上下文超限处理；该测试不下载权重，也不代表真实裁判的判题质量。Hotpot 独立 score 另在仅标准库的 Python 路径下完成小样本验证，无需导入 torch、Transformers 或 pyarrow。
+
+## 四卡 A800 长轨迹显存修复（2026-10-29）
+
+本次仅 CPU 小模型验证，没有启动真实训练或下载生产模型。环境：PyTorch 2.7.0+cu126、Transformers 5.9.0；测试显式隐藏 GPU。
+
+```bash
+CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=1 python -m pytest -q \
+  tests/test_beacon_checkpoint_blocks.py tests/test_distributed_training.py \
+  tests/test_beacon_qwen35_linear_memory.py tests/test_beacon_question_memory.py \
+  tests/test_qwen3_whole_information.py
+```
+
+结果：101 passed、6 skipped；PEFT 小模型保存测试有一条缺少基础模型配置的预期 warning。新测试比对重计算开关前后的 loss、全部梯度和最终记忆，覆盖两类模型、whole/window、offload开关和冻结embedding。未运行两进程DDP更新或DeepSpeed训练；本次多卡验证限于启动参数、设备配置逻辑及相关单元测试。
+
+`bash -n` 检查30/37/38脚本通过，`git diff --check` 通过。38的 `ACTION=plan` 验证仅归档配置并输出四进程ZeRO-2启动命令，不加载模型、不执行该命令。目标服务器的真实80 GB显存峰值、CPU内存、NCCL和融合算子组合尚未实测；按 [52](52_beacon_oom.md) 和 [51](51_memory_probe.md) 验收。

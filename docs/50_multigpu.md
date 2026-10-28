@@ -1,5 +1,14 @@
 # 50 多卡训练
 
+四卡 A800 OpenSeeker Beacon 可直接执行（模型与数据先在30中修改）：
+
+```bash
+ACTION=plan bash scripts/sh/38_beacon_4xa800.sh  # 只归档，不训练
+bash scripts/sh/38_beacon_4xa800.sh              # 在目标服务器执行训练
+```
+
+38默认四卡ZeRO-2，复用30的配置，不维护第二份参数。30/37启用无状态模块重计算 `beacon_checkpoint_blocks`，同时显式启用SDPA、keep_window=1024；完整OOM分析及参数说明见 [52 长轨迹OOM](52_beacon_oom.md)。不能把四卡80 GB当成单条样本可用320 GB。
+
 多卡机制保留在 `search_comp/trainer/launch.py`、`utils/distributed.py` 和训练器中。修改主训练 shell 脚本顶部变量后直接执行：
 
 ```bash

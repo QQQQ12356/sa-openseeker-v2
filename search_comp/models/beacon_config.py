@@ -115,6 +115,8 @@ class BeaconConfig:
     beacon_loss_chunk_size: int = 64
     #: loss 分块是否使用 activation checkpoint，在反向时重算 LM head
     beacon_checkpoint_loss: bool = True
+    #: 仅重算无状态的 attention / MLP / writer，跨窗状态提交不参与重算。
+    beacon_checkpoint_blocks: bool = False
     #: 训练时把 autograd 保存的激活卸载到 CPU，显著省显存但降低速度
     beacon_cpu_offload_activations: bool = False
     #: 启用 CPU offload 时的最小输入长度；0 表示所有样本都启用
@@ -135,6 +137,8 @@ class BeaconConfig:
             raise ValueError("beacon_compression_ratios 不允许重复值")
         if not isinstance(self.beacon_preserve_native_linear_state, bool):
             raise ValueError("beacon_preserve_native_linear_state 必须为 bool")
+        if not isinstance(self.beacon_checkpoint_blocks, bool):
+            raise ValueError("beacon_checkpoint_blocks 必须为 bool")
         if not isinstance(self.beacon_window_enabled, bool):
             raise ValueError("beacon_window_enabled 必须为 bool")
         if not self.beacon_window_enabled and self.beacon_information_mode != "whole":

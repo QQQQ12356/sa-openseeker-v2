@@ -15,3 +15,9 @@ CUDA 诊断由公共回调完成：开始训练时重置分配器峰值，每步
 要更换 32k/64k/128k：同时修改 12 的 MIN/MAX/EXACT、OUTPUT、26/37 的 dataset 与 max_length，输出目录使用新名称，不覆盖历史实验。多卡行为和 backend 限制见 50。
 
 随机压缩训练可在 37 顶部设置 `COMPRESSION_MODE` / `COMPRESSION_RATIOS`。显存上限测试应先 fixed 使用最小候选比例，再测试 random；短步数随机采样不保证覆盖最坏比例。详见 [31 随机压缩](31_random_compression.md)。
+
+## 重计算修复的对照方法
+
+37现在显式设置 `beacon_checkpoint_blocks=true`、`beacon_attention_backend=sdpa`、`beacon_keep_window=1024`；顶层gradient_checkpointing不代替blocks。可直接使用 `CUDA_VISIBLE_DEVICES=0,1,2,3 ACTION=plan bash scripts/sh/37_beacon_memory_probe.sh` 审查。实际probe需另行运行，plan不测显存。
+
+对同一数据和种子，只修改37中的blocks为false/true，各保存独立实验，记录所有rank显存、主机RSS和每步耗时。offload、压缩比例、loss目标均保持一致；先用最小随机候选比例固定测试。若第一步前OOM，保留完整异常栈，回调可能尚无step记录。6000附近失败应先测窄长度区间，不必从默认64k开始。不要将window与whole的结果视作纯性能对照，因为会改变压缩状态提交方式。详见 [52 长轨迹OOM](52_beacon_oom.md)。

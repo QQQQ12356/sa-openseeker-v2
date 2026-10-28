@@ -12,3 +12,9 @@
 
 训练后可用 `MODE=native RUN_DIR=... bash scripts/sh/47_openseeker_benchmark.sh` 增加独立 BrowseComp 在线评测，保留 Beacon 压缩并使用官方 search/visit 与 LLM 裁判。不能用普通 SGLang 替代 Beacon 推理。
 原有测试入口继续保留，准备依赖、完整示例与比较边界见 [42 官方 Benchmark](42_openseeker_benchmark.md)。
+
+无需外部 API 的固定语料测试使用 56（BrowseComp-Plus）或 57（HotpotQA），参数顶部填 RUN_DIR 即可连接训练产物；先离线建库和持久化索引，原 21/31/47 入口保留。两套基准的运行、评分与预算差异见 [43 离线手册](43_offline_benchmarks.md)。
+
+## 四卡长轨迹与重计算
+
+OpenSeeker 30/37现在显式启用 `beacon_checkpoint_blocks: true`、SDPA和1024-token keep分块，38提供四卡A800入口。blocks重算attention、MLP及Qwen3.5 reader/writer，不重放记忆更新，不改变whole布局。旧顶层 `gradient_checkpointing` 仅告警，`beacon_checkpoint_loss` 只作用于loss，两者都不能代替blocks。直接使用Search-R1 YAML时需要自行开启blocks。详细参数和OOM定位见 [52](52_beacon_oom.md)，多卡规则见 [50](50_multigpu.md)。
