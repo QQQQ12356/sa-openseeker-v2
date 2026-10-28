@@ -9,3 +9,6 @@
 评测用 `31_beacon_eval.sh`；多卡评测每个 GPU 加载一份模型，按样本索引分片，并恢复原始顺序汇总指标。`35_beacon_merge_adapter.sh` 保留适配器恢复合并入口，脚本顶部填写 TARGET 即可。`37_beacon_memory_probe.sh` 用于长样本短步数测试。本次没有运行真实模型训练或生成。
 
 随机压缩比通过顶部 `COMPRESSION_MODE="random"` 与 `COMPRESSION_RATIOS=(8 16 32 64)` 开启；默认 fixed。每条训练轨迹采样一次，验证/生成仍使用 `BEACON_RATIO`。配置、日志与多卡规则见 [31 随机压缩](31_random_compression.md)。
+
+训练后可用 `MODE=native RUN_DIR=... bash scripts/sh/47_openseeker_benchmark.sh` 增加独立 BrowseComp 在线评测，保留 Beacon 压缩并使用官方 search/visit 与 LLM 裁判。不能用普通 SGLang 替代 Beacon 推理。
+原有测试入口继续保留，准备依赖、完整示例与比较边界见 [42 官方 Benchmark](42_openseeker_benchmark.md)。

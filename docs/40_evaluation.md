@@ -1,6 +1,6 @@
 # 40 答案提取与 EM/F1
 
-参考本地 `../OpenSeeker/src/llm_tool_openseeker.py`：模型生成出现 `</answer>` 时结束作答；`_get_last_assistant_answer_from_messages()` 取最后一条 assistant 消息、移除工具内容，并截取 `</think>` 后的回复。`eval/generate_answer.py` 将其保存为 `final_response`；`eval/eval.py` 把 final_response、query、参考 answer 交给 LLM 裁判判断语义正确性。因此原项目的裁判 accuracy 与本项目的 EM/F1 是不同指标，不能直接互换。
+参考 [OpenSeeker 官方实现](https://github.com/PolarSeeker/OpenSeeker/blob/e3dec1f727d87c5eaa93506e4882c67237647098/src/llm_tool_openseeker.py)：模型生成出现 `</answer>` 时结束作答；`_get_last_assistant_answer_from_messages()` 取最后一条 assistant 消息、移除工具内容，并截取 `</think>` 后的回复。`eval/generate_answer.py` 将其保存为 `final_response`；`eval/eval.py` 把 final_response、query、参考 answer 交给 LLM 裁判判断语义正确性。因此原项目的裁判 accuracy 与本项目的 EM/F1 是不同指标，不能直接互换。
 
 本项目 `search_comp/evaluation/tool_agent.py` 在结束工具循环后，只从当前生成的最后一轮 assistant 回复提取 prediction：去掉 think/thinking 与工具包装，若有完整 `<answer>...</answer>` 则取最后一个块的正文；结构化数据的普通 assistant 回复可直接使用清理后的正文。不从问题、参考答案、历史工具返回或早期推理中提取答案。未闭合思考/答案标签、空正文、生成预算耗尽或工具异常不会作为成功作答计分。生成停止边界为工具调用结束、答案闭合或消息结束。
 
@@ -17,3 +17,7 @@
 | http | 向 ENDPOINT POST `{name, arguments}`，要求返回 `{content: str}`；用于真实工具服务 |
 
 不把 replay 结果解释为在线搜索能力。历史 visit 语料库要注明来源划分，不能称为独立检索评测。当前保留 EM/F1，不自动调用付费裁判 API。
+
+## 40.1 独立 Benchmark 与官方裁判
+
+新增 [42 OpenSeeker Benchmark](42_openseeker_benchmark.md) 流程以 BrowseComp 为默认独立测试集，固定官方代码版本并直接调用官方生成/裁判脚本；Beacon 通过 native 模式保留压缩并采用同一裁判。新结果写入独立目录，不替换上述 EM/F1 汇总。native 的序列化、解码和预算与官方不同，详见对齐表；官方 accuracy 与 EM/F1 必须分别报告。原有入口仍不自动调用裁判 API。

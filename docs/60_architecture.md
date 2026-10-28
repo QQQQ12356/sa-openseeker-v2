@@ -9,3 +9,7 @@ OpenSeeker 原始文本保留，结构化工具调用统一为 tool_calls_begin/
 continuation、information、output KL、readout 蒸馏仍各有独立总权重；输出蒸馏会避开关闭监督的片段，stratified 采样按 answer、思考、search、tool_call 等队列分配预算。当前类别 ID 已删除弃用类别，需使用本项目重新生成的分段数据，不能直接复用旧类别数组。
 
 流程实现在 `search_comp/workflows/`，`scripts/py/` 仅负责调用 main，便于测试直接导入实现、命令入口维持编号。原回归文件整体保留，修改涉及协议、路径和类别的断言，新增长度/质量/观测筛选测试；没有通过删除核心测试来绕过迁移问题。
+
+## 新增官方 Benchmark 适配层
+
+`search_comp/evaluation/benchmark_data.py` 负责 BrowseComp 解密与严格 query/answer 适配；`workflows/benchmark_openseeker.py` 负责固定官方 checkout、官方子进程、native 模型桥接、预测对齐与评分覆盖审计；`workflows/serve_openseeker.py` 负责 Plain 训练结果解析和 SGLang 服务启动。它们通过 47/48 Python 薄入口和 46—49 shell 入口使用，不修改原训练器或旧 EM/F1 流程。细节见 [42](42_openseeker_benchmark.md)。

@@ -1,0 +1,15 @@
+# 独立评测环境，不覆盖训练环境；与固定官方版本的直接工具依赖对齐。
+# 完整官方依赖可在 46 准备后从 outputs/vendor/OpenSeeker/requirements.txt 安装。
+openai==2.26.0
+qwen-agent==0.0.34
+tavily-python>=0.5.0
+requests==2.32.5
+Jinja2==3.1.6
+json5==0.13.0
+jsonlines==4.0.0
+tiktoken==0.12.0
+tqdm==4.67.3
+python-dotenv==1.2.2
+e2b==2.20.3
+e2b-code-interpreter==2.6.2
+# SGLang 单独安装到兼容目标模型/CUDA 的服务环境；native 使用现有训练环境。

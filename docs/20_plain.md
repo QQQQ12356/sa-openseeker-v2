@@ -9,3 +9,6 @@
 评测修改 `21_plain_eval.sh` 的 `RUN_DIR` 或 `MODEL_PATH`，以及 `SPLIT`、工具后端和预算后执行。`RUN_DIR` 可自动定位模型和测试数据。`DRY_RUN=1` 只检查并打印命令。`26_plain_memory_probe.sh` 是短步数显存实验入口，见 [51 显存测试](51_memory_probe.md)。
 
 22—25 保留原 Search-R1 训练、交互评测和未训练基线入口；本次没有迁移 Search-R1 数据。
+
+训练后可增加独立 BrowseComp 测试：用 48 读取 RUN_DIR 并部署 Plain，配置 API 后运行 47 的官方模式。
+原有测试入口继续保留，准备依赖、完整示例与比较边界见 [42 官方 Benchmark](42_openseeker_benchmark.md)。

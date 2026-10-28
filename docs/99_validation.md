@@ -32,3 +32,16 @@ CUDA/NCCL、实际四卡训练、目标服务器 CPUAdam 编译、4B 模型显�
 双进程 CPU/Gloo tiny 模型完成 2 个 optimizer steps、每步累积 2 个 micro-batch，实际采样到 2 和 4 两种比例；各 rank 结束后的 LoRA 参数逐位同步，checkpoint/final adapter 保存成功。日志及逐 rank 比例在 `outputs/reports/verification/random_compression_ddp.log` 与 `random_compression_ddp/ratios_rank*.json`。测试显式设置 ACCELERATE_USE_CPU=true 及空 GPU 可见列表；不加载真实模型权重，不在 GPU 上训练。
 
 30/37 两个一键入口均实际以 ACTION=plan、COMPRESSION_MODE=random、候选 [4,8,16] 生成四卡 ZeRO-2 命令与配置快照，未执行训练。索引见 `outputs/reports/verification/random_compression_plans.json`。当前默认仍为 fixed；正式切换只需修改脚本顶部变量。新增说明见 [31 随机压缩](31_random_compression.md)。
+
+## 2026-10-28 官方 Benchmark 增量验证
+
+本次保留训练器、Beacon 算法与旧 EM/F1 实现，新增固定 OpenSeeker 提交 `e3dec1f727d87c5eaa93506e4882c67237647098` 的官方脚本调度、BrowseComp 导入、native 工具桥接与覆盖审计。
+
+- 下载并解密官方 BrowseComp CSV，1,266 题；JSONL 与来源指纹保存在 `outputs/data/benchmarks/browsecomp.manifest.json`。不展示测试题，不将测试集加入训练数据。
+- 新增 18 项 CPU 回归通过，覆盖加密数据导入、禁止覆盖、重复/缺参考校验、参考轨迹隔离、重试去重、v2 boxed 后缀、漏生成题保留、评分覆盖率、正确 CLI 参数、模型定位、Beacon 服务拒绝、dry-run 无写入，以及生成→裁判真实子进程调度。
+- 全量回归 **483 passed、2 skipped、1 warning**。日志：`outputs/reports/verification/official_benchmark_pytest.log`；warning 为既有 PEFT tiny 模型缺基座 config 提示。
+- 单独建立 `/tmp` 的最小评测虚拟环境，不更改训练环境，实测新增 API 入口可独立导入，无需加载 torch、Transformers 或 BM25。
+- 用未经修改的官方 `eval/eval.py` 和本地 OpenAI 兼容模拟裁判跑通真实评分请求，验证 temperature=0、skip_special_tokens=False、A/B 解析、v2 boxed 问题匹配与结果审计。两条合成题得到 1 对/1 错，仅为协议测试，**不是 BrowseComp 模型成绩**。记录：`outputs/reports/verification/official_benchmark_smoke/`。
+- 官方 v1/v2 生成脚本的 `--help`、新增入口的 dry-run、Python 编译、shell 语法和 diff 空白检查通过。
+
+未执行真实训练、真实 checkpoint 在线生成、GPU SGLang 部署、真实外部搜索/visit/E2B 或付费裁判。实际成绩需要训练后的 checkpoint、支持目标模型的服务环境、搜索/摘要/裁判 API 配置。native 的完整模型和真实工具联调仍待用户在目标环境执行；它的序列化、解码与预算差异在 [42](42_openseeker_benchmark.md) 中明确说明。
