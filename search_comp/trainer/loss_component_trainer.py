@@ -52,6 +52,11 @@ class LossComponentTrainer(Trainer):
         unwrapped = self.accelerator.unwrap_model(model)
         parts = getattr(unwrapped, LOSS_PARTS_ATTRIBUTE, None) if model.training else None
         if parts:
+            compression = getattr(unwrapped, "beacon_config", None)
+            ratio = getattr(unwrapped, "_last_compression_ratio", None)
+            if getattr(compression, "beacon_compression_mode", "fixed") == "random" and ratio is not None:
+                # 与损失分量分别留痕，避免把 ratio 混入模型的损失求和。
+                parts = {**parts, "compression_ratio_mean": next(iter(parts.values())).new_tensor(float(ratio))}
             for name, value in parts.items():
                 total = self._loss_part_totals.get(name)
                 self._loss_part_totals[name] = value if total is None else total + value

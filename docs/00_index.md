@@ -7,6 +7,7 @@
 | [11 长度口径](11_lengths.md) | 提供的分布文件与训练序列实测长度的区别 |
 | [20 Plain](20_plain.md) | 一键训练、测试与配置快照 |
 | [30 Beacon](30_beacon.md) | 压缩范围、损失、蒸馏与训练入口 |
+| [31 随机压缩](31_random_compression.md) | fixed/random 模式、候选数组、采样粒度与多卡行为 |
 | [40 评测](40_evaluation.md) | OpenSeeker 参考实现、答案提取、EM/F1 与工具后端 |
 | [41 HTML](41_html.md) | 数据与预测的离线浏览 |
 | [50 多卡](50_multigpu.md) | torchrun、DDP、ZeRO-2/3、每卡日志 |

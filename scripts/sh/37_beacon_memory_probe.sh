@@ -12,6 +12,11 @@ export DISTRIBUTED_BACKEND="${DISTRIBUTED_BACKEND:-zero2}"  # ddp / zero2；plai
 # export NPROC_PER_NODE=4
 ACTION="train"                       # train：生成新实验并训练；plan：只生成配置
 
+# ===== 压缩比：fixed 使用 BEACON_RATIO；random 每条训练轨迹均匀采样一次 =====
+COMPRESSION_MODE="fixed"               # fixed / random
+BEACON_RATIO=16                        # 固定训练，以及验证/生成使用的压缩比
+COMPRESSION_RATIOS=(8 16 32 64)        # random 的候选正整数数组，不重复
+
 source "$(dirname "${BASH_SOURCE[0]}")/00_common.sh"
 PY=$(resolve_python)
 if [[ "$ACTION" != "train" && "$ACTION" != "plan" ]]; then
@@ -93,6 +98,21 @@ evaluation:                         # 归档评测参数；本脚本只训练，
   max_tool_tokens: 16384
   max_turns: 32
 YAML
+
+# 将顶部压缩参数写入归档配置；在 plan/训练前校验所有候选。
+"$PY" - "$CONFIG_FILE" "$COMPRESSION_MODE" "$BEACON_RATIO" "${COMPRESSION_RATIOS[@]}" <<'PY'
+from pathlib import Path
+import sys
+import yaml
+from search_comp.models.beacon_config import BeaconConfig
+
+path, mode, ratio, *candidates = sys.argv[1:]
+spec = yaml.safe_load(Path(path).read_text())
+spec['beacon'].update(beacon_compression_mode=mode, beacon_ratio=int(ratio),
+                      beacon_compression_ratios=[int(value) for value in candidates])
+BeaconConfig.from_dict(spec['beacon'])
+Path(path).write_text(yaml.safe_dump(spec, sort_keys=False, allow_unicode=True))
+PY
 
 echo "[openseeker] Python: $PY"
 echo "[openseeker] GPU: $CUDA_VISIBLE_DEVICES; action: $ACTION"

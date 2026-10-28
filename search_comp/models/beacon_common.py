@@ -25,8 +25,10 @@ class BeaconMemory:
         self.reset()
 
     def reset(self):
+        self.compression_ratio = self.beacon.beacon_ratio
         self._pos = 0
         self._seg_idx = 0
+
         self._segments: List[Tuple[int, int, str]] = []
         self._cache = [(None, None) for _ in range(self.num_layers)]
         self._batch_loss = None
@@ -96,6 +98,11 @@ class BeaconMemory:
         if cursor < self._seq_len:
             self._segments.append((cursor, self._seq_len, "keep"))
         self._seg_idx = 0
+        # 一条训练轨迹只采样一次，所有 observation/chunk 复用同一个值。
+        self.compression_ratio = self.beacon.sample_compression_ratio(
+            training=self.model.training and labels is not None
+            and any(mode == "compress" for _, _, mode in self._segments)
+        )
 
     # ------------------------------------------------------------------
     def step(self):
@@ -123,7 +130,7 @@ class BeaconMemory:
         else:
             end = seg_end if self.beacon.beacon_information_mode == "whole" else min(start + window, seg_end)
             remaining = end - start
-            beacon_size = max(1, (remaining + self.beacon.beacon_ratio - 1) // self.beacon.beacon_ratio)
+            beacon_size = max(1, (remaining + self.compression_ratio - 1) // self.compression_ratio)
             store = "beacon"
 
         input_ids = self._input_ids[:, start:end]
@@ -152,7 +159,7 @@ class BeaconMemory:
             self._step_beacon_indices = None
 
         if beacon_size > 0 and self.beacon.beacon_pos == "intersect":
-            order = beacon_intersect_order(end - start, self.beacon.beacon_ratio, self._device)
+            order = beacon_intersect_order(end - start, self.compression_ratio, self._device)
             input_ids = input_ids[:, order]
             self._step_beacon_indices = self._step_beacon_indices[order]
             if labels is not None:
@@ -254,7 +261,7 @@ class BeaconMemory:
             return None
         beacon_rows = (is_beacon > 0).nonzero(as_tuple=True)[0]
 
-        ratio = self.beacon.beacon_ratio
+        ratio = self.compression_ratio
         tokens = self.beacon.beacon_continuation_tokens
         win_len = end - start
         if self.beacon.beacon_pos != "intersect" and win_len > ratio:
@@ -545,6 +552,7 @@ class BeaconCausalLMMixin:
         self._mem = self.memory_class(self, self.beacon_config)
         self._prepare_question(question_input_ids)
         self._mem.prepare(input_ids, labels, regions, loss_segment_ids)
+        self._last_compression_ratio = self._mem.compression_ratio
         if self.training and labels is not None and self.beacon_config.beacon_output_distill_weight > 0:
             if distill_positions is None:
                 raise ValueError("输出蒸馏训练需要 BeaconDistillationTrainer 提供 distill_positions")

@@ -7,3 +7,5 @@
 多卡使用 DDP 或 ZeRO-2。Beacon 动态分段和压缩训练不支持 ZeRO-3，launcher 会在启动前明确拒绝。CPU activation offload 默认保留；开启 teacher 蒸馏会增加内存和显存需求。
 
 评测用 `31_beacon_eval.sh`；多卡评测每个 GPU 加载一份模型，按样本索引分片，并恢复原始顺序汇总指标。`35_beacon_merge_adapter.sh` 保留适配器恢复合并入口，脚本顶部填写 TARGET 即可。`37_beacon_memory_probe.sh` 用于长样本短步数测试。本次没有运行真实模型训练或生成。
+
+随机压缩比通过顶部 `COMPRESSION_MODE="random"` 与 `COMPRESSION_RATIOS=(8 16 32 64)` 开启；默认 fixed。每条训练轨迹采样一次，验证/生成仍使用 `BEACON_RATIO`。配置、日志与多卡规则见 [31 随机压缩](31_random_compression.md)。

@@ -4,13 +4,13 @@
 
 | 项目 | 结果 | 证据 |
 |---|---|---|
-| 全量回归 | 443 passed、2 skipped、1 warning | `outputs/reports/verification/pytest.log` |
+| 全量回归 | 465 passed、2 skipped、1 warning | `outputs/reports/verification/random_compression_pytest.log` |
 | 跳过项 | 两项显式 GPU / 预训练模型 smoke | pytest 日志中列出具体位置 |
 | 警告 | tiny PEFT 模型保存时缺少基座 config 的既有提示 | pytest 日志 |
 | Python / shell | compileall 与全部 bash -n 通过 | 本次终端检查 |
 | Python 薄入口 | 13 个非 GPU 入口的 --help 导入和参数检查通过 | 本次终端检查；不执行 03 GPU 探针 |
 | 四卡计划 | Plain 与 Beacon 均生成 torchrun 4 进程、ZeRO-2 命令，支持仅训练集与空 validation | `outputs/reports/verification/plans.json`；使用临时数据，只执行 plan |
-| 核心保留 | 按用户要求精简重复配置后，保留源 search_comp/configs/tests 中 109 个文件，84 个逐字节一致；保留全部核心算法与测试 | `docs/90_core_inventory.json` |
+| 核心保留 | 按用户要求精简重复配置后，保留源 search_comp/configs/tests 中 109 个文件，77 个逐字节一致；保留全部核心算法与测试 | `docs/90_core_inventory.json` |
 | 原始数据迁移 | 4 个文件、6,763,061,538 bytes，源/目标 SHA256 全部一致 | `outputs/reports/verification/raw_copy.json` |
 | 快照语义校验 | 官方快照与可读 JSONL 的 11,677 个 JSON 对象逐条一致 | `outputs/reports/snapshot_verification.json` |
 | 协议移除 | 核心代码、脚本、配置、测试和维护文档无旧追加答案标签/配置/提取逻辑 | 本次全文检索 |
@@ -24,3 +24,11 @@ CUDA/NCCL、实际四卡训练、目标服务器 CPUAdam 编译、4B 模型显�
 另用真实默认数据生成了 Plain/Beacon 各一份四卡 ZeRO-2 配置计划，目录索引见 `outputs/reports/verification/actual_plans.json`。保留配置供审查，未执行其中的训练命令。临时 train-only 计划验证与实际数据计划在报告中分别记录。
 
 另已实际生成 `polar_memory_exact_65117`：1 条恰好 65,117 token 的 Correct、有 observation 训练样本，并验证长度精确相等；仅用于显存测试。
+
+## 随机压缩比训练验证
+
+新增 22 项随机压缩回归，完整测试现为 465 passed、2 skipped、1 warning。覆盖两种模型与 append/intersect 的随机/固定损失和梯度等价、实际缓存长度、候选校验、种子、推理固定、LoRA 日志和配置兼容。
+
+双进程 CPU/Gloo tiny 模型完成 2 个 optimizer steps、每步累积 2 个 micro-batch，实际采样到 2 和 4 两种比例；各 rank 结束后的 LoRA 参数逐位同步，checkpoint/final adapter 保存成功。日志及逐 rank 比例在 `outputs/reports/verification/random_compression_ddp.log` 与 `random_compression_ddp/ratios_rank*.json`。测试显式设置 ACCELERATE_USE_CPU=true 及空 GPU 可见列表；不加载真实模型权重，不在 GPU 上训练。
+
+30/37 两个一键入口均实际以 ACTION=plan、COMPRESSION_MODE=random、候选 [4,8,16] 生成四卡 ZeRO-2 命令与配置快照，未执行训练。索引见 `outputs/reports/verification/random_compression_plans.json`。当前默认仍为 fixed；正式切换只需修改脚本顶部变量。新增说明见 [31 随机压缩](31_random_compression.md)。

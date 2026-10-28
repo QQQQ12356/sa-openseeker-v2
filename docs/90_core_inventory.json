@@ -196,14 +196,14 @@
     {
       "path": "search_comp/models/beacon_common.py",
       "source_sha256": "b9edd9e00e369c7be8840161ab0d11808d60627de59615c7c20becde236090fa",
-      "current_sha256": "b9edd9e00e369c7be8840161ab0d11808d60627de59615c7c20becde236090fa",
-      "unchanged": true
+      "current_sha256": "0a3dc14cc939b6fa5c2d92c1641b6c5ecfb0c64612fa77b4d1d6dfd99475ea36",
+      "unchanged": false
     },
     {
       "path": "search_comp/models/beacon_config.py",
       "source_sha256": "2a52b8c69125bf50b29572b485d5f00e038e5246d5d0d90a21ac0d99f43d755a",
-      "current_sha256": "2a52b8c69125bf50b29572b485d5f00e038e5246d5d0d90a21ac0d99f43d755a",
-      "unchanged": true
+      "current_sha256": "74b216300c856c305c21e675091ff1c7d7c394f1d91a08df07b56542f16c41e4",
+      "unchanged": false
     },
     {
       "path": "search_comp/models/beacon_question_memory.py",
@@ -274,8 +274,8 @@
     {
       "path": "search_comp/trainer/loss_component_trainer.py",
       "source_sha256": "434e243309cf367703ac0ead2ab1e2d416fda9ab1ffcdb1ddf46bfd7cddd4cb0",
-      "current_sha256": "434e243309cf367703ac0ead2ab1e2d416fda9ab1ffcdb1ddf46bfd7cddd4cb0",
-      "unchanged": true
+      "current_sha256": "1dd9ed42f3c6938f9b17751de01332b02a8d0822b76c4bbfb2ec4d3ece2d1ecb",
+      "unchanged": false
     },
     {
       "path": "search_comp/trainer/merge_adapter.py",
@@ -340,26 +340,26 @@
     {
       "path": "configs/openseeker.yaml",
       "source_sha256": "68b0951ed542222dc8a9f56b8a111e4a1ffe4e2f84536c5f470a4f0d45962bad",
-      "current_sha256": "161e8ba06f615fef1c24320e7d01ee338945e4d6310628c3f7990210aa37983d",
+      "current_sha256": "9abb257c1312fec3e088d86a4bdbb611d33aeddc642ad3cebed17f998123f529",
       "unchanged": false
     },
     {
       "path": "configs/train/beacon_qwen35_whole_native_linear_searchr1.yaml",
       "source_sha256": "1b44a01cd9f11def3f220b880e55d6bade34f1cca0511a222ee7ea157dfb5b9a",
-      "current_sha256": "1b44a01cd9f11def3f220b880e55d6bade34f1cca0511a222ee7ea157dfb5b9a",
-      "unchanged": true
+      "current_sha256": "16eafa3b2ad5e69dfa0312f28ede2febbdf5689f6b09e5232087530c123a9014",
+      "unchanged": false
     },
     {
       "path": "configs/train/beacon_qwen35_whole_searchr1.yaml",
       "source_sha256": "5043dddf26ea10e2d8d645bb0b78d4294a36664b53ea93faf9b606baf4ba88cc",
-      "current_sha256": "5043dddf26ea10e2d8d645bb0b78d4294a36664b53ea93faf9b606baf4ba88cc",
-      "unchanged": true
+      "current_sha256": "72250a0c4d18911ddb259efa11811286082a96bb92d3af0becc0a9628e13cd4a",
+      "unchanged": false
     },
     {
       "path": "configs/train/beacon_qwen3_searchr1.yaml",
       "source_sha256": "1ea4b34b433024ad9c2baac033bdbb81095e9c94d3615f83b2fa110e5692b3d9",
-      "current_sha256": "1ea4b34b433024ad9c2baac033bdbb81095e9c94d3615f83b2fa110e5692b3d9",
-      "unchanged": true
+      "current_sha256": "f14f4e68ad70e18c5f1898f154624145f982fae45cd4c1cf53c53b89ab0d819e",
+      "unchanged": false
     },
     {
       "path": "configs/train/ds_config.json",
@@ -430,8 +430,8 @@
     {
       "path": "tests/helpers/distributed_training_worker.py",
       "source_sha256": "8c6a335bfafd52e7655d842b8506ad9c7c0edb108a5da633b6523149f2a4afd1",
-      "current_sha256": "8c6a335bfafd52e7655d842b8506ad9c7c0edb108a5da633b6523149f2a4afd1",
-      "unchanged": true
+      "current_sha256": "68739dae4558b6ed936ab052b61af175bf70ca44a28ddc9fd52c76929b2bb296",
+      "unchanged": false
     },
     {
       "path": "tests/html_report_client_test.js",

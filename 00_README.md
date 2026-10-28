@@ -25,4 +25,6 @@ bash scripts/sh/40_dataset_html.sh            # 离线查看数据
 
 目录分工：`search_comp/` 为核心实现，`search_comp/workflows/` 为可导入的流程实现，`scripts/sh/` 为编号的一键入口，`scripts/py/` 为编号的 Python 薄入口，`scripts/templates/` 为编号的 HTML 模板，`tests/` 为回归测试，`configs/` 为训练配置，`docs/` 为编号文档。
 
-本次已生成可用的默认数据（train/validation/test=644/9/11）、43 条约 64k 的显存测试数据和数据 HTML。已有输出无需重复生成，详情见 [数据说明](docs/10_data.md) 与 [验证记录](docs/99_validation.md)。全量回归为 **443 通过、2 项 GPU 专用测试跳过**。
+本次已生成可用的默认数据（train/validation/test=644/9/11）、43 条约 64k 的显存测试数据和数据 HTML。已有输出无需重复生成，详情见 [数据说明](docs/10_data.md) 与 [验证记录](docs/99_validation.md)。全量回归为 **465 通过、2 项 GPU 专用测试跳过**。
+
+Beacon 训练支持固定/随机压缩比：修改 `30_beacon_train.sh` 的 `COMPRESSION_MODE`、`BEACON_RATIO` 和 `COMPRESSION_RATIOS` 即可，详见 [31 随机压缩说明](docs/31_random_compression.md)。默认保持固定压缩。

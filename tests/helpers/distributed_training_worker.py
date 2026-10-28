@@ -10,7 +10,7 @@ import torch
 from peft import LoraConfig, get_peft_model
 from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
-from transformers import PreTrainedTokenizerFast, Qwen3_5ForCausalLM, Trainer, TrainingArguments
+from transformers import PreTrainedTokenizerFast, Qwen3_5ForCausalLM, Trainer, TrainerCallback, TrainingArguments
 
 from test_beacon_qwen35_linear_memory import _tiny_model, modeling_qwen3_5
 from search_comp.trainer.beacon_distillation_trainer import BeaconDistillationTrainer
@@ -21,6 +21,7 @@ from search_comp.utils.distributed import setup_training
 
 def main():
     output, kind = sys.argv[1:]
+    is_beacon = kind in ("beacon", "beacon_random")
     setup_training({})
     torch.manual_seed(42)
     model = _tiny_model()
@@ -36,6 +37,10 @@ def main():
         cfg.beacon_attention_backend = "sdpa"
         cfg.beacon_output_distill_weight = 0
         cfg.beacon_readout_distill_weight = 0
+        if kind == "beacon_random":
+            cfg.beacon_compression_mode = "random"
+            cfg.beacon_compression_ratios = [2, 4]
+            cfg.__post_init__()
         model.set_beacon_config(cfg)
     model = get_peft_model(model, LoraConfig(r=2, target_modules=["q_proj", "v_proj"]))
     for name, param in model.named_parameters():
@@ -50,7 +55,7 @@ def main():
     for index in range(8):
         ids = torch.arange(10, 22 + index % 3)
         row = dict(input_ids=ids, labels=ids.clone())
-        if kind == "beacon":
+        if is_beacon:
             # Different ranks exercise different numbers of keep/compress segments.
             row["regions"] = [(2, 6)] if index % 2 else [(2, 5), (7, 10)]
         dataset.append(row)
@@ -68,10 +73,27 @@ def main():
         gradient_checkpointing=kind == "plain", gradient_checkpointing_kwargs={"use_reentrant": False},
         disable_tqdm=True,
     )
-    callbacks = [JsonlMetricsCallback(output)]
-    if kind == "beacon":
+    class RatioTrace(TrainerCallback):
+        def __init__(self):
+            self.ratios = []
+
+        def on_substep_end(self, args, state, control, **kwargs):
+            if kind == "beacon_random":
+                self.ratios.append(model._last_compression_ratio)
+
+        on_step_end = on_substep_end
+
+        def on_train_end(self, args, state, control, **kwargs):
+            if kind == "beacon_random":
+                import json
+                rank = torch.distributed.get_rank()
+                assert len(self.ratios) == 4 and set(self.ratios) <= {2, 4}
+                (Path(output) / f"ratios_rank{rank}.json").write_text(json.dumps(self.ratios))
+
+    callbacks = [JsonlMetricsCallback(output), RatioTrace()]
+    if is_beacon:
         callbacks.append(_SaveBeaconCheckpoints(output, 1, model, tokenizer, True, 2))
-    cls = BeaconDistillationTrainer if kind == "beacon" else Trainer
+    cls = BeaconDistillationTrainer if is_beacon else Trainer
     trainer = cls(model=model, args=args, train_dataset=dataset, data_collator=collate,
                   callbacks=callbacks, processing_class=tokenizer)
     for callback in callbacks:
@@ -89,4 +111,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with patch.multiple(modeling_qwen3_5, chunk_gated_delta_rule=None,
+                        fused_recurrent_gated_delta_rule=None,
+                        causal_conv1d_fn=None, FusedRMSNormGated=None):
+        main()

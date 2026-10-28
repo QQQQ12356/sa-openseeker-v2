@@ -58,6 +58,8 @@ beacon:
   beacon_continuation_tokens: 4
   beacon_continuation_per_beacon: false
   beacon_ratio: 16
+  beacon_compression_mode: fixed     # fixed / random；仅训练前向随机
+  beacon_compression_ratios: [8, 16, 32, 64]
   beacon_keep_window: 0
   beacon_window_enabled: false
   beacon_param: q k v

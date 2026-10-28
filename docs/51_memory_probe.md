@@ -13,3 +13,5 @@
 CUDA 诊断由公共回调完成：开始训练时重置分配器峰值，每步记录，结束再记录。它统计 PyTorch allocator，不包含全部 NCCL/驱动/其他进程显存；OOM 发生在第一步之前可能没有 step 记录，此时保留异常日志并结合 nvidia-smi。模型加载期峰值不在重置后的训练峰值中。通过几步训练不能证明整个数据集或全部压缩配置都可稳定运行。
 
 要更换 32k/64k/128k：同时修改 12 的 MIN/MAX/EXACT、OUTPUT、26/37 的 dataset 与 max_length，输出目录使用新名称，不覆盖历史实验。多卡行为和 backend 限制见 50。
+
+随机压缩训练可在 37 顶部设置 `COMPRESSION_MODE` / `COMPRESSION_RATIOS`。显存上限测试应先 fixed 使用最小候选比例，再测试 random；短步数随机采样不保证覆盖最坏比例。详见 [31 随机压缩](31_random_compression.md)。

@@ -10,7 +10,7 @@ Activation Beacon (https://arxiv.org/abs/2401.03462)。
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace
 from typing import Any, Dict, Optional
 
 from ..loss_segments import LossSegmentConfig, field_default
@@ -36,6 +36,9 @@ class BeaconConfig:
     beacon_window_enabled: bool = True
     #: 压缩率：每多少个原始 token 生成 1 个 beacon。例：64 表示每 64 token -> 1 beacon
     beacon_ratio: int = 64
+    #: fixed 沿用 beacon_ratio；random 在每次训练样本前向时均匀采样一个候选。
+    beacon_compression_mode: str = "fixed"
+    beacon_compression_ratios: list[int] = field(default_factory=lambda: [8, 16, 32, 64])
     #: beacon 的注意力模式。full-coverage 因果地覆盖当前 chunk 中此前的 token
     beacon_attn: str = "full-coverage"
     #: full-attention 算子；sdpa 避免显式保存按头展开的注意力矩阵。
@@ -122,6 +125,14 @@ class BeaconConfig:
 
     def __post_init__(self) -> None:
         """校验参数合法性。"""
+        if self.beacon_compression_mode not in ("fixed", "random"):
+            raise ValueError("beacon_compression_mode 必须为 fixed 或 random")
+        ratios = self.beacon_compression_ratios
+        if (not isinstance(ratios, list) or not ratios
+                or any(type(ratio) is not int or ratio <= 0 for ratio in ratios)):
+            raise ValueError("beacon_compression_ratios 必须为非空正整数数组")
+        if len(set(ratios)) != len(ratios):
+            raise ValueError("beacon_compression_ratios 不允许重复值")
         if not isinstance(self.beacon_preserve_native_linear_state, bool):
             raise ValueError("beacon_preserve_native_linear_state 必须为 bool")
         if not isinstance(self.beacon_window_enabled, bool):
@@ -213,6 +224,18 @@ class BeaconConfig:
         # 允许直接传 dict（如从 YAML 构造）时自动转成配置对象
         if not isinstance(self.loss_segments, LossSegmentConfig):
             self.loss_segments = LossSegmentConfig.from_dict(self.loss_segments)
+        if self.enable_beacon and self.beacon_compression_mode == "random":
+            # 对每个候选复用固定模式的完整校验，防止采到非法窗口/续写布局。
+            for ratio in ratios:
+                replace(self, beacon_compression_mode="fixed", beacon_ratio=ratio)
+
+    def sample_compression_ratio(self, training: bool = False) -> int:
+        """只在训练时采样，不修改固定配置；使用受 torch seed 控制的 CPU RNG。"""
+        if not training or self.beacon_compression_mode == "fixed":
+            return self.beacon_ratio
+        import torch
+        index = int(torch.randint(len(self.beacon_compression_ratios), (), device="cpu"))
+        return self.beacon_compression_ratios[index]
 
     # ------------------------------------------------------------------
     # 序列化 / 反序列化
@@ -252,9 +275,14 @@ class BeaconConfig:
             keep = "整段不切"
         else:
             keep = str(self.beacon_keep_window)
+        compression = (
+            f"compression_mode={self.beacon_compression_mode}；"
+            f"训练候选={self.beacon_compression_ratios}；验证/生成ratio={self.beacon_ratio}；"
+            if self.beacon_compression_mode == "random" else "compression_mode=fixed；"
+        )
         if self.beacon_information_mode == "whole":
             loss = self.beacon_information_loss is not False and self.beacon_continuation_loss_weight > 0
-            return (f"每个 <information> 整段一次前向；pos={self.beacon_pos}；"
+            return (compression + f"每个 <information> 整段一次前向；pos={self.beacon_pos}；"
                     f"ratio={self.beacon_ratio}；beacon数=ceil(段长/ratio)；"
                     f"窗口参数={'启用' if self.beacon_window_enabled else '暂停'}；keep_window={keep}；"
                     f"information 因果续写损失={'开启' if loss else '关闭'}；"
@@ -274,7 +302,7 @@ class BeaconConfig:
             # 窗头监督只在 append 布局产生（见 beacon_qwen3._build_cont_labels）；
             # 这里必须如实报告「权重设了但不会生效」，否则打印反而掩盖 train/eval 漂移。
             continuation = "续写监督=关闭（intersect 不产生窗头监督）"
-        return (
+        return (compression +
             f"{blocks}；window={self.beacon_window} stride={self.beacon_stride} "
             f"ratio={self.beacon_ratio} → 每窗 {self.beacon_size_per_window} 个 beacon；"
             f"keep_window={keep}；{continuation}；"

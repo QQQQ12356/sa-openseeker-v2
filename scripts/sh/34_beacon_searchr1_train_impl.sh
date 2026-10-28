@@ -33,7 +33,17 @@ if [[ $# -gt 0 ]]; then shift; fi
 # DOC_REGION_SPLIT: true/false，whole 必须 false；window 可按子文档拆区。
 # WINDOW_ENABLED: false 暂停旧窗口参数（需 whole），true 恢复。
 # BEACON_RATIO / BEACON_WINDOW / BEACON_STRIDE: 压缩率 / 历史模式窗口大小。
+# 修改后可直接运行；32 入口也会委托本脚本。
+COMPRESSION_MODE="${COMPRESSION_MODE:-}"  # 空：沿用 YAML；或 fixed / random
+COMPRESSION_RATIOS=()                     # 空：沿用 YAML；例如 (8 16 32 64)
 BEACON_OVERRIDES=()
+if [[ -n "$COMPRESSION_MODE" ]]; then
+  BEACON_OVERRIDES+=(--set "beacon.beacon_compression_mode=$COMPRESSION_MODE")
+fi
+if [[ ${#COMPRESSION_RATIOS[@]} -gt 0 ]]; then
+  COMPRESSION_RATIOS_JSON=$(IFS=,; printf '[%s]' "${COMPRESSION_RATIOS[*]}")
+  BEACON_OVERRIDES+=(--set "beacon.beacon_compression_ratios=$COMPRESSION_RATIOS_JSON")
+fi
 # SHUFFLE_TRAIN_DATA=true 随机打乱，false 按 JSONL 原始顺序。
 for pair in 'MODEL_NAME_OR_PATH:model_name_or_path' \
             'DISTILL_TEACHER_MODEL_NAME_OR_PATH:distill_teacher_model_name_or_path' \
