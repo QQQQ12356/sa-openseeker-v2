@@ -106,7 +106,7 @@ ACTION=download bash scripts/sh/57_hotpotqa_offline.sh \
    md5sum enwiki-20171001-pages-meta-current-withlinks-abstracts.tar.bz2
    ```
 
-   应输出 `01edf64cd120ecc03a2745352779514c`。该校验值及文件大小来自 [HotpotQA 官方语料说明](https://hotpotqa.github.io/wiki-readme.html)。当前没有确认可直接替代该压缩包的国内镜像；请在能访问官方地址的机器下载。不要使用完整 processed 页面包或其他 Wikipedia 版本代替。
+   应输出 `01edf64cd120ecc03a2745352779514c`。该校验值及文件大小来自 [HotpotQA 官方语料说明](https://hotpotqa.github.io/wiki-readme.html)。如果无法下载该压缩包，可以尝试下面的 Hugging Face 第三方副本方案。
 
 在服务器项目根目录创建接收目录，将两个文件传入并使用下面的名称。传输工具可用 SCP、SFTP 或文件管理器；不需要解压摘要包：
 
@@ -146,6 +146,45 @@ PY
 传输后，在服务器项目根目录确认 `md5sum outputs/data/benchmarks/hotpotqa/raw/wiki-abstracts.tar.bz2` 与上述官方值一致，再运行 `ACTION=download bash scripts/sh/57_hotpotqa_offline.sh`。两个默认文件均存在时，此步骤复用本地文件、检查摘要包 MD5，并写入 `assets.json`，不重新下载。随后按下一节执行 prepare 和 index。
 
 使用 HF Parquet 转换时，为避免把来源误记成 CMU JSON，可在该 download 命令末尾追加 `--dev-url https://huggingface.co/datasets/hotpotqa/hotpot_qa/resolve/main/fullwiki/validation-00000-of-00001.parquet`；转换时使用的 revision 和文件来源应另行记录。自定义 `ROOT_DIR` 时，将以上 `outputs/data/benchmarks/hotpotqa` 同步替换为所选目录。
+
+#### 摘要语料备用方案：Hugging Face 第三方副本
+
+如果 Stanford 地址无法访问，可尝试 [LovinYou/enwiki-20171001-pages-meta-current-withlinks-abstracts](https://huggingface.co/datasets/LovinYou/enwiki-20171001-pages-meta-current-withlinks-abstracts/tree/dd8699459339f9a9c9fd4e4d47d181fb70392ce6) 的第三方整理文件：
+
+[下载 enwiki-20171001-pages-meta-current-withlinks-abstracts.tsv](https://huggingface.co/datasets/LovinYou/enwiki-20171001-pages-meta-current-withlinks-abstracts/resolve/dd8699459339f9a9c9fd4e4d47d181fb70392ce6/enwiki-20171001-pages-meta-current-withlinks-abstracts.tsv)
+
+该文件约 **11.5 GB**，与官方的 1.55 GB 压缩包不是同一个文件。文件虽然以 `.tsv` 命名，已检查的开头 310 条实际为逐行 JSON，包含项目要求的 `id`、`title`、`url` 和 `text`；项目的本地读取器可按 JSONL 读取这些记录。仅检查了开头样本，**没有下载全文件或验证全部条目与官方包逐条一致**。不需要下载同仓库的 21.4 GB 向量索引。
+
+可以在能访问 Hugging Face 的机器上用浏览器下载上面的文件，也可通过 Hugging Face CLI 只下载该文件；下面固定仓库 revision，便于复现：
+
+```bash
+hf download LovinYou/enwiki-20171001-pages-meta-current-withlinks-abstracts \
+  enwiki-20171001-pages-meta-current-withlinks-abstracts.tsv \
+  --repo-type dataset \
+  --revision dd8699459339f9a9c9fd4e4d47d181fb70392ce6 \
+  --local-dir ./hotpot-wiki-hf
+```
+
+如果从下载机器使用 HF-Mirror，可在上面命令前设置 `HF_ENDPOINT=https://hf-mirror.com`；镜像可用性与下载速度取决于当地网络。下载后用 `sha256sum` 记录完整文件摘要，传输到服务器后再算一次并比较，确认传输前后一致；该摘要不等同于官方压缩包的 MD5。下载方须按来源及原始 Wikipedia 许可使用数据；官方摘要语料的许可说明见 [HotpotQA 官方页面](https://hotpotqa.github.io/wiki-readme.html)。
+
+把文件传到服务器，例如 `/data/hotpot-wiki/enwiki-20171001-pages-meta-current-withlinks-abstracts.tsv`，同时准备上一节所述的验证集。在项目根目录执行：
+
+```bash
+# 仅安装项目随附的官方评测代码，不下载 Stanford 语料。
+ACTION=download OFFICIAL_ONLY=1 bash scripts/sh/57_hotpotqa_offline.sh
+
+# DATA 可指向上一节下载的 validation Parquet 或转换后的 dev JSON。
+ACTION=prepare \
+  DATA=/data/hotpot/validation-00000-of-00001.parquet \
+  CORPUS=/data/hotpot-wiki/enwiki-20171001-pages-meta-current-withlinks-abstracts.tsv \
+  bash scripts/sh/57_hotpotqa_offline.sh
+
+ACTION=index bash scripts/sh/57_hotpotqa_offline.sh
+```
+
+将示例 `DATA`、`CORPUS` 替换为服务器实际绝对路径；保存验证集 Parquet 时不需要转换成 JSON。后续使用 `ACTION=all` 时继续指定同样的 `DATA` 和 `CORPUS` 路径。prepare 会流式读取语料，并在 `prepared/manifest.json` 记录文件 SHA256、文档数和来源路径；文件、规范化语料及 SQLite/FTS 索引需要另外的磁盘空间。
+
+此副本不具有官方压缩包的原始 MD5，因此项目会标记为 **custom/subset corpus**，即使下载了完整文件也不会自动认定为官方固定语料。不要改 manifest 去除该标记；比较实验应使用同一份语料及索引，并记录上述 revision、SHA256 和实际文档数。
 
 ### 43.4.2 断网机器：规范化与构建一次，后续复用
 
