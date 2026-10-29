@@ -95,6 +95,58 @@ ACTION=download bash scripts/sh/57_hotpotqa_offline.sh \
 
 上述 example 域名不可直接使用。也可在其他机器手动下载，将文件放到默认 raw 路径。若希望在这种手动下载方式下记录官方完整语料身份，再执行 download 会复用已有文件并校验/登记，不会重复下载。
 
+#### 在其他机器下载并传到服务器
+
+需要两个文件，可以在浏览器中打开链接下载：
+
+1. **验证集**： [官方 fullwiki dev JSON](https://curtis.ml.cmu.edu/datasets/hotpot/hotpot_dev_fullwiki_v1.json)。CMU 历史地址可能无法访问；此时下载 [Hugging Face fullwiki validation Parquet](https://huggingface.co/datasets/hotpotqa/hotpot_qa/resolve/main/fullwiki/validation-00000-of-00001.parquet)，见下方转换步骤。不要下载 test 或 distractor。
+2. **Wikipedia 摘要语料**：[官方 abstracts 压缩包](https://nlp.stanford.edu/projects/hotpotqa/enwiki-20171001-pages-meta-current-withlinks-abstracts.tar.bz2)，约 1.55 GB。下载完成后在下载机器上执行：
+
+   ```bash
+   md5sum enwiki-20171001-pages-meta-current-withlinks-abstracts.tar.bz2
+   ```
+
+   应输出 `01edf64cd120ecc03a2745352779514c`。该校验值及文件大小来自 [HotpotQA 官方语料说明](https://hotpotqa.github.io/wiki-readme.html)。当前没有确认可直接替代该压缩包的国内镜像；请在能访问官方地址的机器下载。不要使用完整 processed 页面包或其他 Wikipedia 版本代替。
+
+在服务器项目根目录创建接收目录，将两个文件传入并使用下面的名称。传输工具可用 SCP、SFTP 或文件管理器；不需要解压摘要包：
+
+```text
+outputs/data/benchmarks/hotpotqa/raw/
+├── hotpot_dev_fullwiki_v1.json  # 官方 dev JSON，或由下方 Parquet 转换生成
+└── wiki-abstracts.tar.bz2      # 下载的 abstracts 包，重命名
+```
+
+如果下载的是 HF 的 Parquet，将它传到服务器上任意位置，在项目根目录用训练环境的 Python 执行下面命令；将 `validation-00000-of-00001.parquet` 替换成传入文件的实际路径。脚本复用项目的 Parquet 读取器，提取下载流程使用的字段，生成默认路径的 JSON，不使用 Parquet 中的 context 作为检索库：
+
+```bash
+python - /path/to/validation-00000-of-00001.parquet <<'PY'
+import json
+import sys
+from pathlib import Path
+from search_comp.offline.data import records
+
+source = Path(sys.argv[1])
+target = Path('outputs/data/benchmarks/hotpotqa/raw/hotpot_dev_fullwiki_v1.json')
+target.parent.mkdir(parents=True, exist_ok=True)
+rows = []
+for item in records(source):
+    facts = item['supporting_facts']
+    if isinstance(facts, dict):
+        facts = list(map(list, zip(facts['title'], facts['sent_id'])))
+    rows.append({'_id': item['id'], 'question': item['question'],
+                 'answer': item['answer'], 'supporting_facts': facts})
+if len(rows) != 7405:
+    raise ValueError(f'预期 7405 条 validation，实际 {len(rows)} 条：请检查输入文件')
+with target.open('x', encoding='utf-8') as out:
+    json.dump(rows, out, ensure_ascii=False)
+print(f'已生成 {target}，共 {len(rows)} 条')
+PY
+```
+
+传输后，在服务器项目根目录确认 `md5sum outputs/data/benchmarks/hotpotqa/raw/wiki-abstracts.tar.bz2` 与上述官方值一致，再运行 `ACTION=download bash scripts/sh/57_hotpotqa_offline.sh`。两个默认文件均存在时，此步骤复用本地文件、检查摘要包 MD5，并写入 `assets.json`，不重新下载。随后按下一节执行 prepare 和 index。
+
+使用 HF Parquet 转换时，为避免把来源误记成 CMU JSON，可在该 download 命令末尾追加 `--dev-url https://huggingface.co/datasets/hotpotqa/hotpot_qa/resolve/main/fullwiki/validation-00000-of-00001.parquet`；转换时使用的 revision 和文件来源应另行记录。自定义 `ROOT_DIR` 时，将以上 `outputs/data/benchmarks/hotpotqa` 同步替换为所选目录。
+
 ### 43.4.2 断网机器：规范化与构建一次，后续复用
 
 ```bash
