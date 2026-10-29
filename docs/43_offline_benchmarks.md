@@ -63,7 +63,7 @@ PY
 
 56/57 使用现有 `00_common.sh`：设置 PYTHON 的可执行绝对路径优先，其次 CONDA_ENV，默认 `search-comp-qwen3.5`，否则当前 Python。注意脚本不会自动安装依赖。
 
-本地模型目录需要完整的 config、tokenizer、权重分片与索引文件，不能只有一个指向在线模型的名称。BrowseComp-Plus 官方裁判 Qwen3-32B 的 BF16 权重本身约为 64 GB 量级，还需考虑 KV cache 和运行开销；本实现通过 Transformers `device_map=auto` 分配可见 GPU，不能把训练时的 torchrun 配置当成裁判的张量并行参数。
+本地模型目录需要完整的 config、tokenizer、权重分片与索引文件，不能只有一个指向在线模型的名称。BrowseComp-Plus 官方裁判 Qwen3-32B 的 BF16 权重本身约为 64 GB 量级，还需考虑 KV cache 和运行开销；裁判通过 Transformers `device_map="auto"` 分配可见 GPU；这是权重按层派发，不是张量并行。Beacon 待测模型的加载行为不同，详见 43.7.4，不能把训练时的 torchrun 配置当成推理参数。
 
 准备下载用的机器需要网络，**prepare / index / run / score / all 均不下载**。这些动作会设置 HF/Transformers offline 环境，并通过 Python audit hook 拒绝 IP socket connect 和 DNS 解析；本流程不使用本地 HTTP 服务，因此也不依赖 localhost API。先下载，再拷贝目录和模型到断网计算节点即可。
 
@@ -319,7 +319,20 @@ ACTION=index ROOT_DIR=/scratch/hotpot_v1 bash scripts/sh/57_hotpotqa_offline.sh
 
 ## 43.7 参数表与修改提示
 
-参数既可修改 56/57 顶部，也可通过同名环境变量覆盖。58 是共享参数转换层，正常使用无需编辑。额外 Python 参数可放在 shell 命令末尾，例如 `--verify-index`。
+参数既可修改 56/57 顶部，也可通过同名环境变量覆盖。58 是共享参数转换层，正常使用无需编辑。额外 Python 参数可放在 shell 命令末尾，例如 `--verify-index`。以下三张参数表覆盖 `56_browsecomp_plus.sh` 顶部全部可配置变量；脚本中的 `BENCHMARK="browsecomp-plus"` 是固定基准标识，不应修改为其他基准。
+
+56 的 `ACTION` 决定实际执行哪些阶段；表中其他参数只在对应阶段生效：
+
+| ACTION | 操作 | 主要输入 |
+|---|---|---|
+| download | 下载原始数据并安装官方参考文件；`OFFICIAL_ONLY=1` 时只安装参考文件 | ROOT_DIR、OFFICIAL_ONLY |
+| prepare | 解密/规范化问题，导入独立语料，写 prepared；不建索引 | DATA、CORPUS、DECRYPTED、CORPUS_LIMIT |
+| index | 从 prepared/corpus.jsonl 构建持久化 BM25 索引 | ROOT_DIR、TITLE_WEIGHT |
+| run | 用待测模型逐题生成 predictions.jsonl；无需裁判 | RUN_DIR 或 MODEL_PATH、检索与生成预算、LIMIT |
+| score | 对已有预测评分；不加载待测模型 | PREDICTIONS、JUDGE_MODEL 或 RETRIEVAL_ONLY、LIMIT |
+| all（默认） | prepare → index → run → score；复用已完成且配置一致的 prepared/index | 待测模型及完整评分所需的裁判；不包含 download |
+
+例如，只想测试 Beacon 能否正常生成时使用 `ACTION=run LIMIT=2`；默认 `ACTION=all` 的完整答案评分需要 `JUDGE_MODEL`。所有 0/1 开关中，0 表示关闭，1 表示开启；数值预算须为正数，只有 `LIMIT=-1` 表示全量。
 
 ### 43.7.1 通用环境和阶段
 
@@ -328,14 +341,15 @@ ACTION=index ROOT_DIR=/scratch/hotpot_v1 bash scripts/sh/57_hotpotqa_offline.sh
 | ACTION | all | 首个位置参数 | download 是唯一允许联网阶段；prepare/index 不加载模型；run 不评分；score 不加载待测模型 |
 | ROOT_DIR | outputs/data/benchmarks/<基准> | --root | 每个数据/索引版本一个目录；两套基准不要共用 |
 | PYTHON / CONDA_ENV | 空 / search-comp-qwen3.5 | shell 解释器选择 | 使用目标训练环境，路径支持空格 |
-| CUDA_VISIBLE_DEVICES | 0 | CUDA 环境 | 单进程 device_map=auto；不是每卡一个样本 worker，不使用 torchrun |
-| RUN_DIR | 空 | --run-dir | 训练实验目录，读取最终 checkpoint，不把训练集 test 当作本基准 |
-| MODEL_PATH / KIND | 空 / 自动 | --model / --kind | 模型路径可覆盖 RUN_DIR；KIND 为 plain/beacon |
+| CUDA_VISIBLE_DEVICES | 0 | CUDA 环境 | NUM_WORKERS>1 时，每个 worker 绑定其中一张 GPU；单 worker 的 Beacon 放首张可见卡，Plain/裁判可自动分配权重 |
+| NUM_WORKERS | 1 | --num-workers | run/all 生成时的模型副本数，正整数且不超过显式列出的互异可见 GPU 数；按题并行，LIMIT 是总题数，见 43.7.4 |
+| RUN_DIR | 空 | --run-dir | 训练实验目录；从 models/model/train_summary.json 的 final_model_path 定位最终模型，实验配置用于识别 KIND |
+| MODEL_PATH / KIND | 空 / 自动 | --model / --kind | MODEL_PATH 为本地完整且已合并 LoRA 的 checkpoint，覆盖 RUN_DIR 中的模型路径；KIND 为 plain/beacon，留空先查实验配置、再查模型 enable_beacon |
 | DATA / CORPUS | 空，按 root 自动定位 | --data / --corpus | 新数据应换 ROOT_DIR；prepare 不能把 dev context 当 corpus |
 | DECRYPTED（仅 BCP） | 0 | --decrypted | 明文 BCP 问题必须设 1；Hotpot 不使用此参数 |
 | OFFICIAL_ONLY | 0 | --official-only | 仅 ACTION=download 有效；只安装随代码附带的参考文件，不下载数据 |
 | CORPUS_LIMIT | 空 | --corpus-limit | 测索引流程时取前 N 文档，强制标注子集；不要据此报告正式 benchmark |
-| OUTPUT_DIR | 新时间戳目录 | --output-dir | 已存在就拒绝；RUN_DIR 非空时默认落到实验 evaluation 下 |
+| OUTPUT_DIR | 新时间戳目录 | --output-dir | run/score/all 的本次结果目录，已存在就拒绝；默认 RUN_DIR/evaluation/offline_<基准>_<时间戳>，无 RUN_DIR 则在 outputs/results 下 |
 | PREDICTIONS | 空 | --predictions | score 必填；规范格式见 43.9 |
 | LIMIT | -1 | --limit | -1 全量，正数前 N 题；与 corpus limit 是两个独立维度 |
 | DRY_RUN | 0 | --dry-run | 只打印解析后的参数，不检查模型/数据可用性，不创建文件 |
@@ -360,6 +374,8 @@ ACTION=index ROOT_DIR=/scratch/hotpot_v1 bash scripts/sh/57_hotpotqa_offline.sh
 
 SQLite FTS5 的 BM25 使用固定 k1=1.2、b=0.75，分词为 `unicode61 remove_diacritics 2`；不能用 TITLE_WEIGHT 改变 k1/b。查询词按 OR 检索，每个 query 最多 128 个去重词，字面化处理 FTS 运算符；同分按文档插入 rowid 稳定排序。不是 Elasticsearch，也没有后台 daemon；index.sqlite 同时存储原文与倒排索引，不用 pickle 加载整个 corpus。
 
+这些预算独立生效：`TOPK=5 SNIPPET_TOKENS=512` 表示每个 query 最多返回 5 篇、每篇正文最多 512 token；若一次 search 含 2 个 query，正文预算合计可达 5120 token，还需加标题、URL 和包装。`MAX_TOOL_TOKENS` 再限制每条完整工具回复，`MAX_CONTEXT` 限制累计历史；增加前者不会自动增加后者。`MAX_NEW_TOKENS` 是每轮上限，整题可能生成多轮，不是整题总生成量。Beacon 压缩比从 checkpoint 配置读取，56 没有单独的压缩比参数；`MAX_CONTEXT` 也不等于压缩比或物理 KV 长度。
+
 一个 search 最多接受 16 个 query；一次 visit 最多 16 篇文档。搜索结果包含 docid、title、local URL、source URL 和正文片段；visit 只允许 local://，不会沿 source_url 访问网站。Hotpot 正文展示 `[0] sentence` 等零基编号。截断发生在明确的正文预算处，不会补参考答案，也不反向挑选 gold 证据；若拼接后的整条工具回复仍超过 MAX_TOOL_TOKENS，现有 Agent 会标为 tool_budget，不会继续偷偷裁剪。
 
 ### 43.7.3 BrowseComp-Plus 本地裁判
@@ -378,6 +394,56 @@ SQLite FTS5 的 BM25 使用固定 k1=1.2、b=0.75，分词为 `unicode61 remove_
 对应 Python 参数为 `--judge-model`、`--retrieval-only`、`--judge-max-tokens`、`--judge-max-context`、`--judge-temperature`、`--judge-top-p`、`--judge-top-k`、`--seed`。官方使用 vLLM，本实现使用 Transformers，本地模型的默认 chat template / thinking 行为被保留；prompt、parser 与默认 temperature/top_p/top_k/max_output_tokens 对齐，但不同引擎或随机数实现不保证逐 token 一致。替换成更小裁判可用于资源受限测试，必须在报告中注明，不能视为官方 Qwen3-32B 裁判成绩。
 
 Hotpot 不需要这些参数；裁判大模型只影响 BCP。完整 Hotpot EM/F1 计算不使用任何 API 或辅助生成模型。
+
+### 43.7.4 Beacon 多卡测试：56 与 31 的能力不同
+
+56/57 现在支持 `NUM_WORKERS`：每张 GPU 加载一份完整 Plain/Beacon 模型，按题并行。31 使用相同的每卡副本方式，但面向原有 OpenSeeker EM/F1；56 保留 BrowseComp-Plus 固定语料、检索协议和官方裁判口径。
+
+| 设置/阶段 | 多卡行为 |
+|---|---|
+| NUM_WORKERS=1（默认） | 单进程逐题生成；Beacon 完整模型放首张可见卡，Plain 可通过 device_map=auto 分配权重 |
+| NUM_WORKERS>1，run/all | 每个 worker 只看到一张 GPU；先选前 LIMIT 题，再按样本索引取模分片，结束后按原顺序合并 |
+| score 或 all 的评分阶段 | 父进程在所有生成 worker 退出后加载本地裁判；裁判通过 device_map=auto 在父进程的可见 GPU 上分配权重，逐题判决 |
+| prepare/index/download | 由主进程执行一次，不因 NUM_WORKERS 重复构建 |
+
+以下假设已完成 prepare/index；将模型路径和结果目录换为实际路径，每次使用新的 OUTPUT_DIR：
+
+```bash
+# 先检查四卡配置；不加载模型、不创建文件，也不检查 GPU 硬件是否存在。
+ACTION=run DRY_RUN=1 CUDA_VISIBLE_DEVICES=0,1,2,3 NUM_WORKERS=4 \
+MODEL_PATH=/models/beacon-merged KIND=beacon LIMIT=8 \
+  bash scripts/sh/56_browsecomp_plus.sh
+
+# 四卡并行生成，总共前 8 题，每卡 2 题。
+ACTION=run CUDA_VISIBLE_DEVICES=0,1,2,3 NUM_WORKERS=4 \
+MODEL_PATH=/models/beacon-merged KIND=beacon LIMIT=8 \
+OUTPUT_DIR=outputs/results/bcp_beacon_4gpu_001 \
+  bash scripts/sh/56_browsecomp_plus.sh
+
+# 所有生成 worker 已退出；独立加载裁判，LIMIT 与生成一致。
+ACTION=score CUDA_VISIBLE_DEVICES=0,1,2,3 LIMIT=8 \
+PREDICTIONS=outputs/results/bcp_beacon_4gpu_001/predictions.jsonl \
+JUDGE_MODEL=/models/Qwen3-32B \
+OUTPUT_DIR=outputs/results/bcp_beacon_score_001 \
+  bash scripts/sh/56_browsecomp_plus.sh
+
+# 也可一次完成生成和评分；已有 prepared/index 会复用。
+ACTION=all CUDA_VISIBLE_DEVICES=0,1,2,3 NUM_WORKERS=4 \
+RUN_DIR=outputs/experiments/your-beacon-run LIMIT=-1 \
+JUDGE_MODEL=/models/Qwen3-32B \
+OUTPUT_DIR=outputs/results/bcp_beacon_full_001 \
+  bash scripts/sh/56_browsecomp_plus.sh
+```
+
+自备明文问题先前用 `DECRYPTED=1` prepare 时，all 也须传相同的 `DECRYPTED=1` 等准备参数。正式全量运行时，独立 run/score 都设 `LIMIT=-1`。只有 2 题、配置 4 个 workers 时，实际只启动 2 个副本；仍须正确列出所配置 workers 对应的 GPU。四卡不保证四倍加速，耗时还取决于各题轮数、模型加载和共享磁盘检索。
+
+父结果目录下的 `predictions.jsonl` 保持原题目顺序，增加零基 `sample_index`；manifest 保留整次测试的 selected_ids、参数、可见卡和预测 SHA256，可直接交给已有 score 流程。`generation.metrics.json` 汇总所有题目的状态、总数、并行耗时与实际使用卡。`workers/worker_<rank>/` 保存分片预测、指标与 manifest，`workers/worker_<rank>.log` 保存各卡日志；主进程转发生成进度，并在加载期间每 15 秒打印存活 worker 数。
+
+某个 worker 非零退出时，主进程终止并回收其他 workers，保留日志并将父 manifest 标记 failed，不继续评分。合并会校验每个分片的完成状态、问题指纹、selected_ids、预测 SHA256、题目 ID/query 和样本索引；漏题、重复、错序或校验失败均报错，不发布最终 predictions.jsonl。不同 GPU 的缓存和压缩状态由各自进程独立持有，工具预算仍逐题重置。
+
+多副本测试要求**每张卡都能容纳完整模型和单条轨迹的推理状态**；它不把一条 Beacon 样本分摊到多卡。`NPROC_PER_NODE`、`DISTRIBUTED_BACKEND` 不参与此入口，直接运行脚本即可，不需要 torchrun。`NUM_WORKERS` 只控制生成，不会并行启动多个裁判；裁判权重自动分配也不等于张量并行。57 复用同一实现，可用相同多卡参数测试 HotpotQA。
+
+本次验证使用真实子进程、合成数据与替代模型生成器，覆盖 GPU 可见性隔离、分片合并、失败回收和原有评分校验；尚未进行真实 checkpoint 的多 GPU 吞吐或显存测量。
 
 ## 43.8 答案输出与评分规则
 
@@ -423,7 +489,8 @@ Hotpot 官方代码唯一兼容处理是执行 AST 时将 `import ujson as json`
 |---|---|
 | manifest.json | 本次模式、模型、参数、selected_ids、问题/语料/索引/本地代码指纹、状态 |
 | predictions.jsonl | 每题当前模型的最终回答、完整 messages/events、状态、token 数、工具次数、retrieval_trace、检索/阅读 docid |
-| generation.metrics.json | 生成状态分布、数量、耗时 |
+| generation.metrics.json | 生成状态分布、数量、耗时；并行时含实际 worker 数与 GPU 列表 |
+| workers/（并行生成） | 各 worker 的日志、分片预测、指标与来源 manifest |
 | summary.metrics.json | 基准主要指标、漏题数、是否为子集、是否完整、离线标记 |
 | per_question.json | 逐题评分或裁判/召回详情 |
 | hotpot_predictions.json / hotpot_gold.json | 可交官方 Hotpot 脚本复核的格式 |

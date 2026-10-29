@@ -3,11 +3,15 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from contextlib import ExitStack
 from datetime import datetime, timezone
 import gc
+import heapq
 import json
 import math
+import os
 from pathlib import Path
+import subprocess
 import sys
 import time
 
@@ -17,6 +21,7 @@ from search_comp.offline.index import LocalIndex, build_index
 from search_comp.offline.scoring import LocalJudge, load_predictions, score_browsecomp, score_hotpot
 from search_comp.offline.tools import BCP_INSTRUCTION, HOTPOT_INSTRUCTION, SYSTEM_PROMPT, LocalTools
 from search_comp.workflows.benchmark_openseeker import resolve_checkpoint
+from search_comp.workflows.evaluate_openseeker import worker_devices
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -59,6 +64,8 @@ def verify_index(args, manifest):
 
 
 def run_phase(args, output, rows, manifest):
+    if args.num_workers > 1:
+        return run_parallel(args, output, rows, manifest)
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     verify_index(args, manifest)
     from search_comp.evaluation.tool_agent import ModelGenerator, run_agent
@@ -85,7 +92,8 @@ def run_phase(args, output, rows, manifest):
             messages = [dict(role="system", content=system), dict(role="user", content=row["query"])]
             result = run_agent(messages, tokenizer, generate, tools, args.max_turns,
                                args.max_context, args.max_new_tokens, args.max_tool_tokens)
-            result.update(id=row["id"], query=row["query"], final_response=result["prediction"],
+            result.update(id=row["id"], sample_index=args.shard_index + position * args.shard_count,
+                          query=row["query"], final_response=result["prediction"],
                           seconds=time.monotonic() - tick, retrieved_docids=sorted(tools.retrieved),
                           visited_docids=sorted(tools.visited), retrieval_trace=tools.trace,
                           tool_call_counts=dict(tools.counts))
@@ -102,6 +110,135 @@ def run_phase(args, output, rows, manifest):
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     return output / "predictions.jsonl"
+
+
+def worker_command(args, output, rank, count):
+    """Children only generate: preparation, merging and scoring belong to the parent."""
+    model, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
+    command = [sys.executable, str(ROOT / "scripts/py/52_offline_benchmark.py"), "run"]
+    excluded = {"action", "output_dir", "num_workers", "shard_index", "shard_count",
+                "model", "kind", "run_dir", "judge_model", "predictions", "dry_run"}
+    for key, value in vars(args).items():
+        if key in excluded or value is None or value is False:
+            continue
+        command.append("--" + key.replace("_", "-"))
+        if value is not True:
+            command.append(str(value))
+    command.extend(["--model", str(model), "--kind", kind, "--output-dir", str(output),
+                    "--num-workers", "1", "--shard-index", str(rank), "--shard-count", str(count)])
+    return command
+
+
+def merge_worker_predictions(paths, output, rows, manifest):
+    """Validate every shard and atomically publish predictions in original question order."""
+    count = len(paths)
+    statuses = Counter()
+
+    def checked_rows(path, rank):
+        metadata = json.loads((path.parent / "manifest.json").read_text())
+        expected = rows[rank::count]
+        if (metadata.get("status") != "complete"
+                or metadata.get("questions_sha256") != manifest["questions_sha256"]
+                or metadata.get("selected_ids") != [row["id"] for row in expected]
+                or metadata.get("predictions_sha256") != digest(path)):
+            raise ValueError(f"worker provenance/checksum invalid: {path}")
+        with path.open(encoding="utf-8") as source:
+            for position, row in enumerate(expected):
+                line = source.readline()
+                if not line:
+                    raise ValueError(f"worker missing predictions: {path}")
+                prediction = json.loads(line)
+                if (prediction.get("id") != row["id"] or prediction.get("query") != row["query"]
+                        or prediction.get("sample_index") != rank + position * count):
+                    raise ValueError(f"worker prediction order/ID/query invalid: {path}")
+                yield prediction
+            if source.read().strip():
+                raise ValueError(f"worker has extra predictions: {path}")
+
+    target = output / "predictions.jsonl"
+    partial = output / "predictions.building.jsonl"
+    try:
+        with partial.open("x", encoding="utf-8") as stream:
+            for prediction in heapq.merge(*(checked_rows(path, rank) for rank, path in enumerate(paths)),
+                                          key=lambda row: row["sample_index"]):
+                stream.write(json.dumps(prediction, ensure_ascii=False) + "\n")
+                statuses[prediction["status"]] += 1
+        if target.exists():
+            raise FileExistsError(target)
+        partial.rename(target)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
+    return target, statuses
+
+
+def forward_worker_progress(readers, buffers):
+    for rank, reader in enumerate(readers):
+        buffers[rank] += reader.read()
+        lines = buffers[rank].split("\n")
+        buffers[rank] = lines.pop()
+        for line in lines:
+            if line.startswith("[offline"):
+                print(f"[worker {rank}] {line}", flush=True)
+
+
+def run_parallel(args, output, rows, manifest):
+    devices = worker_devices(args.num_workers, os.environ.get("CUDA_VISIBLE_DEVICES", ""))
+    # Avoid loading unused replicas when a smoke test has fewer questions than GPUs.
+    devices = devices[:len(rows)]
+    if not devices:
+        raise ValueError("parallel evaluation requires at least one question")
+    directory = output / "workers"
+    directory.mkdir()
+    processes, paths = [], []
+    start = time.monotonic()
+    with ExitStack() as stack:
+        readers, buffers = [], []
+        try:
+            for rank, device in enumerate(devices):
+                folder = directory / f"worker_{rank}"
+                paths.append(folder / "predictions.jsonl")
+                log_path = directory / f"worker_{rank}.log"
+                log = stack.enter_context(log_path.open("x", encoding="utf-8"))
+                command = worker_command(args, folder, rank, len(devices))
+                env = dict(os.environ, CUDA_VISIBLE_DEVICES=device, PYTHONUNBUFFERED="1")
+                print(f"[offline worker {rank}] GPU={device}; log={log_path}", flush=True)
+                processes.append(subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT,
+                                                  cwd=ROOT))
+                readers.append(stack.enter_context(log_path.open(encoding="utf-8", errors="replace")))
+                buffers.append("")
+            pending = list(processes)
+            heartbeat = time.monotonic()
+            while pending:
+                forward_worker_progress(readers, buffers)
+                for process in pending[:]:
+                    code = process.poll()
+                    if code is None:
+                        continue
+                    if code:
+                        raise RuntimeError(f"offline worker {processes.index(process)} exited with code {code}; see {directory}")
+                    pending.remove(process)
+                if time.monotonic() - heartbeat >= 15:
+                    print(f"[offline] active workers={len(pending)}/{len(processes)}; "
+                          f"elapsed={time.monotonic() - start:.1f}s; logs={directory}", flush=True)
+                    heartbeat = time.monotonic()
+                if pending:
+                    time.sleep(0.1)
+            forward_worker_progress(readers, buffers)
+        finally:
+            for process in processes:
+                if process.poll() is None:
+                    process.terminate()
+            for process in processes:
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+    predictions, statuses = merge_worker_predictions(paths, output, rows, manifest)
+    dump(output / "generation.metrics.json", dict(statuses=dict(statuses), count=len(rows),
+         seconds=time.monotonic() - start, num_workers=len(devices), devices=devices))
+    return predictions
 
 
 def score_phase(args, output, rows, manifest, prediction_path):
@@ -160,6 +297,10 @@ def make_parser():
     parser.add_argument("--kind", choices=["plain", "beacon"])
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--predictions", type=Path)
+    parser.add_argument("--num-workers", type=int, default=1,
+                        help="one full model replica per GPU; shard questions across explicit CUDA_VISIBLE_DEVICES")
+    parser.add_argument("--shard-index", type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument("--shard-count", type=int, default=1, help=argparse.SUPPRESS)
     parser.add_argument("--limit", type=int, default=-1)
     parser.add_argument("--topk", type=int, default=5)
     parser.add_argument("--snippet-tokens", type=int, default=512)
@@ -193,6 +334,15 @@ def main():
                 "max_new_tokens", "max_tool_tokens", "judge_max_tokens", "judge_max_context", "judge_top_k")
     if any(getattr(args, name) < 1 for name in positive) or args.limit == 0 or args.limit < -1:
         parser.error("budgets must be positive; limit must be -1 or positive")
+    if args.num_workers < 1 or args.shard_count < 1 or not 0 <= args.shard_index < args.shard_count:
+        parser.error("num-workers must be positive; invalid shard index/count")
+    if args.shard_count > 1 and (args.num_workers > 1 or args.action != "run"):
+        parser.error("worker shards require action=run and num-workers=1")
+    if args.num_workers > 1 and args.action in {"run", "all"}:
+        try:
+            worker_devices(args.num_workers, os.environ.get("CUDA_VISIBLE_DEVICES", ""))
+        except ValueError as error:
+            parser.error(str(error))
     if args.corpus_limit is not None and args.corpus_limit < 1:
         parser.error("corpus-limit must be positive")
     if (not math.isfinite(args.title_weight) or args.title_weight <= 0 or
@@ -225,6 +375,7 @@ def main():
         if args.action == "index":
             return
     rows, manifest = prepared_questions(args.root, args.benchmark, args.limit)
+    rows = rows[args.shard_index::args.shard_count]
     if args.action in {"run", "all"}:
         # Resolve before creating a result directory, and before any large model allocation.
         model, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
@@ -238,6 +389,7 @@ def main():
                                  f"offline_{args.benchmark}_{stamp}")
     output.mkdir(parents=True, exist_ok=False)
     run_manifest = dict(benchmark=args.benchmark, offline=True, model=model, kind=kind,
+        cuda_visible_devices=os.environ.get("CUDA_VISIBLE_DEVICES"),
         created_at=datetime.now(timezone.utc).isoformat(), selected_ids=[row["id"] for row in rows],
         questions_sha256=manifest["questions_sha256"], prepared_manifest=manifest, index=index_metadata,
         judge_model=str(args.judge_model) if args.judge_model else None,

@@ -60,12 +60,12 @@ def prepared_hotpot(tmp_path):
     return root
 
 
-def prepared_bcp(tmp_path):
+def prepared_bcp(tmp_path, count=2):
     root = tmp_path / 'benchmark'
     install_official(root, 'browsecomp-plus')
     evidence = read_qrels(root / 'official/topics-qrels/qrel_evidence.txt')
     gold = read_qrels(root / 'official/topics-qrels/qrel_golds.txt')
-    ids = list(evidence)[:2]
+    ids = list(evidence)[:count]
     docs = sorted(set().union(*(evidence[q] | gold[q] for q in ids)))
     data = write_jsonl(tmp_path / 'queries.jsonl', [dict(query_id=q, query='synthetic question ' + q,
          answer='REFERENCE_DO_NOT_PROMPT', gold_docs=[], evidence_docs=[]) for q in ids])
@@ -356,11 +356,13 @@ def test_shell_dry_run_has_no_writes_and_preserves_space_paths(tmp_path):
         command = ['bash', str(ROOT / 'scripts/sh' / script)]
         import os
         env = dict(os.environ, ACTION='run', DRY_RUN='1', ROOT_DIR=str(tmp_path / 'root with spaces'),
-                   MODEL_PATH=str(tmp_path / 'model with spaces'), PYTHON=sys.executable)
+                   MODEL_PATH=str(tmp_path / 'model with spaces'), PYTHON=sys.executable,
+                   NUM_WORKERS='4', CUDA_VISIBLE_DEVICES='0,1,2,3')
         result = subprocess.run(command, env=env, capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
         parsed = json.loads(result.stdout)
         assert parsed['model'] == str(tmp_path / 'model with spaces')
+        assert parsed['num_workers'] == 4
         assert not (tmp_path / 'root with spaces').exists()
 
 
@@ -433,3 +435,153 @@ def test_local_judge_loads_and_generates_from_real_tiny_hf_checkpoint(tmp_path):
     judge.max_context = 1
     with pytest.raises(ValueError, match='context budget'):
         judge('question')
+
+
+def parallel_harness(tmp_path, monkeypatch):
+    """Real child processes and agent loop; replace only expensive model inference."""
+    harness = tmp_path / 'worker_harness.py'
+    harness.write_text('''
+import os
+import runpy
+import sys
+import time
+from types import SimpleNamespace
+sys.path.insert(0, ROOT_PATH)
+if os.environ.get('OFFLINE_TEST_FAIL'):
+    if os.environ['CUDA_VISIBLE_DEVICES'] == '3':
+        sys.exit(7)
+    time.sleep(30)
+class Tokenizer:
+    def encode(self, text, **kwargs):
+        return list(text.encode())
+    def decode(self, tokens, **kwargs):
+        return bytes(tokens).decode(errors='ignore')
+model = SimpleNamespace(eval=lambda: None)
+sys.modules['search_comp.models.model_loader'] = SimpleNamespace(
+    load_tokenizer=lambda _: Tokenizer(), load_beacon_model=lambda _: model)
+sys.modules['search_comp.models.plain_qwen3'] = SimpleNamespace(load_sft_model=lambda _: model)
+from search_comp.evaluation import tool_agent
+def generator(model, tokenizer, beacon):
+    assert beacon
+    def generate(encoded, budget):
+        assert 'REFERENCE_DO_NOT_PROMPT' not in tokenizer.decode(encoded['input_ids'])
+        text = '<answer>gpu=' + os.environ['CUDA_VISIBLE_DEVICES'] + '</answer>'
+        return text, True, len(text)
+    return generate
+tool_agent.ModelGenerator = generator
+runpy.run_path(ENTRY_PATH, run_name='__main__')
+'''.replace('ROOT_PATH', repr(str(ROOT))).replace('ENTRY_PATH', repr(str(ENTRY))))
+    original = workflow.worker_command
+    def command(*args):
+        result = original(*args)
+        return [result[0], str(harness), *result[2:]]
+    monkeypatch.setattr(workflow, 'worker_command', command)
+
+
+@pytest.mark.parametrize('workers,limit,action', [(2, -1, 'run'), (4, 1, 'run'), (2, 3, 'all')])
+def test_parallel_real_processes_merge_and_score(tmp_path, monkeypatch, workers, limit, action):
+    root = prepared_bcp(tmp_path, count=5)
+    model = tmp_path / 'model with spaces'
+    model.mkdir()
+    output = tmp_path / 'parallel run'
+    parallel_harness(tmp_path, monkeypatch)
+    monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '0,3,5,7')
+    monkeypatch.setattr(sys, 'argv', [str(ENTRY), action, '--benchmark', 'browsecomp-plus',
+        '--root', str(root), '--model', str(model), '--kind', 'beacon', '--limit', str(limit),
+        '--decrypted', '--retrieval-only',
+        '--num-workers', str(workers), '--output-dir', str(output)])
+    workflow.main()
+    rows, _ = workflow.prepared_questions(root, 'browsecomp-plus', limit)
+    predictions = list(records(output / 'predictions.jsonl'))
+    assert [row['id'] for row in predictions] == [row['id'] for row in rows]
+    assert [row['sample_index'] for row in predictions] == list(range(len(rows)))
+    devices = ['0', '3'][:min(workers, len(rows))]
+    assert [row['final_response'] for row in predictions] == [
+        'gpu=' + devices[i % len(devices)] for i in range(len(rows))]
+    metrics = json.loads((output / 'generation.metrics.json').read_text())
+    assert metrics['count'] == len(rows)
+    assert metrics['statuses'] == {'completed': len(rows)}
+    assert metrics['devices'] == devices
+    metadata = json.loads((output / 'manifest.json').read_text())
+    assert metadata['status'] == 'complete'
+    assert metadata['selected_ids'] == [row['id'] for row in rows]
+    assert metadata['predictions_sha256'] == digest(output / 'predictions.jsonl')
+    assert len(list((output / 'workers').glob('worker_*/manifest.json'))) == len(devices)
+    score = tmp_path / 'scored'
+    monkeypatch.setattr(sys, 'argv', [str(ENTRY), 'score', '--benchmark', 'browsecomp-plus',
+        '--root', str(root), '--predictions', str(output / 'predictions.jsonl'),
+        '--limit', str(limit), '--retrieval-only', '--output-dir', str(score)])
+    workflow.main()
+    summary = json.loads((score / 'summary.metrics.json').read_text())
+    assert summary['missing_predictions'] == 0
+    assert summary['complete']
+
+
+def test_parallel_failure_stops_other_workers_and_marks_manifest(tmp_path, monkeypatch):
+    root = prepared_bcp(tmp_path)
+    model = tmp_path / 'model'
+    model.mkdir()
+    output = tmp_path / 'failed run'
+    parallel_harness(tmp_path, monkeypatch)
+    monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '0,3')
+    monkeypatch.setenv('OFFLINE_TEST_FAIL', '1')
+    processes = []
+    original = subprocess.Popen
+    def popen(*args, **kwargs):
+        process = original(*args, **kwargs)
+        processes.append(process)
+        return process
+    monkeypatch.setattr(workflow.subprocess, 'Popen', popen)
+    monkeypatch.setattr(sys, 'argv', [str(ENTRY), 'run', '--benchmark', 'browsecomp-plus',
+        '--root', str(root), '--model', str(model), '--kind', 'beacon',
+        '--num-workers', '2', '--output-dir', str(output)])
+    with pytest.raises(RuntimeError, match='exited with code 7'):
+        workflow.main()
+    assert len(processes) == 2 and all(p.poll() is not None for p in processes)
+    assert json.loads((output / 'manifest.json').read_text())['status'] == 'failed'
+    assert not (output / 'predictions.jsonl').exists()
+    assert not (output / 'summary.metrics.json').exists()
+    assert (output / 'workers/worker_1.log').is_file()
+
+
+@pytest.mark.parametrize('corruption', ['missing', 'duplicate', 'wrong_id', 'wrong_index', 'checksum', 'manifest'])
+def test_parallel_merge_rejects_bad_shards(tmp_path, corruption):
+    rows = [dict(id=str(i), query='q' + str(i)) for i in range(5)]
+    manifest = {'questions_sha256': 'questions-fingerprint'}
+    paths = []
+    for rank in range(2):
+        path = tmp_path / f'worker_{rank}' / 'predictions.jsonl'
+        predictions = [dict(**row, sample_index=i, status='completed')
+                       for i, row in enumerate(rows) if i % 2 == rank]
+        if rank == 0:
+            if corruption == 'missing':
+                predictions.pop()
+            elif corruption == 'duplicate':
+                predictions.append(predictions[0])
+            elif corruption == 'wrong_id':
+                predictions[0]['id'] = 'other'
+            elif corruption == 'wrong_index':
+                predictions[0]['sample_index'] = 1
+        write_jsonl(path, predictions)
+        metadata = dict(status='complete', **manifest, predictions_sha256=digest(path),
+                        selected_ids=[row['id'] for row in rows[rank::2]])
+        if rank == 0 and corruption == 'manifest':
+            metadata['selected_ids'] = []
+        if rank == 0 and corruption == 'checksum':
+            metadata['predictions_sha256'] = 'tampered'
+        (path.parent / 'manifest.json').write_text(json.dumps(metadata))
+        paths.append(path)
+    with pytest.raises(ValueError, match='worker'):
+        workflow.merge_worker_predictions(paths, tmp_path, rows, manifest)
+    assert not (tmp_path / 'predictions.jsonl').exists()
+    assert not (tmp_path / 'predictions.building.jsonl').exists()
+
+
+@pytest.mark.parametrize('visible,workers', [('0', '2'), ('0,0', '2'), ('', '2'), ('0,1', '0')])
+def test_parallel_cli_rejects_bad_gpu_config_before_writes(tmp_path, visible, workers):
+    import os
+    result = subprocess.run([sys.executable, str(ENTRY), 'run', '--benchmark', 'browsecomp-plus',
+        '--num-workers', workers, '--root', str(tmp_path / 'absent'), '--dry-run'],
+        env=dict(os.environ, CUDA_VISIBLE_DEVICES=visible), capture_output=True, text=True)
+    assert result.returncode != 0
+    assert not (tmp_path / 'absent').exists()

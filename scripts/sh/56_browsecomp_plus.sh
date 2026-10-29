@@ -8,6 +8,7 @@ ROOT_DIR="${ROOT_DIR:-outputs/data/benchmarks/browsecomp-plus}"
 PYTHON="${PYTHON:-}"
 CONDA_ENV="${CONDA_ENV:-search-comp-qwen3.5}"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+NUM_WORKERS="${NUM_WORKERS:-1}"        # 每卡完整模型副本，按题并行；不超过可见 GPU 数
 RUN_DIR="${RUN_DIR:-}"                 # 已训练实验目录；自动识别 Plain/Beacon 和最终模型
 MODEL_PATH="${MODEL_PATH:-}"           # 可覆盖 RUN_DIR 的模型；必须为本地已合并 checkpoint
 KIND="${KIND:-}"                       # plain / beacon；留空自动识别

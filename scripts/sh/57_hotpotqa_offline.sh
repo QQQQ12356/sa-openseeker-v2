@@ -8,6 +8,7 @@ ROOT_DIR="${ROOT_DIR:-outputs/data/benchmarks/hotpotqa}"
 PYTHON="${PYTHON:-}"
 CONDA_ENV="${CONDA_ENV:-search-comp-qwen3.5}"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+NUM_WORKERS="${NUM_WORKERS:-1}"        # 每卡完整模型副本，按题并行；不超过可见 GPU 数
 RUN_DIR="${RUN_DIR:-}"
 MODEL_PATH="${MODEL_PATH:-}"
 KIND="${KIND:-}"                       # plain / beacon；默认自动识别

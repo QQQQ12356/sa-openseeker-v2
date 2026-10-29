@@ -7,7 +7,7 @@ for flag in OFFICIAL_ONLY VERIFY_INDEX ALLOW_VISIT DRY_RUN; do
   if [[ ${!flag} != 0 && ${!flag} != 1 ]]; then echo "$flag must be 0 or 1" >&2; exit 2; fi
 done
 COMMAND=("$PY" scripts/py/52_offline_benchmark.py "$ACTION" --benchmark "$BENCHMARK"
-  --root "$ROOT_DIR" --title-weight "$TITLE_WEIGHT" --topk "$TOPK"
+  --root "$ROOT_DIR" --num-workers "${NUM_WORKERS:-1}" --title-weight "$TITLE_WEIGHT" --topk "$TOPK"
   --snippet-tokens "$SNIPPET_TOKENS" --read-tokens "$READ_TOKENS"
   --tool-count "$TOOL_COUNT" --max-turns "$MAX_TURNS" --max-context "$MAX_CONTEXT"
   --max-new-tokens "$MAX_NEW_TOKENS" --max-tool-tokens "$MAX_TOOL_TOKENS" --limit "$LIMIT")
