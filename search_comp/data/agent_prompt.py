@@ -7,7 +7,6 @@ import re
 
 PROMPT_VERSION = "openseeker-original-system-v1"
 DEFAULT_SYSTEM_FILE = Path(__file__).with_name("openseeker_v1_system.txt")
-REPLACED_SYSTEM_VERSION = "openseeker-chatml-v4-unified-agent"
 TOOLS_RE = re.compile(r"<tools>(\s*\{.*?)</tools>", re.S)
 
 
@@ -42,8 +41,6 @@ def resolve_system_prompt(prompt_data=None, run_dir=None):
             if not line.strip():
                 continue
             row = json.loads(line)
-            if row.get('protocol') == REPLACED_SYSTEM_VERSION:
-                raise ValueError('v4 replaced the original system; use original raw/v3 --prompt-data')
             messages = row.get('messages', row.get('trajectory'))
             if isinstance(messages, str):
                 messages = json.loads(messages)

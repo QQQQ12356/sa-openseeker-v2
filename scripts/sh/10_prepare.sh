@@ -6,7 +6,7 @@ set -euo pipefail
 PYTHON="${PYTHON:-}"
 CONDA_ENV="${CONDA_ENV:-search-comp-qwen3.5}"
 
-# ===== 输入与输出：输出目录必须不存在；保留原始 system；已有 v3 可复用，v4 替换版需从原始数据重建 =====
+# ===== 输入与输出：输出目录必须不存在；保留原始 system；已有同 tokenizer 的 v3 数据可复用 =====
 # INPUT_FILE：单个原始/旧规范化 JSONL；多文件可编辑 INPUTS 数组。
 # MODEL_NAME：待训练 tokenizer；仅加载 tokenizer，不加载模型。CLI 标量参数可在末尾覆盖。
 SOURCE="${SOURCE:-polar}"                         # polar / zephyr / combined

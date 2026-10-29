@@ -4,7 +4,7 @@
 
 只迁移 Polar 原始快照；本目录中的规范化数据由新代码重新生成，没有复制其他数据集、模型权重、旧训练结果或实验日志。本次没有启动真实模型训练。
 
-先阅读 [文档索引](docs/00_index.md) 和 [45 统一训练与测试](docs/45_unified_agent_flow.md)。训练保留每条轨迹的原始 system；Plain/Beacon 的 native 在线测试复用对应训练提示，离线仅调整必要的工具能力和格式要求。当前继续使用原始 v3 数据协议；此前替换 system 的 v4 方案已撤销，已有原始 v3 数据可直接复用。常用入口如下，参数直接修改各 shell 脚本顶部，然后运行，无需传命令行参数：
+Beacon 完整实验优先阅读 [32 从数据到评测](docs/32_beacon_experiment_guide.md)，再按阶段查阅 [文档索引](docs/00_index.md) 和 [45 统一训练与测试](docs/45_unified_agent_flow.md)。训练保留每条轨迹的原始 system；Plain/Beacon 的 native 在线测试复用对应训练提示，离线仅调整必要的工具能力和格式要求。当前使用原始 v3 数据协议，已有原始 v3 数据可直接复用。常用入口如下，参数直接修改各 shell 脚本顶部，然后运行，无需传命令行参数：
 
 ```bash
 bash scripts/sh/01_test.sh                    # CPU 回归测试
@@ -28,7 +28,7 @@ DRY_RUN=1 bash scripts/sh/47_openseeker_benchmark.sh  # 审查官方 Benchmark �
 
 目录分工：`search_comp/` 为核心实现，`search_comp/workflows/` 为可导入的流程实现，`scripts/sh/` 为编号的一键入口，`scripts/py/` 为编号的 Python 薄入口，`scripts/templates/` 为编号的 HTML 模板，`tests/` 为回归测试，`configs/` 为训练配置，`docs/` 为编号文档。
 
-现有原始 v3 数据（train/validation/test=644/9/11）、43 条约 64k 的显存测试数据和数据 HTML 保留，可用于当前流程；v4 替换版必须回到原始源数据恢复，详情见 [数据说明](docs/10_data.md) 与 [验证记录](docs/99_validation.md)。当前保留原始 system 的统一流程全量回归为 **564 通过、2 项跳过**，详细命令和边界见验证记录。
+现有原始 v3 数据（train/validation/test=644/9/11）、43 条约 64k 的显存测试数据和数据 HTML 保留，可用于当前流程，详情见 [数据说明](docs/10_data.md) 与 [验证记录](docs/99_validation.md)。当前保留原始 system 的统一流程全量回归为 **564 通过、2 项跳过**，详细命令和边界见验证记录。
 
 Beacon 训练支持固定/随机压缩比：修改 `30_beacon_train.sh` 的 `COMPRESSION_MODE`、`BEACON_RATIO` 和 `COMPRESSION_RATIOS` 即可，详见 [31 随机压缩说明](docs/31_random_compression.md)。默认保持固定压缩。
 

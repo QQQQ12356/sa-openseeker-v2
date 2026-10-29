@@ -17,7 +17,7 @@
 | WORKERS / OFFLINE | CPU 分词并发与仅本地缓存 |
 | VAL_FRACTION / TEST_FRACTION / SEED | 默认约 96%/2%/2%，按问题哈希分组 |
 
-所有训练轨迹的原始 system、问题和 assistant 推理/调用/回答正文保持原样；独立 tools 仅在编码时补充，不改写保存的 system。结构化 OpenAI calls 转换成一致的工具协议，tool role 转为 user observation。只对 assistant 内容计算主损失，仅 observation 正文允许压缩；不截断样本。`answer` 仅是独立评分参考，不注入轨迹或推理提示词。当前协议标识为 `openseeker-chatml-v3-original-answer`，已有原始 v3 数据可复用；曾替换 system 的 v4 数据须回到原始源文件重建。
+所有训练轨迹的原始 system、问题和 assistant 推理/调用/回答正文保持原样；独立 tools 仅在编码时补充，不改写保存的 system。结构化 OpenAI calls 转换成一致的工具协议，tool role 转为 user observation。只对 assistant 内容计算主损失，仅 observation 正文允许压缩；不截断样本。`answer` 仅是独立评分参考，不注入轨迹或推理提示词。当前协议标识为 `openseeker-chatml-v3-original-answer`，已有原始 v3 数据可复用。
 
 输出包含：`normalized.jsonl`（所有通过结构校验的样本及全部长度，包括超长和 Incorrect）、`train/validation/test.jsonl`（筛选后划分）、`rejected.jsonl`（拒绝原因）、`measurements.jsonl`（逐条长度与工具统计）、`manifest.json`（来源 SHA256、tokenizer 指纹、筛选参数和分布）。输入官方 validation/test 按问题优先保留划分；普通数据按问题哈希划分并去重，避免相同问题跨集合。拒绝原因按长度、正确性、观测、重复问题顺序记第一个原因。
 
@@ -36,7 +36,7 @@
 
 ## 历史 v3 实际生成的数据
 
-已完成 11,677 条原始轨迹的全量规范化与 Qwen3.5 tokenizer 实测：Correct 4,949 条、Incorrect 6,728 条，结构无效记录为 0。以下是先前 v3 代码生成的历史输出；本次未重建 v4 数据，原始数据保持不变：
+已完成 11,677 条原始轨迹的全量规范化与 Qwen3.5 tokenizer 实测：Correct 4,949 条、Incorrect 6,728 条，结构无效记录为 0。以下是先前 v3 代码生成的历史输出；原始数据保持不变：
 
 | 目录（均在 outputs/data/openseeker/ 下） | train | validation | test |
 |---|---:|---:|---:|

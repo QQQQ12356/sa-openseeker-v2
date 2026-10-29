@@ -5,7 +5,7 @@ import json
 import pytest
 
 from search_comp.data.agent_prompt import (build_system_prompt, initial_messages, prompt_metadata,
-                                           resolve_system_prompt, REPLACED_SYSTEM_VERSION, render_system, TOOLS_RE)
+                                           resolve_system_prompt, render_system, TOOLS_RE)
 from search_comp.data.openseeker import VERSION, OpenSeekerDataset, encode, normalize
 from search_comp.trainer.plain_sft_trainer import PlainSFTDataset
 from test_openseeker import Tokenizer, polar
@@ -29,7 +29,7 @@ def test_plain_beacon_and_online_share_tokens_and_every_generation_prefix(tmp_pa
                                          if end <= len(prefix['input_ids'])]
 
 
-def test_original_prepared_data_is_reusable_and_v4_is_not_guessed(tmp_path):
+def test_original_prepared_data_is_reusable(tmp_path):
     row = normalize(polar())
     row['lengths'] = {'original': {'total': 10}}
     original = copy.deepcopy(row)
@@ -38,14 +38,6 @@ def test_original_prepared_data_is_reusable_and_v4_is_not_guessed(tmp_path):
     path = tmp_path / 'train.jsonl'
     path.write_text(json.dumps(row) + '\n')
     assert OpenSeekerDataset(path, Tokenizer())[0]['input_ids'] == encode(row['messages'], Tokenizer())['input_ids']
-    row['protocol'] = REPLACED_SYSTEM_VERSION
-    with pytest.raises(ValueError, match='rebuild from original'):
-        normalize(row)
-    path.write_text(json.dumps(row) + '\n')
-    with pytest.raises(ValueError, match='original raw/v3'):
-        OpenSeekerDataset(path, Tokenizer())[0]
-    with pytest.raises(ValueError, match='original raw/v3'):
-        resolve_system_prompt(path)
 
 
 def test_offline_changes_only_tools_and_required_constraints():

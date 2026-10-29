@@ -1,12 +1,14 @@
 # 45 保留原始 system 的 Plain / Beacon 统一训练与测试
 
+需要按顺序完成 Beacon 实验时，从 [32 完整实验指南](32_beacon_experiment_guide.md) 开始；本文解释提示词与协议实现。
+
 ## 45.1 当前规则与适用范围
 
 训练数据已有 system，不需要重新设计或替换。当前 `normalize()` 保留每条 OpenSeeker 轨迹原始 system；native 在线测试读取对应训练数据的 system 与工具 schema；离线测试在同一主体上仅调整实际能力、语料限制和答案格式。Plain、Beacon 使用相同构造器、ChatML 编码及 native Agent。
 
 在线 Search/Visit、固定语料离线测试、replay、本地 corpus、HTTP 网关、官方 v1/v2 原样复现和 Search-R1 入口全部保留。本次不改变 Beacon 压缩公式、线性状态 writer、LoRA、损失定义、索引或官方评分函数，不启动真实训练。
 
-**此前 v4“替换训练 system”的方案已撤销。** 当前训练协议恢复为 `openseeker-chatml-v3-original-answer`。它是本项目的数据版本名，不是 OpenSeeker 官方发布的协议编号；“统一”指测试复用训练约定，不是把训练文本改成另一套提示。
+当前训练协议为 `openseeker-chatml-v3-original-answer`。它是本项目的数据版本名，不是 OpenSeeker 官方发布的协议编号；“统一”指测试复用训练约定，不是把训练文本改成另一套提示。
 
 ## 45.2 参考来源与统一边界
 
@@ -81,12 +83,11 @@
 |---|---|---|
 | 原始 Polar / 结构化轨迹 | 支持 | prepare 保留 system，正常规范化和计长 |
 | 原有 v3 prepared 数据/manifest | 支持 | 原 system 和 tokenizer 未变时可直接训练、筛选和测试，无需仅因本次修改重建 |
-| v4-unified-agent prepared 数据 | 不自动恢复 | v4 已丢失原 system，必须回到原始数据或完整原 v3 版本 |
 | 未知 protocol | 拒绝 | 确认数据来源和版本，再显式准备 |
 
-当前 `VERSION` 是 `openseeker-chatml-v3-original-answer`。不能把 v4 的 protocol 字符串改成 v3 来绕过检查；也不能用默认 Polar 提示去猜测 v4 每条记录原来的 system。
+当前 `VERSION` 是 `openseeker-chatml-v3-original-answer`。保留原始 system；只有模型/tokenizer、消息渲染或筛选条件变化时才需要重新准备相应数据。
 
-默认 10/20/30、21/31 回退路径、筛选/报告/HTML 入口恢复指向 `outputs/data/openseeker/polar_correct_qwen35_16k`，显存探针指向 `polar_memory_probe`。旧 `_unified` 文件夹不会被删除或写回；先核对里面的实际 protocol。目录名不决定数据版本。
+默认 10/20/30、21/31 回退路径、筛选/报告/HTML 入口指向 `outputs/data/openseeker/polar_correct_qwen35_16k`，显存探针指向 `polar_memory_probe`。目录名不决定数据版本；读取 manifest 中的 protocol 和 tokenizer 身份。
 
 ```bash
 # 已有原始 v3 数据时，无需再运行 prepare。
@@ -95,7 +96,7 @@ INPUT_FILE=/data/original_polar.jsonl OUTPUT_DIR=/data/polar_original_system \
   MODEL_NAME=/models/Qwen3.5-4B bash scripts/sh/10_prepare.sh
 ```
 
-从 v4 恢复应使用原始源文件，或原先未替换 system 的完整 v3 文件；不要把 v4 本身当作 INPUT_FILE。prepare 会把不支持的记录列为拒绝，训练入口也拒绝错误版本或空数据。只保留旧 train 无法恢复原 validation/test；多文件时编辑 INPUTS，保留原问题划分规则。
+从原始源文件重新准备时，输出应使用新目录。只保留旧 train 无法恢复原 validation/test；多文件时编辑 INPUTS，保留原问题划分规则。
 
 ## 45.7 一键入口与保留范围
 
@@ -182,4 +183,4 @@ Beacon whole SFT 布局仍在归档和加载前统一解析；随机压缩训练
 
 native 预测保存完整 messages、prompt_source、prompt_version（当前构造策略版本）、system_prompt_sha256 和 generation_config。prompt_source 区分显式训练文件、RUN_DIR 自动定位与内置参考文件；完整 system hash 才代表具体文本身份，不能仅凭策略版本号判断不同 profile 相同。generation_config 记录模型、配置指纹及实际 Beacon 设置。
 
-已有 v3 模型可直接使用其原训练提示评测；不要求为本次修复重训。已有实验仍保留代码/数据指纹校验；代码变化后要新建训练计划，不改写旧实验指纹绕过校验。若模型此前确实用替换 system 的 v4 数据训练，原提示与该权重不再是同一条件，应作为独立历史实验报告，不能给数据换标签冒充恢复。重复推理/非法调用是否改善，仍需真实模型评测；本次仅修改代码、文档和回归测试。
+已有 v3 模型可直接使用其原训练提示评测；不要求为本次修复重训。已有实验仍保留代码/数据指纹校验；代码变化后要新建训练计划，不改写旧实验指纹绕过校验。重复推理/非法调用是否改善，仍需真实模型评测；本次仅修改代码、文档和回归测试。

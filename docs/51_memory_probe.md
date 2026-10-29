@@ -1,6 +1,6 @@
 # 51 特定长度显存上限实验
 
-当前保留原始 system 与数据兼容说明见 [45 统一流程](45_unified_agent_flow.md)。12/26/37 默认使用 `polar_memory_probe`；原 v3 数据可复用，原始 system 已被 v4 替换的数据需从源文件恢复。
+当前保留原始 system 与数据兼容说明见 [45 统一流程](45_unified_agent_flow.md)。12/26/37 默认使用 `polar_memory_probe`；原 v3 数据可复用。
 
 本次仅提供数据和执行入口，没有执行显存训练探测。流程：
 

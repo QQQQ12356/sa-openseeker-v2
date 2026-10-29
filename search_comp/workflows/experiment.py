@@ -49,7 +49,7 @@ def main():
         if spec['data_mode']=='openseeker':
             manifest=json.loads((ROOT/data/'manifest.json').read_text())
             if manifest.get('protocol') != VERSION:
-                p.error('dataset protocol is unsupported; rebuild from original raw/v3 data with scripts/sh/10_prepare.sh; do not reuse v4 replaced-system data')
+                p.error('dataset protocol is unsupported; prepare original data with scripts/sh/10_prepare.sh')
             if cfg['model_name_or_path'] not in manifest['tokenizers']:
                 p.error('dataset was not measured with this model tokenizer; prepare with --models first')
             if manifest['arguments']['max_length']>cfg['max_length']:

@@ -11,7 +11,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from .agent_prompt import render_system, REPLACED_SYSTEM_VERSION
+from .agent_prompt import render_system
 
 CALL_RE = re.compile(r'<tool_call>\s*(.*?)\s*</tool_call>', re.S)
 RESPONSE_RE = re.compile(r'<tool_response>(.*?)</tool_response>', re.S)
@@ -64,8 +64,6 @@ def normalize(row, source='unknown', index=0):
     if row.get('protocol') == VERSION:
         validate(row)
         return row
-    if row.get('protocol') == REPLACED_SYSTEM_VERSION:
-        raise ValueError('v4 replaced the original system; rebuild from original raw/v3 data')
     if row.get('protocol'):
         raise ValueError('unsupported OpenSeeker protocol: ' + str(row['protocol']))
     messages = copy.deepcopy(row.get('trajectory', row.get('messages')))
@@ -244,7 +242,7 @@ class OpenSeekerDataset:
             row = json.loads(f.readline())
         if row.get('protocol') != VERSION:
             raise ValueError('OpenSeeker training requires current original-answer data; '
-                             'run scripts/sh/10_prepare.sh using original raw/v3 data; v4 cannot recover the original system')
+                             'run scripts/sh/10_prepare.sh using original raw/v3 data')
         row = normalize(row, index=index)
         validate(row)
         sample = encode(row['messages'], self.tokenizer, loss_segments=self.loss_segments,

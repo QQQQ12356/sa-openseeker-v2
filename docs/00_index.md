@@ -1,5 +1,7 @@
 # 00 文档与入口索引
 
+首次开展 Beacon 实验，先按 [32 完整实验指南](32_beacon_experiment_guide.md) 的顺序执行；下面各文档用于对应阶段的参数与实现细节。
+
 | 文档 | 内容 |
 |---|---|
 | [01 环境](01_environment.md) | Python、依赖、离线缓存、验证边界 |
@@ -8,6 +10,7 @@
 | [20 Plain](20_plain.md) | 一键训练、测试与配置快照 |
 | [30 Beacon](30_beacon.md) | 压缩范围、损失、蒸馏与训练入口 |
 | [31 随机压缩](31_random_compression.md) | fixed/random 模式、候选数组、采样粒度与多卡行为 |
+| [32 Beacon 完整实验指南](32_beacon_experiment_guide.md) | 按实验顺序：环境、数据、筛选、计划、训练、合并、在线/离线评测与归档 |
 | [40 评测](40_evaluation.md) | OpenSeeker 参考实现、答案提取、EM/F1 与工具后端 |
 | [41 HTML](41_html.md) | 数据与预测的离线浏览 |
 | [42 官方 Benchmark](42_openseeker_benchmark.md) | BrowseComp、固定官方 v1/v2、Beacon native、LLM 裁判、覆盖审计、一键运行 |

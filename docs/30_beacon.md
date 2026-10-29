@@ -1,5 +1,7 @@
 # 30 Beacon 训练与评测
 
+从数据准备到训练、合并、评测的顺序操作见 [32 完整实验指南](32_beacon_experiment_guide.md)；本文侧重参数和算法入口。
+
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
 
 主入口为 `scripts/sh/30_beacon_train.sh`，使用方式与 Plain 相同。模型支持 Qwen3 和 Qwen3.5，默认 whole observation 压缩。OpenSeeker 中只有 `tool_response` 的正文进入压缩区域：工具调用 JSON、system、问题、推理和原始回答都保留。训练和 agent 评测共用序列化与 observation 区域定义。
