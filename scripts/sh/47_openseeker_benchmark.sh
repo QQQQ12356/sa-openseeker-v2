@@ -3,7 +3,7 @@
 set -euo pipefail
 PYTHON="${PYTHON:-}"
 CONDA_ENV="${CONDA_ENV:-search-comp-qwen3.5}"
-MODE="${MODE:-official-v2}"           # official-v1 / official-v2 / native（Beacon）
+MODE="${MODE:-native}"                # native：Plain/Beacon 共用训练协议；official-v1/v2：保留官方原样复现
 RUN_DIR="${RUN_DIR:-}"                # native 自动读取训练结果
 MODEL_PATH="${MODEL_PATH:-}"          # native 可显式指定已合并模型
 KIND="${KIND:-}"                      # native: plain / beacon；默认读 RUN_DIR

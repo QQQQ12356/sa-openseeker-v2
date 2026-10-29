@@ -4,7 +4,7 @@ set -euo pipefail
 PROJECT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$PROJECT_ROOT"
 
-INPUT="${1:-${DATASET_PATH:-outputs/data/openseeker/polar_correct_qwen35_16k}}"
+INPUT="${1:-${DATASET_PATH:-outputs/data/openseeker/polar_correct_qwen35_16k_unified}}"
 OUTPUT="${2:-${OUTPUT_HTML:-outputs/reports/dataset.html}}"
 SPLIT="${SPLIT:-train}"        # train / validation / test / rejected / all
 LIMIT="${LIMIT:-0}"            # 0 为全部；大数据集可设为 100

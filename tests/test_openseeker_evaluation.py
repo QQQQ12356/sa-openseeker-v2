@@ -149,25 +149,19 @@ def test_worker_failure_stops_other_workers_without_final_metrics(tmp_path, monk
 @pytest.mark.parametrize("split,key", [
     ("train", "train_data_path"), ("validation", "val_data_path"), ("test", "test_data_path"),
 ])
-def test_shell_selects_experiment_split(tmp_path, split, key):
+@pytest.mark.parametrize("entry", ["21_plain_eval.sh", "31_beacon_eval.sh"])
+def test_shell_selects_experiment_split(tmp_path, split, key, entry):
+    import os
     root = Path(__file__).resolve().parents[1]
     run = tmp_path / "experiment"
     run.mkdir()
     data = dataset(tmp_path)
     (run / "experiment.json").write_text(json.dumps(dict(
         kind="beacon", training_config={key: str(data)})))
-    source = (root / "scripts/sh/31_beacon_eval.sh").read_text()
-    replacements = {
-        'PYTHON=""': f'PYTHON="{sys.executable}"',
-        'DRY_RUN=0': 'DRY_RUN=1',
-        'RUN_DIR=""': f'RUN_DIR="{run}"',
-        'MODEL_PATH=""': 'MODEL_PATH="/tmp/model with spaces"',
-        'SPLIT="test"': f'SPLIT="{split}"',
-        'source "$(dirname "${BASH_SOURCE[0]}")/00_common.sh"': f'source "{root}/scripts/sh/00_common.sh"',
-    }
-    for old, new in replacements.items():
-        source = source.replace(old, new, 1)
-    result = subprocess.run(["bash", "-c", source], cwd=tmp_path, capture_output=True, text=True)
+    env = {**os.environ, 'PYTHON': sys.executable, 'DRY_RUN': '1', 'RUN_DIR': str(run),
+           'MODEL_PATH': '/tmp/model with spaces', 'SPLIT': split}
+    result = subprocess.run(["bash", str(root / "scripts/sh" / entry)], cwd=tmp_path,
+                            env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert f"--data-split {split}" in result.stdout
     assert str(data) in result.stdout

@@ -168,9 +168,10 @@ def audit_scores(path, expected):
 
 
 def native_generate(args, rows, output):
-    """Keep Beacon compression active; reuse upstream search/visit and v1 system prompt."""
+    """Use the shared SFT/native protocol with upstream online search/visit."""
     sys.path.insert(0, str(args.official_dir / "src"))
-    from llm_tool_openseeker import Search, Visit, developer_prompt
+    from llm_tool_openseeker import Search, Visit
+    from search_comp.data.agent_prompt import initial_messages
     from search_comp.evaluation.tool_agent import ModelGenerator, Registry, run_agent
     from search_comp.models.model_loader import load_beacon_model, load_tokenizer
     from search_comp.models.plain_qwen3 import load_sft_model
@@ -185,7 +186,7 @@ def native_generate(args, rows, output):
     with output.open("x", encoding="utf-8") as target:
         for index, row in enumerate(rows):
             start = time.monotonic()
-            messages = [dict(role="system", content=developer_prompt), dict(role="user", content=row["query"])]
+            messages = initial_messages(row["query"])
             result = run_agent(messages, tokenizer, generate, tools, args.max_turns,
                                args.max_context, args.max_tokens, args.max_tool_tokens)
             result.update(row, final_response=result["prediction"],
@@ -202,7 +203,7 @@ def main():
     parser.add_argument("--data", type=Path, default=ROOT / "outputs/data/benchmarks/browsecomp.jsonl")
     parser.add_argument("--csv", type=Path, help="local encrypted official BrowseComp CSV")
     parser.add_argument("--prepare-only", action="store_true")
-    parser.add_argument("--mode", choices=["official-v1", "official-v2", "native"], default="official-v2")
+    parser.add_argument("--mode", choices=["official-v1", "official-v2", "native"], default="native")
     parser.add_argument("--benchmark", default="BrowseComp", help="record the actual benchmark name for custom data")
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--predictions", type=Path, help="judge existing query/answer/final_response JSONL")
@@ -270,7 +271,7 @@ def main():
                     created_at=datetime.now(timezone.utc).isoformat())
     if args.mode == "native" and not args.predictions:
         model, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
-        manifest.update(model=model, kind=kind, generation_alignment="native serializer/greedy/budgets; upstream v1 tools/prompt")
+        manifest.update(model=model, kind=kind, generation_alignment="shared SFT/native prompt and serializer; upstream v1 tools")
     elif not args.predictions:
         manifest.update(model=os.environ["OPENSEEKER_MODEL"], generation_alignment="unmodified official script")
     else:

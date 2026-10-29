@@ -351,6 +351,42 @@ def _assert_memory_close(actual, expected):
 
 
 @torch.no_grad()
+@pytest.mark.parametrize("compressed", [False, True])
+@pytest.mark.parametrize("beacon_pos", ["append", "intersect"])
+def test_sft_forward_matches_prefill_and_token_decode(monkeypatch, compressed, beacon_pos):
+    """Compare actual supervised forward with generation on identical prefixes."""
+    torch.manual_seed(7)
+    model = _tiny_model(beacon_pos)
+    cfg = BeaconConfig.from_dict({**model.beacon_config.to_dict(),
+                                 'beacon_information_mode': 'whole',
+                                 'beacon_window_enabled': False, 'beacon_keep_window': 0})
+    model.set_beacon_config(cfg)
+    ids = torch.tensor([[10, 11, 20, 21, 22, 23, 24, 30, 31, 32]])
+    regions = [(2, 7)] if compressed else []
+    tail_start = 7 if compressed else 0
+    hidden_segments = []
+    native = model._window_hidden
+
+    def record_hidden(*args, **kwargs):
+        result = native(*args, **kwargs)
+        hidden_segments.append(result[1].detach().clone())
+        return result
+
+    monkeypatch.setattr(model, '_window_hidden', record_hidden)
+    model.train()
+    model(input_ids=ids, labels=ids.clone(), regions=regions)
+    teacher_logits = model.lm_head(model.model.norm(hidden_segments[-1])).float()
+    teacher_memory = model._mem
+    model.eval()
+    _, logits = model.prefill_and_get_cache(ids[:, :tail_start + 1], regions, return_last_logits=True)
+    torch.testing.assert_close(logits, teacher_logits[:, 0], atol=1e-5, rtol=1e-4)
+    for index in range(tail_start + 1, ids.shape[1]):
+        logits = model.decode_step(ids[:, index:index + 1])
+        torch.testing.assert_close(logits, teacher_logits[:, index - tail_start], atol=1e-5, rtol=1e-4)
+    _assert_memory_close(model._mem, teacher_memory)
+
+
+@torch.no_grad()
 @pytest.mark.parametrize("beacon_pos", ["append", "intersect"])
 def test_incremental_retrieval_matches_full_history_prefill(beacon_pos):
     torch.manual_seed(7)

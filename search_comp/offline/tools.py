@@ -4,16 +4,9 @@ from __future__ import annotations
 from collections import Counter
 import json
 from urllib.parse import unquote
+from search_comp.data.agent_prompt import build_system_prompt
 
-SYSTEM_PROMPT = '''You are a research agent answering questions using a fixed local document corpus.
-Use the tools to find evidence. No external websites or network services are available.
-Call tools using this exact format:
-<tool_calls_begin><tool_call>{"name": "search", "arguments": {"query": ["keywords"]}}</tool_call></tool_calls_end>
-For multiple calls, put multiple <tool_call>JSON</tool_call> blocks inside one envelope.
-search accepts query (array of strings) and returns ranked documents with docid and text.
-visit accepts url (a local://docid string or array) and goal (string), and reads a stored document.
-Use <think>...</think> for reasoning and <answer>...</answer> for your final answer.
-'''
+SYSTEM_PROMPT = build_system_prompt(local=True)
 HOTPOT_INSTRUCTION = '''For the final answer, return a JSON object inside <answer>...</answer>:
 {"answer": "a short exact answer", "sp": [["Document title", 0]]}.
 sp contains ONLY sentence references that support your answer, using the displayed zero-based sentence IDs.

@@ -1,5 +1,7 @@
 # 20 Plain 训练与评测
 
+当前训练/评测共享提示词、v4 数据迁移、算法一致性检查及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+
 修改 `scripts/sh/20_plain_train.sh` 顶部 Python、GPU 列表和脚本中的 YAML，然后直接执行。默认 Qwen3.5-4B、16k、LoRA、batch=1；`model_family` 支持 qwen3 / qwen35。`ACTION="plan"` 只生成实验目录、配置快照、指纹和启动命令，`train` 才加载模型训练。数据路径与 tokenizer 必须在 manifest 中匹配。
 
 每次运行创建新的 `outputs/experiments/<name>/`，保留 `experiment.json`、`train.yaml`、`source_config.yaml`、运行日志与模型产物。根据 `train_summary.json` 的 `final_model_path` 定位推理模型；LoRA 合并与原训练器行为保持一致。计划后的代码或数据指纹改变会被拒绝，应重新创建实验计划。
@@ -10,7 +12,7 @@
 
 22—25 保留原 Search-R1 训练、交互评测和未训练基线入口；本次没有迁移 Search-R1 数据。
 
-训练后可增加独立 BrowseComp 测试：用 48 读取 RUN_DIR 并部署 Plain，配置 API 后运行 47 的官方模式。
+训练后可用 47 默认 native 模式直接加载 Plain，与 Beacon 共用训练提示和工具循环；配置 API 后执行。原样官方 v1/v2 复现仍可通过 48 部署 Plain，再显式选择 47 的官方模式。
 原有测试入口继续保留，准备依赖、完整示例与比较边界见 [42 官方 Benchmark](42_openseeker_benchmark.md)。
 
 无需外部 API 的固定语料测试使用 56（BrowseComp-Plus）或 57（HotpotQA），参数顶部填 RUN_DIR 即可连接训练产物；先离线建库和持久化索引，原 21/31/47 入口保留。两套基准的运行、评分与预算差异见 [43 离线手册](43_offline_benchmarks.md)。

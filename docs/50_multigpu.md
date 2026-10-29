@@ -1,5 +1,7 @@
 # 50 多卡训练与测试
 
+当前共享提示与数据版本迁移见 [45 统一流程](45_unified_agent_flow.md)；多卡不会改变提示词或工具协议。
+
 四卡 A800 OpenSeeker Beacon 可直接执行（模型与数据先在30中修改）：
 
 ```bash
@@ -52,7 +54,7 @@ DRY_RUN=1
 ```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3 python scripts/py/50_evaluate.py \
   --model /models/beacon-merged --kind beacon \
-  --data outputs/data/openseeker/polar_correct_qwen35_16k/test.jsonl \
+  --data outputs/data/openseeker/polar_correct_qwen35_16k_unified/test.jsonl \
   --data-split test --backend replay --num-workers 4 --limit 100 \
   --max-context 16384 --max-new-tokens 8192 \
   --max-tool-tokens 16384 --max-turns 32 \

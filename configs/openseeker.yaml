@@ -2,7 +2,7 @@
 model_family: qwen35                 # qwen3 / qwen35
 kind: beacon                         # beacon / plain
 data_mode: openseeker
-dataset: outputs/data/openseeker/polar_correct_qwen35_16k
+dataset: outputs/data/openseeker/polar_correct_qwen35_16k_unified
 models:
   qwen3: Qwen/Qwen3-4B-Thinking-2507
   qwen35: Qwen/Qwen3.5-4B

@@ -34,7 +34,7 @@ cat > "$CONFIG_FILE" <<'YAML'
 model_family: qwen35                 # qwen3 / qwen35
 kind: beacon                         # beacon / plain
 data_mode: openseeker
-dataset: outputs/data/openseeker/polar_correct_qwen35_16k
+dataset: outputs/data/openseeker/polar_correct_qwen35_16k_unified
 models:
   # 可改为本地模型路径；必须与数据 manifest.json 中记录的 tokenizer 标识一致。
   qwen3: Qwen/Qwen3-4B-Thinking-2507
@@ -86,7 +86,7 @@ beacon:
   beacon_output_distill_strategy: all
   beacon_readout_distill_weight: 0.0
   beacon_attention_backend: sdpa
-  beacon_keep_window: 1024
+  beacon_keep_window: 0
   beacon_checkpoint_blocks: true     # 无状态子模块重算；支持 whole，不重放记忆更新
   beacon_loss_chunk_size: 32
   beacon_checkpoint_loss: true

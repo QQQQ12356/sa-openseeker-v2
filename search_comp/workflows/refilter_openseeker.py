@@ -26,7 +26,7 @@ def main():
     manifest=json.loads((args.prepared/'manifest.json').read_text())
     from search_comp.data.openseeker import VERSION
     if manifest.get('protocol') != VERSION:
-        p.error('old protocol/lengths: rerun prepare_openseeker.py for original-answer data first')
+        p.error('old protocol/lengths: rerun scripts/sh/10_prepare.sh to remeasure the unified prompt first')
     options=dict(manifest['arguments'])
     options.update({k: v for k, v in vars(args).items() if k not in ('prepared', 'output')})
     # Published split membership must be retained: recover from original input paths.

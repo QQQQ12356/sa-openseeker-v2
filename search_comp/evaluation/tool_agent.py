@@ -5,10 +5,12 @@ A gateway implements POST {name, arguments} -> {content: str} for live tools.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import urllib.request
 from ..data.openseeker import (encode, parse_calls, json_text, CALL_END, RESPONSE_RE)
+from ..data.agent_prompt import prompt_metadata
 
 
 class ToolError(RuntimeError):
@@ -84,18 +86,28 @@ class ReplayTools:
 class ModelGenerator:
     def __init__(self, model, tokenizer, beacon=False):
         self.model, self.tokenizer, self.beacon = model, tokenizer, beacon
+        config = model.config.to_dict()
+        self.metadata = dict(kind='beacon' if beacon else 'plain', do_sample=False,
+                             decoding='greedy',
+                             checkpoint=getattr(model.config, '_name_or_path', ''),
+                             model_config_sha256=hashlib.sha256(
+                                 json_text(config).encode()).hexdigest())
+        if beacon:
+            self.metadata['beacon_config'] = model.beacon_config.to_dict()
 
     def __call__(self, encoded, max_new_tokens):
         import torch
-        from transformers import StoppingCriteria, StoppingCriteriaList
+        from transformers import GenerationConfig, StoppingCriteria, StoppingCriteriaList
         tokenizer = self.tokenizer
         ids = torch.tensor([encoded['input_ids']], device=next(self.model.parameters()).device)
         stops = [CALL_END, '</answer>', '<|im_end|>']
+        eos = self.model.config.eos_token_id
+        eos_ids = [] if eos is None else list(eos) if isinstance(eos, (list, tuple)) else [eos]
         with torch.inference_mode():
             if self.beacon:
                 out = self.model.beacon_generate(input_ids=ids, attention_mask=torch.ones_like(ids),
                     regions=encoded['regions'], max_new_tokens=max_new_tokens, tokenizer=tokenizer,
-                    stop_texts=stops, reuse_cache=False)
+                    stop_texts=stops, eos_token_ids=eos_ids, reuse_cache=False)
                 generated = out[0].tolist()
             else:
                 start = ids.shape[1]
@@ -104,12 +116,16 @@ class ModelGenerator:
                         text = tokenizer.decode(input_ids[0, start:].tolist(), skip_special_tokens=False)
                         return any(s in text for s in stops)
                 out = self.model.generate(input_ids=ids, attention_mask=torch.ones_like(ids),
-                    max_new_tokens=max_new_tokens, do_sample=False,
-                    pad_token_id=tokenizer.pad_token_id,
+                    # Do not inherit checkpoint-specific sampling, beam or penalty defaults
+                    # that the Beacon argmax loop does not implement.
+                    generation_config=GenerationConfig(max_new_tokens=max_new_tokens,
+                        do_sample=False, num_beams=1, repetition_penalty=1.0,
+                        bos_token_id=self.model.config.bos_token_id,
+                        eos_token_id=eos_ids or None, pad_token_id=tokenizer.pad_token_id),
                     stopping_criteria=StoppingCriteriaList([Stop()]))
                 generated = out[0, start:].tolist()
         text = tokenizer.decode(generated, skip_special_tokens=False)
-        ended = any(s in text for s in stops)
+        ended = any(s in text for s in stops) or bool(generated and generated[-1] in eos_ids)
         # ChatML assistant boundary is re-serialized by the shared encoder.
         text = text.split('<|im_end|>', 1)[0]
         return text, ended, len(generated)
@@ -170,6 +186,8 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
         history.extend(replies)
         events.append(dict(calls=calls, observation_tokens=lengths))
     return dict(prediction=prediction, status=status, messages=history, events=events,
+                **prompt_metadata(history[0]['content']),
+                generation_config=getattr(generate, 'metadata', {}),
                 generated_tokens=generated_tokens, turns=len(events))
 
 

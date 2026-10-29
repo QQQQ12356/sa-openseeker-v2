@@ -1,5 +1,7 @@
 # 52 四卡 A800 长轨迹 OOM：原因、修复与参数指南
 
+当前训练/评测共享提示词、v4 数据迁移、算法一致性检查及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+
 ## 1. 结论与证据边界
 
 适用：单机四卡 A800 80 GB、OpenSeeker、Beacon、每卡一条轨迹；重点是默认 Qwen3.5 路线，同时覆盖 Qwen3。6000 指 tokenizer 后的 token 数，字符数、原始 JSON 长度和 `max_length` 不能替代实际长度。
@@ -48,7 +50,7 @@ Search-R1 的 32/34 不读取 30 的嵌入配置。需要同样的重计算可�
 CUDA_VISIBLE_DEVICES=0,1,2,3 bash scripts/sh/32_beacon_searchr1_train.sh \
   --set beacon.beacon_checkpoint_blocks=true \
   --set beacon.beacon_attention_backend=sdpa \
-  --set beacon.beacon_keep_window=1024
+  --set beacon.beacon_keep_window=0
 ```
 
 ## 4. 参数表：在哪里修改、影响什么
@@ -71,7 +73,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 bash scripts/sh/32_beacon_searchr1_train.sh \
 | `gradient_checkpointing` | false / 不设置 | Beacon 中旧顶层字段不启用重算，改用下一项 |
 | `beacon_checkpoint_blocks` | true | 新字段，attention/MLP/reader/writer 重算；速度和显存权衡；排查可改 false 对照 |
 | `beacon_attention_backend` | sdpa | eager 仅小样本对照，长段显存明显更危险；SDPA 可能回退 |
-| `beacon_keep_window` | 1024 | 减小 keep 单次前向长度；可试512或256；全部 keep KV仍保留，不能消除历史线性增长 |
+| `beacon_keep_window` | 0 | 当前 whole SFT 入口强制整段 keep 并在归档前解析；改为正数需单独建立算法/显存对照，不能仅改 YAML 后宣称生效 |
 | `beacon_information_mode` | whole | 检索段完整前向；切 window 会改变压缩语义，见第5节 |
 | `beacon_window_enabled` | false | whole 时旧 window/stride 不限制检索段大小 |
 | `beacon_ratio` | 16 | 改顶部 `BEACON_RATIO`，脚本会覆盖 YAML；更大比例减少 Beacon 数但影响压缩质量，原文读入长度仍在 |
@@ -89,10 +91,10 @@ ZeRO-2 的 `reduce_bucket_size` / `allgather_bucket_size` 当前各为10000000�
 
 ## 5. 仍然 OOM 时的处理顺序
 
-1. 先确认运行的是修改后的入口和最终配置：SDPA、blocks=true、keep_window=1024、batch=1、BF16、LoRA、CPU activation offload；检查是否意外启用 teacher。确认每个 rank 不在同一物理卡，且没有其他任务占卡。
+1. 先确认运行的是修改后的入口和最终配置：SDPA、blocks=true、keep_window=0、batch=1、BF16、LoRA、CPU activation offload；检查是否意外启用 teacher。确认每个 rank 不在同一物理卡，且没有其他任务占卡。
 2. 若异常来自 LM head / CE，减 `beacon_loss_chunk_size`；若 keep 段前向，减 keep_window；若 reader/MLP 的单块临时张量，重计算也不能消除该块本身的空间要求。
 3. 若必须保持 whole，先按真实 tokenizer 长度筛选可运行数据、降低单段输入长度或调整数据构造；不要静默截断工具响应和监督标签。更高 Beacon 比例降低后续缓存和 writer 成本，但对超长原文的第一次读取未必有效。
-4. 允许改变压缩策略时，可明确建立 window 对照实验：`beacon_information_mode: window`、`beacon_window_enabled: true`、`beacon_window: 1024`、`beacon_stride: 1024`、`beacon_keep_window: 1024`，ratio=16可整除窗口；`beacon_doc_region_split: false`、information_loss=false 保持显式设置。Qwen3.5 每窗提交 writer 重建的状态，和 whole 一次读取整段不同，需重新评估质量。小窗只限制当前检索输入，不代表总缓存有固定上限。
+4. 当前 SFT 入口会强制 whole 与 keep_window=0。若研究 window，必须另行修改布局解析并建立独立对照，不能直接依靠以下旧参数覆盖当前入口：`beacon_information_mode: window`、`beacon_window_enabled: true`、`beacon_window: 1024`、`beacon_stride: 1024`、`beacon_keep_window: 1024`，ratio=16可整除窗口；`beacon_doc_region_split: false`、information_loss=false 保持显式设置。Qwen3.5 每窗提交 writer 重建的状态，和 whole 一次读取整段不同，需重新评估质量。小窗只限制当前检索输入，不代表总缓存有固定上限。
 5. 若完整参数本身已经接近容量，考虑更小模型或另外实现模型/序列并行。当前 Beacon 不支持 ZeRO-3；不同 rank 的动态分段模块调用次数不同，直接启用可能导致集合通信失配。不要去掉入口保护。
 6. 仅 reserved 远高于 allocated 且分配碎片明显时，再在服务器单独试 allocator 设置；碎片优化不能解决活跃张量本身超过80 GB。
 

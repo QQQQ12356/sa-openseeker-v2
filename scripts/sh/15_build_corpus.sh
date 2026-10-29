@@ -11,9 +11,9 @@ CONDA_ENV="search-comp-qwen3.5"
 # 也可只保留 test.jsonl；必须在实验报告中说明来源划分。
 # 使用其他服务器的 my_correct_4k 时，将下方三条路径一起修改。
 INPUTS=(
-  "outputs/data/openseeker/polar_correct_qwen35_16k/train.jsonl"
-  "outputs/data/openseeker/polar_correct_qwen35_16k/validation.jsonl"
-  "outputs/data/openseeker/polar_correct_qwen35_16k/test.jsonl"
+  "outputs/data/openseeker/polar_correct_qwen35_16k_unified/train.jsonl"
+  "outputs/data/openseeker/polar_correct_qwen35_16k_unified/validation.jsonl"
+  "outputs/data/openseeker/polar_correct_qwen35_16k_unified/test.jsonl"
 )
 OUTPUT_DIR="outputs/data/openseeker_corpus/polar_correct_qwen35_16k_evidence"
 PROGRESS_EVERY=100                    # 每读取多少条轨迹打印一次进度

@@ -1,6 +1,6 @@
 """OpenSeeker wire protocol shared by preprocessing, SFT and agent inference.
 
-Keep original Polar text and its original answer;
+Unify standard search/visit system instructions, keeping original trajectory and answer;
 render structured OpenAI calls into the same protocol.
 Only observation bodies are compressible. No trajectory is silently truncated.
 """
@@ -11,6 +11,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
+from .agent_prompt import build_system_prompt, PROMPT_VERSION
 
 CALL_RE = re.compile(r'<tool_call>\s*(.*?)\s*</tool_call>', re.S)
 RESPONSE_RE = re.compile(r'<tool_response>(.*?)</tool_response>', re.S)
@@ -22,7 +23,8 @@ PROTOCOL = '''You may call the supplied tools. Emit one or more JSON calls as:
 </tool_calls_end>
 Tool observations arrive inside <tool_response>...</tool_response>. After reasoning,
 return the final answer without further tool calls.'''
-VERSION = 'openseeker-chatml-v3-original-answer'
+VERSION = 'openseeker-chatml-v4-unified-agent'
+LEGACY_VERSION = 'openseeker-chatml-v3-original-answer'
 
 
 def json_text(value):
@@ -63,6 +65,14 @@ def normalize(row, source='unknown', index=0):
     if row.get('protocol') == VERSION:
         validate(row)
         return row
+    if row.get('protocol') == LEGACY_VERSION:
+        # Upgrade only through normalization/preparation: old token lengths are stale.
+        upgraded = copy.deepcopy(row)
+        upgraded['protocol'] = VERSION
+        _unify_system(upgraded)
+        upgraded.pop('lengths', None)
+        validate(upgraded)
+        return upgraded
     if row.get('protocol'):
         raise ValueError('unsupported OpenSeeker protocol: ' + str(row['protocol']))
     messages = copy.deepcopy(row.get('trajectory', row.get('messages')))
@@ -137,8 +147,20 @@ def normalize(row, source='unknown', index=0):
                   source=source, source_index=index,
                   correctness=row.get('trajectory correctness'),
                   declared_tool_calls=row.get('number of tool calls', row.get('n_tool_calls')))
+    _unify_system(result)
     validate(result)
     return result
+
+
+def _unify_system(row):
+    """Canonicalize search/visit tasks; retain custom-tool system instructions."""
+    names = {call['name'] for message in row['messages'] if message['role'] == 'assistant'
+             for call in parse_calls(message['content'])}
+    names.update(tool.get('function', tool).get('name') for tool in row.get('tools', []))
+    standard_system = row['messages'][0]['content'].startswith('You are a tool-augmented QA agent.')
+    if names <= {'search', 'visit'} and (names or standard_system):
+        row['messages'][0]['content'] = build_system_prompt()
+        row['prompt_version'] = PROMPT_VERSION
 
 
 def validate(row):
@@ -242,7 +264,7 @@ class OpenSeekerDataset:
             row = json.loads(f.readline())
         if row.get('protocol') != VERSION:
             raise ValueError('OpenSeeker training requires current original-answer data; '
-                             'run prepare_openseeker.py to regenerate and remeasure the dataset')
+                             'run scripts/sh/10_prepare.sh to regenerate and remeasure the unified prompt')
         row = normalize(row, index=index)
         validate(row)
         sample = encode(row['messages'], self.tokenizer, loss_segments=self.loss_segments,

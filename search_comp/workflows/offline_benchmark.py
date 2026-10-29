@@ -19,7 +19,7 @@ from search_comp.offline.assets import DEV_URL, WIKI_URL, digest, download_asset
 from search_comp.offline.data import prepare, records
 from search_comp.offline.index import LocalIndex, build_index
 from search_comp.offline.scoring import LocalJudge, load_predictions, score_browsecomp, score_hotpot
-from search_comp.offline.tools import BCP_INSTRUCTION, HOTPOT_INSTRUCTION, SYSTEM_PROMPT, LocalTools
+from search_comp.offline.tools import BCP_INSTRUCTION, HOTPOT_INSTRUCTION, LocalTools
 from search_comp.workflows.benchmark_openseeker import resolve_checkpoint
 from search_comp.workflows.evaluate_openseeker import worker_devices
 
@@ -77,9 +77,9 @@ def run_phase(args, output, rows, manifest):
     model = (load_beacon_model if kind == "beacon" else load_sft_model)(model_path)
     model.eval()
     generate = ModelGenerator(model, tokenizer, kind == "beacon")
-    system = SYSTEM_PROMPT + (HOTPOT_INSTRUCTION if args.benchmark == "hotpotqa" else BCP_INSTRUCTION)
-    if not args.allow_visit:
-        system += "\nOnly search is enabled for this run. Do not call visit.\n"
+    from search_comp.data.agent_prompt import build_system_prompt
+    system = build_system_prompt(local=True, allow_visit=args.allow_visit,
+        answer_instruction=HOTPOT_INSTRUCTION if args.benchmark == "hotpotqa" else BCP_INSTRUCTION)
     statuses = Counter()
     start = time.monotonic()
     with LocalIndex(args.root / "index.sqlite") as index, (output / "predictions.jsonl").open("x", encoding="utf-8") as target:

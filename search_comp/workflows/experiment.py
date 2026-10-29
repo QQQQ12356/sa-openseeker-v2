@@ -43,10 +43,13 @@ def main():
                    train_data_path=str((ROOT/data/'train.jsonl').resolve()),
                    val_data_path=str((ROOT/data/'validation.jsonl').resolve()))
         cfg.setdefault('beacon',{}).update(spec.get('beacon',{}))
+        if kind == 'beacon':
+            from search_comp.models.beacon_config import configure_whole_trajectory
+            configure_whole_trajectory(cfg)
         if spec['data_mode']=='openseeker':
             manifest=json.loads((ROOT/data/'manifest.json').read_text())
             if manifest.get('protocol') != VERSION:
-                p.error('dataset uses an old protocol; rerun prepare_openseeker.py for original-answer data')
+                p.error('dataset uses an old protocol; rerun scripts/sh/10_prepare.sh in a new directory for the unified prompt and token lengths')
             if cfg['model_name_or_path'] not in manifest['tokenizers']:
                 p.error('dataset was not measured with this model tokenizer; prepare with --models first')
             if manifest['arguments']['max_length']>cfg['max_length']:

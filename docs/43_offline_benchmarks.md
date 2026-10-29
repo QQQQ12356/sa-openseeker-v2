@@ -1,5 +1,7 @@
 # 43 固定语料离线评测：BrowseComp-Plus 与 HotpotQA
 
+当前训练/评测共享提示词、v4 数据迁移、算法一致性检查及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+
 本文是新增离线流程的操作手册。所有修改均为增量：原来的 21/31 EM/F1、47 在线 OpenSeeker、48 SGLang、Search-R1 和训练器继续保留。新增实现位于 `search_comp/offline/`，统一 Python 入口为 `scripts/py/52_offline_benchmark.py`，一键入口是 **56 BrowseComp-Plus** 和 **57 HotpotQA**。
 
 ## 43.1 两套基准的用途与边界

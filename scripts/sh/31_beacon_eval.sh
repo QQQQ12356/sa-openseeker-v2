@@ -2,34 +2,36 @@
 # 修改下方参数后执行：bash scripts/sh/31_beacon_eval.sh
 set -euo pipefail
 
+# ===== Plain/Beacon 共用入口；所有顶部标量支持同名环境变量覆盖 =====
+# 21_plain_eval.sh 仅设置 KIND=plain 后转入本脚本。提示与协议见 docs/45_unified_agent_flow.md。
 # ===== 运行环境 =====
 # 留空时按 common.sh 的规则选择 Python；也可填 Python 绝对路径。
-PYTHON=""
-CONDA_ENV="search-comp-qwen3.5"
-export CUDA_VISIBLE_DEVICES="0"      # 多卡示例："0,1,2,3"
-NUM_WORKERS=1                        # 每卡一个完整模型副本；多卡并行时设为使用的 GPU 数
-PROGRESS_INTERVAL=15                # 长时间加载/生成时，每隔多少秒打印当前阶段
-DRY_RUN=0                            # 1：只检查配置并打印命令，不加载模型或创建输出
+PYTHON="${PYTHON:-}"
+CONDA_ENV="${CONDA_ENV:-search-comp-qwen3.5}"
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"      # 多卡示例："0,1,2,3"
+NUM_WORKERS="${NUM_WORKERS:-1}"                        # 每卡一个完整模型副本；多卡并行时设为使用的 GPU 数
+PROGRESS_INTERVAL="${PROGRESS_INTERVAL:-15}"                # 长时间加载/生成时，每隔多少秒打印当前阶段
+DRY_RUN="${DRY_RUN:-0}"                            # 1：只检查配置并打印命令，不加载模型或创建输出
 
 # ===== 模型与数据 =====
-RUN_DIR=""                           # train_openseeker.sh 生成的 outputs/experiments/<实验名>
-MODEL_PATH=""                        # 留空：从 RUN_DIR 的 train_summary.json 读取最终模型
-KIND=""                              # beacon / plain；留空：读取实验配置，无 RUN_DIR 时用 beacon
-SPLIT="test"                         # train / validation / test；训练集评测用于判断拟合能力
-DATA=""                              # 留空：按 SPLIT 选择数据；非空时覆盖自动选择的路径
+RUN_DIR="${RUN_DIR:-}"                           # train_openseeker.sh 生成的 outputs/experiments/<实验名>
+MODEL_PATH="${MODEL_PATH:-}"                        # 留空：从 RUN_DIR 的 train_summary.json 读取最终模型
+KIND="${KIND:-}"                              # beacon / plain；留空：读取实验配置，无 RUN_DIR 时用 beacon
+SPLIT="${SPLIT:-test}"                         # train / validation / test；训练集评测用于判断拟合能力
+DATA="${DATA:-}"                              # 留空：按 SPLIT 选择数据；非空时覆盖自动选择的路径
 # 单独测试 checkpoint 时填写 MODEL_PATH；LoRA 请使用已合并的模型目录。
 # 同时填写 RUN_DIR 和 MODEL_PATH 时，后者覆盖实验中的模型路径。
 
 # ===== 评测参数 =====
-BACKEND="replay"                      # replay：历史动作复现诊断；http：在线工具；corpus：本地语料
-ENDPOINT=""                          # http 必填，例如 http://127.0.0.1:8080/tool
-CORPUS=""                            # corpus 必填：JSONL；历史证据库见 build_openseeker_corpus.sh
-LIMIT=100                            # 最多测试的样本数
-MAX_CONTEXT=16384
-MAX_NEW_TOKENS=8192
-MAX_TOOL_TOKENS=16384
-MAX_TURNS=32
-OUTPUT_DIR=""                        # 留空：RUN_DIR/evaluation 或 outputs/results/openseeker
+BACKEND="${BACKEND:-replay}"                      # replay：历史动作复现诊断；http：在线工具；corpus：本地语料
+ENDPOINT="${ENDPOINT:-}"                          # http 必填，例如 http://127.0.0.1:8080/tool
+CORPUS="${CORPUS:-}"                            # corpus 必填：JSONL；历史证据库见 build_openseeker_corpus.sh
+LIMIT="${LIMIT:-100}"                            # 最多测试的样本数
+MAX_CONTEXT="${MAX_CONTEXT:-16384}"
+MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-8192}"
+MAX_TOOL_TOKENS="${MAX_TOOL_TOKENS:-16384}"
+MAX_TURNS="${MAX_TURNS:-32}"
+OUTPUT_DIR="${OUTPUT_DIR:-}"                        # 留空：RUN_DIR/evaluation 或 outputs/results/openseeker
 
 source "$(dirname "${BASH_SOURCE[0]}")/00_common.sh"
 PY=$(resolve_python)
@@ -74,7 +76,7 @@ if run:
 if not model:
     sys.exit("请在脚本顶部填写 RUN_DIR 或 MODEL_PATH")
 kind = kind or "beacon"
-data = data or f"outputs/data/openseeker/polar_correct_qwen35_16k/{split}.jsonl"
+data = data or f"outputs/data/openseeker/polar_correct_qwen35_16k_unified/{split}.jsonl"
 if kind not in ("plain", "beacon"):
     sys.exit("KIND 必须是 plain 或 beacon")
 if not Path(data).is_file():
@@ -92,8 +94,8 @@ DATA=${RESOLVED_ARGS[2]}
 OUTPUT_DIR=${OUTPUT_DIR:-${RUN_DIR:+$RUN_DIR/evaluation}}
 OUTPUT_DIR=${OUTPUT_DIR:-outputs/results/openseeker}
 STAMP=$(date -u '+%Y%m%dT%H%M%S%NZ')
-OUTPUT="$OUTPUT_DIR/predictions_${SPLIT}_$STAMP.jsonl"
-LOG_PATH="$OUTPUT_DIR/eval_${SPLIT}_$STAMP.log"
+OUTPUT="${OUTPUT:-$OUTPUT_DIR/predictions_${SPLIT}_$STAMP.jsonl}"
+LOG_PATH="${LOG_PATH:-$OUTPUT_DIR/eval_${SPLIT}_$STAMP.log}"
 COMMAND=(
   "$PY" scripts/py/50_evaluate.py
   --model "$MODEL_PATH" --kind "$KIND" --data "$DATA"

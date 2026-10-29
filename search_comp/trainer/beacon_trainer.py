@@ -28,7 +28,7 @@ from pathlib import Path
 import torch
 from transformers import TrainerCallback, TrainingArguments
 
-from ..models.beacon_config import BeaconConfig
+from ..models.beacon_config import BeaconConfig, configure_whole_trajectory
 from ..milestones.qwen35_text import load_text_tokenizer
 from ..utils.runtime import (
     count_parameters,
@@ -152,17 +152,6 @@ class _SaveBeaconCheckpoints(TrainerCallback):
         save_beacon_checkpoint(self.trainer, self.model, self.tokenizer, final_dir, self.use_lora)
         if state.is_world_process_zero:
             print(f"[beacon] 训练结束，adapter/state 已保存到 {final_dir}", flush=True)
-
-
-def configure_whole_trajectory(cfg: dict) -> None:
-    """SFT 不按长度切窗；旧 YAML 的窗口选项不再限制轨迹计算。"""
-    beacon = cfg.setdefault("beacon", {})
-    beacon.update(
-        beacon_information_mode="whole",
-        beacon_window_enabled=False,
-        beacon_doc_region_split=False,
-        beacon_keep_window=0,
-    )
 
 
 def main_train(

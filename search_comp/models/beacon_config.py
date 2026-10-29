@@ -16,6 +16,14 @@ from typing import Any, Dict, Optional
 from ..loss_segments import LossSegmentConfig, field_default
 
 
+def configure_whole_trajectory(cfg: dict) -> None:
+    """Resolve SFT layout before archiving, loading, and saving the checkpoint."""
+    cfg.setdefault("beacon", {}).update(
+        beacon_information_mode="whole", beacon_window_enabled=False,
+        beacon_doc_region_split=False, beacon_keep_window=0,
+    )
+
+
 @dataclass
 class BeaconConfig:
     """Beacon 压缩机制的超参数配置。

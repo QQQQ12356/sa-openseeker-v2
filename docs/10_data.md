@@ -1,5 +1,7 @@
 # 10 Polar 数据处理与细粒度筛选
 
+当前训练/评测共享提示词、v4 数据迁移、算法一致性检查及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+
 原始数据位于 `outputs/data/raw/polar/`，包括原始快照目录和 `openseeker_v1_data.jsonl`。只从 `../sa-qwen-openseeker/outputs/data/raw/polar/` 复制这一份数据；不依赖源项目的派生数据。重新下载入口保留为 16，默认只下载 Polar，当前迁移无需运行下载。
 
 首次准备运行 `bash scripts/sh/10_prepare.sh`。已生成同名输出时拒绝覆盖，修改 `OUTPUT_DIR` 可创建另一版本。主要变量：
@@ -7,7 +9,7 @@
 | 变量 | 含义 |
 |---|---|
 | INPUTS / SOURCE | 输入 JSONL/Parquet 路径与来源；当前为 Polar |
-| OUTPUT_DIR | 默认 `outputs/data/openseeker/polar_correct_qwen35_16k` |
+| OUTPUT_DIR | 默认 `outputs/data/openseeker/polar_correct_qwen35_16k_unified` |
 | MODELS | 用于实测的 tokenizer 标识，可列多个 |
 | MIN_LENGTH / MAX_LENGTH | 完整训练序列 token 长度闭区间，默认 1—16384 |
 | CORRECTNESS | `Correct` / `Incorrect` / `any`，默认严格 Correct，缺失标签也被排除 |
@@ -15,7 +17,7 @@
 | WORKERS / OFFLINE | CPU 分词并发与仅本地缓存 |
 | VAL_FRACTION / TEST_FRACTION / SEED | 默认约 96%/2%/2%，按问题哈希分组 |
 
-规范化保留 Polar system、问题、assistant 推理/调用/回答正文。结构化 OpenAI calls 转换成一致的工具协议，tool role 转为 user observation。只对 assistant 内容计算主损失，仅 observation 正文允许压缩；不截断样本。`answer` 仅是独立评分参考，不注入轨迹或推理提示词。当前协议标识为 `openseeker-chatml-v3-original-answer`；旧派生数据必须重新生成。
+标准 search/visit 轨迹的 system 统一为共享提示词；问题、assistant 推理/调用/回答正文保持原样。自定义工具保留原 system。结构化 OpenAI calls 转换成一致的工具协议，tool role 转为 user observation。只对 assistant 内容计算主损失，仅 observation 正文允许压缩；不截断样本。`answer` 仅是独立评分参考，不注入轨迹或推理提示词。当前协议标识为 `openseeker-chatml-v4-unified-agent`；旧派生数据必须重新生成。
 
 输出包含：`normalized.jsonl`（所有通过结构校验的样本及全部长度，包括超长和 Incorrect）、`train/validation/test.jsonl`（筛选后划分）、`rejected.jsonl`（拒绝原因）、`measurements.jsonl`（逐条长度与工具统计）、`manifest.json`（来源 SHA256、tokenizer 指纹、筛选参数和分布）。输入官方 validation/test 按问题优先保留划分；普通数据按问题哈希划分并去重，避免相同问题跨集合。拒绝原因按长度、正确性、观测、重复问题顺序记第一个原因。
 
@@ -32,9 +34,9 @@
 
 历史证据库通过 `15_build_corpus.sh` 构建，只读取 visit 调用配对的网页证据，去重并保留溯源，不采集参考答案或 assistant 思考；这种证据库属于历史轨迹语料，不等同于独立在线搜索。
 
-## 本次实际生成的数据
+## 历史 v3 实际生成的数据
 
-已完成 11,677 条原始轨迹的全量规范化与 Qwen3.5 tokenizer 实测：Correct 4,949 条、Incorrect 6,728 条，结构无效记录为 0。以下均为新代码生成，原始数据保持不变：
+已完成 11,677 条原始轨迹的全量规范化与 Qwen3.5 tokenizer 实测：Correct 4,949 条、Incorrect 6,728 条，结构无效记录为 0。以下是先前 v3 代码生成的历史输出；本次未重建 v4 数据，原始数据保持不变：
 
 | 目录（均在 outputs/data/openseeker/ 下） | train | validation | test |
 |---|---:|---:|---:|

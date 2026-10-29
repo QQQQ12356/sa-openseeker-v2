@@ -29,7 +29,7 @@ cat > "$CONFIG_FILE" <<'YAML'
 model_family: qwen35                 # qwen3 / qwen35
 kind: plain                         # beacon / plain
 data_mode: openseeker
-dataset: outputs/data/openseeker/polar_correct_qwen35_16k
+dataset: outputs/data/openseeker/polar_correct_qwen35_16k_unified
 models:
   # 可改为本地模型路径；必须与数据 manifest.json 中记录的 tokenizer 标识一致。
   qwen3: Qwen/Qwen3-4B-Thinking-2507

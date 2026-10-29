@@ -13,6 +13,7 @@
 | [42 官方 Benchmark](42_openseeker_benchmark.md) | BrowseComp、固定官方 v1/v2、Beacon native、LLM 裁判、覆盖审计、一键运行 |
 | [43 离线基准](43_offline_benchmarks.md) | BrowseComp-Plus / HotpotQA、持久化 BM25、断网构建与评测、参数和修改提示 |
 | [44 离线来源](44_offline_sources.md) | 固定官方代码、数据版本、许可证与升级规则 |
+| [45 统一训练与测试](45_unified_agent_flow.md) | 共享提示/schema、v4 数据迁移、算法一致性、在线/离线入口、变量和修改说明 |
 | [50 多卡](50_multigpu.md) | torchrun、DDP、ZeRO-2/3、每卡日志、Beacon 与固定语料多卡测试 |
 | [51 显存测试](51_memory_probe.md) | 特定长度数据、短步数训练、峰值显存 |
 | [52 四卡 A800 长轨迹 OOM](52_beacon_oom.md) | 原因、重计算修复、参数说明与修改提示 |
@@ -32,7 +33,7 @@
 | 20—29 | Plain 训练、评测、显存实验 | `20_plain_train.sh`、`21_plain_eval.sh`、`26_plain_memory_probe.sh` |
 | 30—39 | Beacon 训练、评测、合并、显存实验 | `30_beacon_train.sh`、`31_beacon_eval.sh`、`35_beacon_merge_adapter.sh`、`37_beacon_memory_probe.sh`、`38_beacon_4xa800.sh` |
 | 40—49 | HTML、指标汇总、图表、官方 Benchmark | `40_dataset_html.sh`、`41_predictions_html.sh`、`42_summarize_results.sh`、`43_export_excel.sh`、`44_plot.sh`、`45_report.sh` |
-| 50—59 | 共享实验调度、固定语料离线基准 | Python `50_evaluate.py`、`51_experiment.py`、`52_offline_benchmark.py`；shell `56_browsecomp_plus.sh`、`57_hotpotqa_offline.sh`、共享 `58_offline_common.sh` |
+| 50—59 | 共享实验调度、固定语料离线基准 | Python `50_evaluate.py`、`51_experiment.py`、`52_offline_benchmark.py`；shell `56_browsecomp_plus.sh`、`57_hotpotqa_offline.sh`、共享 `58_offline_common.sh`、`59_check_agent_alignment.sh` 协议/算法 CPU 回归 |
 | 60—69 | 保留的早期能力探针 | `60_searchagent_probe.sh` |
 
 22—25、32—34 为保留的 Search-R1 入口，其数据不随本次迁移，需要另行准备。`scripts/py/` 保留参数接口便于自动化；日常运行优先修改 shell 顶部变量。

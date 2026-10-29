@@ -22,13 +22,14 @@ def polar():
         dict(role='assistant',content='<think>Done.</think><answer>Alice</answer>')])
 
 
-def test_polar_does_not_replace_system_or_tool_arguments():
+def test_polar_unifies_system_without_changing_trajectory_or_arguments():
     raw=polar(); saved=copy.deepcopy(raw); row=normalize(raw)
     assert raw==saved
     assert row['messages'][1:-1]==raw['trajectory'][1:-1]
-    assert row['messages'][0]['content'].startswith(raw['trajectory'][0]['content'])
+    from search_comp.data.agent_prompt import build_system_prompt
+    assert row['messages'][0]['content'] == build_system_prompt()
     assert row['messages'][-1]['content'].startswith(raw['trajectory'][-1]['content'])
-    assert row['messages'] == raw['trajectory']
+    assert row['messages'][1:] == raw['trajectory'][1:]
     assert parse_calls(row['messages'][4]['content'])[0]['arguments']['goal']=='identity'
 
 
@@ -194,7 +195,7 @@ def test_normalization_preserves_original_answer_and_is_idempotent():
     raw['trajectory'][-1]['content']='<think>Done.</think><answer>Alice won the prize.</answer>'
     row=normalize(raw)
     assert row['protocol']==VERSION
-    assert row['messages']==raw['trajectory']
+    assert row['messages'][1:]==raw['trajectory'][1:]
     assert normalize(row)==row
 
 
@@ -264,5 +265,5 @@ def test_refilter_rejects_old_length_measurements_before_writing(tmp_path):
     result=subprocess.run([sys.executable,str(script),'--prepared',str(parent),
         '--output',str(output),'--max-length','16384'],capture_output=True,text=True)
     assert result.returncode!=0
-    assert 'rerun prepare_openseeker.py' in result.stderr
+    assert 'rerun scripts/sh/10_prepare.sh' in result.stderr
     assert not output.exists()

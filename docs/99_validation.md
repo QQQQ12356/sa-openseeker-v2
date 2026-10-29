@@ -76,3 +76,34 @@ CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=1 python -m pytest -q \
 结果：101 passed、6 skipped；PEFT 小模型保存测试有一条缺少基础模型配置的预期 warning。新测试比对重计算开关前后的 loss、全部梯度和最终记忆，覆盖两类模型、whole/window、offload开关和冻结embedding。未运行两进程DDP更新或DeepSpeed训练；本次多卡验证限于启动参数、设备配置逻辑及相关单元测试。
 
 `bash -n` 检查30/37/38脚本通过，`git diff --check` 通过。38的 `ACTION=plan` 验证仅归档配置并输出四进程ZeRO-2启动命令，不加载模型、不执行该命令。目标服务器的真实80 GB显存峰值、CPU内存、NCCL和融合算子组合尚未实测；按 [52](52_beacon_oom.md) 和 [51](51_memory_probe.md) 验收。
+
+
+## 2026-10-29 统一训练与 native 在线/离线评测
+
+设计、参数、迁移及修改说明见 [45 统一流程](45_unified_agent_flow.md)。参考本地 OpenSeeker 固定提交 `e3dec1f727d87c5eaa93506e4882c67237647098` 的 v1 prompt、模板、工具循环和公开训练轨迹，没有修改 vendor 或官方评分代码。
+
+本次最终完整回归使用已有项目环境：PyTorch 2.7.0+cu126、Transformers 5.9.0、PEFT 0.20.0；设置 OMP_NUM_THREADS=1、HF_HUB_OFFLINE=1、TRANSFORMERS_OFFLINE=1。命令：
+
+```bash
+OMP_NUM_THREADS=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  /home/huangzj/miniconda3/envs/search-comp-qwen3.5/bin/python \
+  -m pytest tests -q --disable-warnings
+```
+
+结果：**562 passed、2 skipped、9 warnings，88.44 秒**。终端输出另存 `outputs/reports/verification/unified_agent_pytest.log`。系统默认 Python 缺少 PEFT，初次扩展检查因此中断；最终结果来自依赖齐全的项目环境，没有通过删除测试或修改依赖断言规避。
+
+新增/更新覆盖：
+
+- Plain/Beacon SFT 的 input_ids 和 labels 一致；每轮 native 生成前缀与训练序列逐 token 对齐，observation 区域一致。
+- 标准任务 system 与在线 native 初始消息一致；离线只增加实际能力、固定语料和任务输出约束；search-only schema 不宣称支持 visit。
+- v3 升级清除旧长度记录，训练与 refilter 拒绝旧测量；原始问题、assistant 和 observation 保持不变。
+- Qwen3.5 tiny 模型的监督整段 forward 与 prefill/逐 token decode 的 logits、全注意力 KV、线性状态一致，覆盖 append/intersect 及无/有压缩；不加载真实 checkpoint。
+- Plain 显式贪心 GenerationConfig，Beacon 同样 argmax；两者不继承不同的 beam/重复惩罚默认值，支持多个 EOS ID，并保留统一停止文本。
+- native 在线 Plain/Beacon、离线 Plain/Beacon、真实工具循环测试桩、replay/HTTP/本地语料，以及原样 official-v1/v2 子进程流程仍通过回归。
+- 21 作为 Plain 包装转入 31；两入口对 train/validation/test 的选择通过实际 shell dry-run 验证，环境变量覆盖、含空格模型路径与不创建输出目录均覆盖。
+
+额外只读审计本地 v3 训练集 644 条：标准 system 全部统一，其余 messages 与原记录相等，旧 lengths 清除。没有写回、重分词或重新划分真实训练数据。
+
+47 的 native/official-v1/official-v2，以及 56/57 的 run dry-run 均通过；没有调用在线 API。全部 shell 的 bash -n、Python compileall、文档本地链接和 git diff --check 通过。一键相关检查为 `bash scripts/sh/59_check_agent_alignment.sh`，其环境选择遵循 00_common.sh。
+
+未运行真实模型训练、真实 checkpoint 在线/离线生成、真实裁判或全量索引构建；未重新生成 v4 全量训练数据。历史 v3 数据、模型和 tmp 的三个结果文件保留。提示词/协议统一不能替代训练和模型效果验证，实际效果需准备 v4 数据并训练新模型后测量。
