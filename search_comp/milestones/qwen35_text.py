@@ -44,6 +44,7 @@ def load_text_causal_model(
     torch_dtype: torch.dtype = torch.bfloat16,
     device_map: str = "auto",
     trust_remote_code: bool = True,
+    attn_implementation: str | None = None,
 ):
     """装载 Qwen3.5 纯文本因果 LM。
 
@@ -65,6 +66,7 @@ def load_text_causal_model(
         Qwen3_5ForConditionalGeneration,
     )
 
+    attention_kwargs = {"attn_implementation": attn_implementation} if attn_implementation else {}
     config = AutoConfig.from_pretrained(model_name_or_path, trust_remote_code=trust_remote_code)
 
     if "BeaconQwen3ForCausalLM" in (config.architectures or []):
@@ -73,7 +75,7 @@ def load_text_causal_model(
         from transformers import Qwen3ForCausalLM
         return Qwen3ForCausalLM.from_pretrained(
             model_name_or_path, torch_dtype=torch_dtype, device_map=device_map,
-            trust_remote_code=trust_remote_code,
+            trust_remote_code=trust_remote_code, **attention_kwargs,
         ).eval()
 
     # 已经是纯文本 checkpoint（原生 SFT 保存的 Qwen3_5ForCausalLM）时没有
@@ -91,11 +93,14 @@ def load_text_causal_model(
             model_name_or_path,
             torch_dtype=torch_dtype,
             device_map=device_map,
-            trust_remote_code=trust_remote_code,
+            trust_remote_code=trust_remote_code, **attention_kwargs,
         )
         return model.eval()
 
     text_config = config.text_config
+
+    if attn_implementation:
+        text_config._attn_implementation = attn_implementation
 
     # 构造纯文本模型
     model = Qwen3_5ForCausalLM(text_config)

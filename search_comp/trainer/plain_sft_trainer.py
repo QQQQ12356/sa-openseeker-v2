@@ -34,7 +34,7 @@ from typing import Any, Dict, List
 
 import torch
 from torch.utils.data import Dataset
-from transformers import Trainer, TrainingArguments
+from transformers import TrainingArguments
 
 from ..utils.trainer_callbacks import JsonlMetricsCallback, CudaMemoryCallback
 from ..utils.runtime import (
@@ -86,7 +86,7 @@ def collate_sft_batch(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.T
         raise ValueError(
             f"Search-R1 数据仅支持 batch_size=1（当前 {len(batch)}）。"
             "请用 grad_accum_steps 扩大有效 batch。"
-            "多卡可见时会放大 batch——单卡训练请设 CUDA_VISIBLE_DEVICES=0。"
+            "多卡训练请通过 search_comp.trainer.launch 启动，每个进程保持 batch_size=1。"
         )
     sample = batch[0]
     input_ids = sample["input_ids"].unsqueeze(0)
@@ -142,17 +142,20 @@ def main_train(
 
     from ..utils.distributed import setup_training
     model_device = setup_training(cfg)
-    model = load_sft_model(cfg["model_name_or_path"], device_map=model_device)
+    model = load_sft_model(
+        cfg["model_name_or_path"], device_map=model_device,
+        attn_implementation=cfg.get("plain_attention_backend", "sdpa"),
+    )
 
     use_lora = cfg.get("use_lora", False)
-    if use_lora:
-        model = apply_lora(model, cfg)
-
     max_length = cfg.get("max_length", 8192)
     from ..loss_segments import LossSegmentConfig
-    from .segmented_sft_trainer import SegmentedSFTTrainer
+    from .plain_memory import PlainMemoryTrainer, install_plain_memory_forward
     loss_segments = LossSegmentConfig.from_dict(
         cfg.get('loss_segments', cfg.get('beacon', {}).get('loss_segments')))
+    install_plain_memory_forward(model, cfg, loss_segments)
+    if use_lora:
+        model = apply_lora(model, cfg)
     model.config.loss_segments = loss_segments.to_dict()
     train_ds = PlainSFTDataset(cfg["train_data_path"], tokenizer, max_length,
                               data_mode=cfg.get("data_mode", "searchr1"), loss_segments=loss_segments)
@@ -169,7 +172,7 @@ def main_train(
 
     use_8bit = cfg.get("optim", "adamw_torch") == "adamw_bnb_8bit"
     if cfg.get("gradient_checkpointing", True):
-        model.gradient_checkpointing_enable()
+        model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
         if hasattr(model, "enable_input_require_grads"):
             model.enable_input_require_grads()
     model.config.use_cache = False
@@ -207,9 +210,8 @@ def main_train(
         ddp_find_unused_parameters=True,
     )
 
-    trainer_class = Trainer if loss_segments.is_default else SegmentedSFTTrainer
-    trainer = trainer_class(
-        **({"loss_segments": loss_segments} if not loss_segments.is_default else {}),
+    trainer = PlainMemoryTrainer(
+        loss_segments=loss_segments,
         model=model,
         args=args,
         train_dataset=train_ds,
@@ -236,7 +238,26 @@ def main_train(
         flush=True,
     )
     started_at = time.time()
-    train_result = trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+    try:
+        train_result = trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+    except torch.OutOfMemoryError as error:
+        failure = {
+            "error_type": type(error).__name__, "error": str(error),
+            "rank": int(os.environ.get("RANK", "0")),
+            "recommendations": [
+                "减小 plain_loss_chunk_size，确认 gradient_checkpointing=true",
+                "启用 plain_cpu_offload_activations=true",
+                "检查实际样本长度和其他进程显存占用；Plain 不自动截断样本",
+            ],
+        }
+        if torch.cuda.is_available():
+            failure["cuda_memory"] = {
+                "allocated": torch.cuda.memory_allocated(),
+                "reserved": torch.cuda.memory_reserved(),
+                "max_allocated": torch.cuda.max_memory_allocated(),
+            }
+        write_json(os.path.join(exp_dir, f"failure_rank{failure['rank']}.json"), failure)
+        raise
 
     trainer.save_model(ckpt_dir)
     trainer.accelerator.wait_for_everyone()

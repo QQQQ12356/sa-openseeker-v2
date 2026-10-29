@@ -4,13 +4,13 @@ set -euo pipefail
 
 # ===== 运行环境 =====
 # 留空时按 common.sh 的规则选择 Python；也可填当前服务器的 Python 绝对路径。
-PYTHON=""
-CONDA_ENV="search-comp-qwen3.5"
+PYTHON="${PYTHON:-}"
+CONDA_ENV="${CONDA_ENV:-search-comp-qwen3.5}"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 # 设置可见卡列表，例如 0,1,2,3；NPROC_PER_NODE 默认随可见卡数自动推断。
 export DISTRIBUTED_BACKEND="${DISTRIBUTED_BACKEND:-zero2}"  # ddp / zero2；plain 另支持 zero3
 # export NPROC_PER_NODE=4
-ACTION="train"                       # train：生成新实验并训练；plan：只生成配置
+ACTION="${ACTION:-train}"                       # train：生成新实验并训练；plan：只生成配置
 
 source "$(dirname "${BASH_SOURCE[0]}")/00_common.sh"
 PY=$(resolve_python)
@@ -54,6 +54,13 @@ training:
   lora_alpha: 32
   optim: adamw_bnb_8bit
   use_bf16: true
+  gradient_checkpointing: true
+  # Plain 显存控制：完整序列前向，LM head 仅计算监督位置并分块重算。
+  plain_attention_backend: sdpa
+  plain_loss_chunk_size: 32
+  plain_checkpoint_loss: true
+  plain_cpu_offload_activations: true
+  plain_cpu_offload_threshold: 2048
   logging_steps: 5
   log_freq_steps: 5
   save_freq_steps: 200
@@ -80,9 +87,6 @@ beacon:
   beacon_output_distill_weight: 0.0  # >0 会额外加载 teacher
   beacon_output_distill_strategy: all
   beacon_readout_distill_weight: 0.0
-  beacon_loss_chunk_size: 32
-  beacon_checkpoint_loss: true
-  beacon_cpu_offload_activations: true
 evaluation:                         # 归档评测参数；本脚本只训练，不自动评测
   backend: replay
   corpus: null

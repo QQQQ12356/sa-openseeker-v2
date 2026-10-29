@@ -36,3 +36,5 @@ Beacon 训练支持固定/随机压缩比：修改 `30_beacon_train.sh` 的 `COM
 固定语料离线评测现已接入：`56_browsecomp_plus.sh` 使用独立 BCP corpus、持久化 BM25 与本地裁判；`57_hotpotqa_offline.sh` 使用有标注 dev、完整官方 Wiki 摘要库和官方 EM/F1。先 `ACTION=download` 一次性准备，之后 prepare/index/run/score/all 均严格离线。两者都支持从 RUN_DIR 读取 Plain/Beacon 训练产物。详细参数、逐步运行与修改提示见 [43 离线基准手册](docs/43_offline_benchmarks.md)，官方版本及许可证见 [44 来源说明](docs/44_offline_sources.md)。
 
 四卡 A800 的 Beacon 长轨迹训练：先修改 `scripts/sh/30_beacon_train.sh` 中模型和数据路径，再用 `ACTION=plan bash scripts/sh/38_beacon_4xa800.sh` 只生成配置；实际训练运行 `bash scripts/sh/38_beacon_4xa800.sh`。显存原因、重计算修复和参数修改提示见 [52 四卡 A800 长轨迹 OOM](docs/52_beacon_oom.md)。
+
+Plain 四卡长轨迹训练：`ACTION=plan bash scripts/sh/28_plain_4xa800.sh` 审查配置，实际训练去掉 `ACTION=plan`。参数统一在 `20_plain_train.sh`；分块 loss、激活卸载及限制见 [20 Plain](docs/20_plain.md)。

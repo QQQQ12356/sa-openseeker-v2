@@ -36,6 +36,7 @@ def load_sft_model(
     torch_dtype: torch.dtype = torch.bfloat16,
     device_map: str = "auto",
     trust_remote_code: bool = True,
+    attn_implementation: str | None = None,
 ):
     """装载用于 SFT 的 Qwen3.5 纯文本因果 LM。
 
@@ -56,6 +57,7 @@ def load_sft_model(
         torch_dtype=torch_dtype,
         device_map=device_map,
         trust_remote_code=trust_remote_code,
+        attn_implementation=attn_implementation,
     )
 
 

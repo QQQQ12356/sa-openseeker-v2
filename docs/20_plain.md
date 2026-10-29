@@ -14,3 +14,38 @@
 原有测试入口继续保留，准备依赖、完整示例与比较边界见 [42 官方 Benchmark](42_openseeker_benchmark.md)。
 
 无需外部 API 的固定语料测试使用 56（BrowseComp-Plus）或 57（HotpotQA），参数顶部填 RUN_DIR 即可连接训练产物；先离线建库和持久化索引，原 21/31/47 入口保留。两套基准的运行、评分与预算差异见 [43 离线手册](43_offline_benchmarks.md)。
+
+## Plain 长序列显存控制
+
+四卡入口：`bash scripts/sh/28_plain_4xa800.sh`；先审查配置可运行
+`ACTION=plan bash scripts/sh/28_plain_4xa800.sh`。模型、数据及训练参数集中在
+`20_plain_train.sh`，外部 `PYTHON`、`CONDA_ENV`、`ACTION` 可覆盖默认值。
+默认 ZeRO-2 + CPU optimizer offload；Plain 可用 `DISTRIBUTED_BACKEND=zero3`
+启用参数分片及 CPU parameter offload。每卡 batch=1，累积4次时四卡有效 batch=16。
+
+Plain 训练器现在对 Qwen3 / Qwen3.5、LoRA / 全参数训练统一启用以下设置。
+参数放在配置顶层（20 脚本的 `training` 下），不是 `beacon` 下：
+
+| 参数 | 默认 | 作用 |
+|---|---|---|
+| `gradient_checkpointing` | true | 原生 decoder 层重算，使用 non-reentrant 模式 |
+| `plain_attention_backend` | sdpa | 显式选择注意力实现；实际融合内核依赖环境 |
+| `plain_loss_chunk_size` | 32 | 仅监督位置执行 LM head，每次最多32个 token，可减到16或8 |
+| `plain_checkpoint_loss` | true | 反向重算 LM head / CE，避免跨块保留词表 logits |
+| `plain_cpu_offload_activations` | true | 用 CPU 保存 autograd 所需张量，可设 false 做对照 |
+| `plain_cpu_offload_threshold` | 2048 | 序列 token 数达到阈值时卸载；0表示所有训练样本 |
+
+分块前向在 PEFT 和分布式包装前安装，计算仍通过完整的外层模型 forward，保留
+DDP/DeepSpeed 的梯度同步。带 labels 的训练和验证只返回 loss；无 labels 的推理
+使用原生 forward。checkpoint 参数名称不变，合并模型不依赖训练时的 forward。
+逐 token 分段权重与 labels 同步因果移位；自定义权重沿用每个 microbatch 的
+有效权重和归一化，默认 CE 沿用 Trainer 在梯度累积期间的 token 数归一化。
+
+完整轨迹仍一次经过 decoder，不压缩、不截断、不拆分因果上下文。
+分块降低输出头峰值，CPU offload 降低保存激活的占用，不能消除当前算子的临时峰值；
+ZeRO-2 下完整模型和单条样本的计算仍需放进单卡。CPU offload 增加主机内存和传输成本。
+OOM 时每个失败 rank 写 `failure_rank<N>.json` 后退出，不自动丢弃样本或重试。
+原 `beacon.beacon_loss_chunk_size` 等字段不会控制 Plain，需使用上表参数。
+
+CPU 回归：`python -m pytest tests/test_plain_memory.py -q`，覆盖 loss / 梯度对齐、
+LoRA 梯度累积、验证、保存加载和两进程 Gloo 同步；不代表四卡 A800 的实际显存测量。

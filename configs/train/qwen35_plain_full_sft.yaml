@@ -16,6 +16,12 @@ max_train_steps: null
 use_bf16: true
 optim: adamw_torch
 gradient_checkpointing: true
+# Plain 显存控制：完整序列前向，LM head 仅计算监督位置并分块重算。
+plain_attention_backend: sdpa
+plain_loss_chunk_size: 32
+plain_checkpoint_loss: true
+plain_cpu_offload_activations: true
+plain_cpu_offload_threshold: 2048
 save_freq_steps: 1000
 log_freq_steps: 5
 eval_steps: 1000

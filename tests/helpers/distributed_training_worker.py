@@ -17,6 +17,7 @@ from search_comp.trainer.beacon_distillation_trainer import BeaconDistillationTr
 from search_comp.trainer.beacon_trainer import _SaveBeaconCheckpoints
 from search_comp.utils.trainer_callbacks import JsonlMetricsCallback
 from search_comp.utils.distributed import setup_training
+from search_comp.trainer.plain_memory import install_plain_memory_forward, PlainMemoryTrainer
 
 
 def main():
@@ -42,6 +43,9 @@ def main():
             cfg.beacon_compression_ratios = [2, 4]
             cfg.__post_init__()
         model.set_beacon_config(cfg)
+    if kind == "plain":
+        install_plain_memory_forward(model, {"plain_loss_chunk_size": 3,
+                                             "plain_cpu_offload_threshold": 0})
     model = get_peft_model(model, LoraConfig(r=2, target_modules=["q_proj", "v_proj"]))
     for name, param in model.named_parameters():
         if "beacon" in name:
@@ -93,7 +97,7 @@ def main():
     callbacks = [JsonlMetricsCallback(output), RatioTrace()]
     if is_beacon:
         callbacks.append(_SaveBeaconCheckpoints(output, 1, model, tokenizer, True, 2))
-    cls = BeaconDistillationTrainer if is_beacon else Trainer
+    cls = BeaconDistillationTrainer if is_beacon else PlainMemoryTrainer
     trainer = cls(model=model, args=args, train_dataset=dataset, data_collator=collate,
                   callbacks=callbacks, processing_class=tokenizer)
     for callback in callbacks:
