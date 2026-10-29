@@ -13,6 +13,7 @@ COMMAND=("$PY" scripts/py/52_offline_benchmark.py "$ACTION" --benchmark "$BENCHM
   --max-new-tokens "$MAX_NEW_TOKENS" --max-tool-tokens "$MAX_TOOL_TOKENS" --limit "$LIMIT")
 if [[ -n "$RUN_DIR" ]]; then COMMAND+=(--run-dir "$RUN_DIR"); fi
 if [[ -n "$MODEL_PATH" ]]; then COMMAND+=(--model "$MODEL_PATH"); fi
+if [[ -n "${PROMPT_DATA:-}" ]]; then COMMAND+=(--prompt-data "$PROMPT_DATA"); fi
 if [[ -n "$KIND" ]]; then COMMAND+=(--kind "$KIND"); fi
 if [[ -n "$DATA" ]]; then COMMAND+=(--data "$DATA"); fi
 if [[ -n "$CORPUS" ]]; then COMMAND+=(--corpus "$CORPUS"); fi

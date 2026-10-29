@@ -78,7 +78,9 @@ CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=1 python -m pytest -q \
 `bash -n` 检查30/37/38脚本通过，`git diff --check` 通过。38的 `ACTION=plan` 验证仅归档配置并输出四进程ZeRO-2启动命令，不加载模型、不执行该命令。目标服务器的真实80 GB显存峰值、CPU内存、NCCL和融合算子组合尚未实测；按 [52](52_beacon_oom.md) 和 [51](51_memory_probe.md) 验收。
 
 
-## 2026-10-29 统一训练与 native 在线/离线评测
+## 2026-10-29 统一训练与 native 在线/离线评测（历史 v4 方案）
+
+此节记录当时的替换 system 实现，已由 2026-10-30 的保留原始 system 修复撤销；不再执行 v3→v4 迁移。当前操作以 [45](45_unified_agent_flow.md) 和本文最新记录为准。
 
 设计、参数、迁移及修改说明见 [45 统一流程](45_unified_agent_flow.md)。参考本地 OpenSeeker 固定提交 `e3dec1f727d87c5eaa93506e4882c67237647098` 的 v1 prompt、模板、工具循环和公开训练轨迹，没有修改 vendor 或官方评分代码。
 
@@ -107,3 +109,31 @@ OMP_NUM_THREADS=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
 47 的 native/official-v1/official-v2，以及 56/57 的 run dry-run 均通过；没有调用在线 API。全部 shell 的 bash -n、Python compileall、文档本地链接和 git diff --check 通过。一键相关检查为 `bash scripts/sh/59_check_agent_alignment.sh`，其环境选择遵循 00_common.sh。
 
 未运行真实模型训练、真实 checkpoint 在线/离线生成、真实裁判或全量索引构建；未重新生成 v4 全量训练数据。历史 v3 数据、模型和 tmp 的三个结果文件保留。提示词/协议统一不能替代训练和模型效果验证，实际效果需准备 v4 数据并训练新模型后测量。
+
+
+## 2026-10-30 保留原始 system，测试复用训练提示
+
+本节是当前验收结果，替代上一节的 v4 替换方案。数据协议恢复为原始 `openseeker-chatml-v3-original-answer`，保留每条训练记录 system；独立 tools 只在输入渲染时补充。native 使用 PROMPT_DATA > RUN_DIR 训练文件 > 内置原始 Polar profile；离线只调整必要的工具描述、能力和格式。详见 [45](45_unified_agent_flow.md)。
+
+完整回归：**564 passed、2 skipped、9 warnings，85.90 秒**。环境仍为项目 search-comp-qwen3.5；日志为 `outputs/reports/verification/original_system_pytest.log`，没有覆盖上一版日志。命令：
+
+```bash
+OMP_NUM_THREADS=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  /home/huangzj/miniconda3/envs/search-comp-qwen3.5/bin/python \
+  -m pytest tests -q --disable-warnings
+```
+
+新增/调整的检查包括：
+
+- normalize 保留原始 system，原有 v3 数据和长度记录可复用，v4 数据及提示源被明确拒绝，不用默认提示猜测恢复。
+- 独立 tools 元数据不写入保存的 system；预处理计长、Plain/Beacon SFT 编码、native schema 渲染使用相同逻辑；每轮前缀逐 token 对齐。
+- 显式提示源、RUN_DIR 自动定位、来源覆盖、多个 system 拒绝、缺失文件与空源处理。
+- 在线 Plain/Beacon 直接读取测试指定的训练原提示，不使用 upstream developer_prompt 替代；训练问题和答案不泄漏到测试消息。
+- 离线 Plain/Beacon 保留原始提示主体与自定义指令，schema 不再承诺联网/固定 top 10/LLM 摘要，search-only 移除 visit。
+- 所有原有模型算法、LoRA/蒸馏、在线/离线、官方 v1/v2、replay/corpus/HTTP、多卡 worker 和计分回归继续通过；真实工具与模型由测试桩或 tiny 模型覆盖。
+
+只读审计当前 644 条 v3 训练记录：`normalize(row) == row` 对全部记录成立。解析得到的唯一 system 与内置 `openseeker_v1_system.txt` 完全相等；原始 Polar 第一条 system 也与之相等。system SHA256 为 `53e65173df52e70802665c69f9aae1efb476773b6db8071aa5ea601967421840`。审计产物为 `outputs/reports/verification/original_system_audit.json`，没有写回原始或预处理数据。
+
+47 native 和 56 的 PROMPT_DATA dry-run 参数映射通过，全部 shell 的 bash -n、Python compileall、文档本地链接和 git diff --check 通过。dry-run 仅打印计划，不声称真实 checkpoint/API 已联调。47/56/57 的 PROMPT_DATA 参数说明已写入脚本及 42/43/45；离线 worker 保留 RUN_DIR 和显式提示源。
+
+未运行真实训练、真实 checkpoint 在线或离线生成、在线搜索/摘要/裁判服务，也未重建全量数据或索引。现有数据、模型、tmp 的结果和历史 v4 目录均未删除或改写。已有原始 v3 数据无需为本次修复重新计长；v4 替换版需要从原始 raw/v3 恢复，不能修改版本字符串绕过检查。

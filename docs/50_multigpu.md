@@ -54,7 +54,7 @@ DRY_RUN=1
 ```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3 python scripts/py/50_evaluate.py \
   --model /models/beacon-merged --kind beacon \
-  --data outputs/data/openseeker/polar_correct_qwen35_16k_unified/test.jsonl \
+  --data outputs/data/openseeker/polar_correct_qwen35_16k/test.jsonl \
   --data-split test --backend replay --num-workers 4 --limit 100 \
   --max-context 16384 --max-new-tokens 8192 \
   --max-tool-tokens 16384 --max-turns 32 \

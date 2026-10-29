@@ -1,6 +1,6 @@
 # 31 固定与随机压缩比训练
 
-当前训练/评测共享提示词、v4 数据迁移、算法一致性检查及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
 
 Beacon 支持固定压缩比与随机压缩比，Qwen3/Qwen3.5、OpenSeeker/Search-R1 共用同一实现。默认 `fixed`，保持已有训练行为。
 

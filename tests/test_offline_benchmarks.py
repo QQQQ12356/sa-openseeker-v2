@@ -318,6 +318,11 @@ def test_native_real_agent_search_visit_answer_and_regions(tmp_path, monkeypatch
     output.mkdir()
     model = SimpleNamespace(eval=lambda: None)
     tokenizer = CharacterTokenizer()
+    from search_comp.data.agent_prompt import build_system_prompt
+    prompt_data = tmp_path / "training.jsonl"
+    prompt_data.write_text(json.dumps(dict(messages=[dict(role="system",
+        content=build_system_prompt() + "\nKeep original training instruction.")],
+        answer="TRAINING_ANSWER_DO_NOT_COPY")) + "\n")
     monkeypatch.setitem(sys.modules, 'search_comp.models.model_loader', SimpleNamespace(
         load_tokenizer=lambda _: tokenizer, load_beacon_model=lambda _: model))
     monkeypatch.setitem(sys.modules, 'search_comp.models.plain_qwen3', SimpleNamespace(load_sft_model=lambda _: model))
@@ -327,6 +332,9 @@ def test_native_real_agent_search_visit_answer_and_regions(tmp_path, monkeypatch
         generator_kinds.append(beacon)
         def generate(encoded, budget):
             assert 'REFERENCE_CONTEXT' not in tok.decode(encoded['input_ids'])
+            assert 'TRAINING_ANSWER' not in tok.decode(encoded['input_ids'])
+            assert 'Keep original training instruction.' in tok.decode(encoded['input_ids'])
+            assert 'web searches' not in tok.decode(encoded['input_ids'])
             saw_regions.append(bool(encoded['regions']))
             turn = encoded['n_turns']
             if turn == 0:
@@ -339,11 +347,12 @@ def test_native_real_agent_search_visit_answer_and_regions(tmp_path, monkeypatch
         return generate
     monkeypatch.setattr(tool_agent, 'ModelGenerator', generator)
     args = workflow.make_parser().parse_args(['run', '--benchmark', 'hotpotqa', '--root', str(root),
-          '--model', str(model_path), '--kind', kind, '--allow-visit'])
+          '--model', str(model_path), '--kind', kind, '--allow-visit', '--prompt-data', str(prompt_data)])
     rows, manifest = workflow.prepared_questions(root, 'hotpotqa', 1)
     workflow.run_phase(args, output, rows, manifest)
     predictions = list(records(output / 'predictions.jsonl'))
     assert predictions[0]['status'] == 'completed'
+    assert predictions[0]['prompt_source'] == str(prompt_data)
     assert predictions[0]['visited_docids'] == ['1']
     assert predictions[0]['tool_call_counts'] == dict(search=1, visit=1)
     assert generator_kinds == [kind == 'beacon']

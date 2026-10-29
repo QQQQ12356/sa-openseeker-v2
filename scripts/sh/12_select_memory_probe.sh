@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # 从已实测的 normalized.jsonl 精细筛选，不重新分词、不截断。修改变量后一键执行。
 set -euo pipefail
-PREPARED="outputs/data/openseeker/polar_correct_qwen35_16k_unified"
-OUTPUT="outputs/data/openseeker/polar_memory_probe_unified"
+PREPARED="outputs/data/openseeker/polar_correct_qwen35_16k"
+OUTPUT="outputs/data/openseeker/polar_memory_probe"
 TOKENIZER="Qwen/Qwen3.5-4B"
 MIN_LENGTH=64512
 MAX_LENGTH=65536

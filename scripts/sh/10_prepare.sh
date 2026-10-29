@@ -6,14 +6,14 @@ set -euo pipefail
 PYTHON="${PYTHON:-}"
 CONDA_ENV="${CONDA_ENV:-search-comp-qwen3.5}"
 
-# ===== 输入与输出：输出目录必须不存在；v4 提示词需重新计长，不能复用 v3 manifest =====
+# ===== 输入与输出：输出目录必须不存在；保留原始 system；已有 v3 可复用，v4 替换版需从原始数据重建 =====
 # INPUT_FILE：单个原始/旧规范化 JSONL；多文件可编辑 INPUTS 数组。
 # MODEL_NAME：待训练 tokenizer；仅加载 tokenizer，不加载模型。CLI 标量参数可在末尾覆盖。
 SOURCE="${SOURCE:-polar}"                         # polar / zephyr / combined
 INPUTS=(
   "${INPUT_FILE:-outputs/data/raw/polar/openseeker_v1_data.jsonl}"
 )
-OUTPUT_DIR="${OUTPUT_DIR:-outputs/data/openseeker/polar_correct_qwen35_16k_unified}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs/data/openseeker/polar_correct_qwen35_16k}"
 MODELS=("${MODEL_NAME:-Qwen/Qwen3.5-4B}")              # 与后续训练使用的 tokenizer 一致
 MIN_LENGTH="${MIN_LENGTH:-1}"
 MAX_LENGTH="${MAX_LENGTH:-16384}"

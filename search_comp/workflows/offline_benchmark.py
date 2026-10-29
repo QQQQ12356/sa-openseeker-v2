@@ -67,6 +67,10 @@ def run_phase(args, output, rows, manifest):
     if args.num_workers > 1:
         return run_parallel(args, output, rows, manifest)
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
+    from search_comp.data.agent_prompt import build_system_prompt, resolve_system_prompt
+    original_system, prompt_source = resolve_system_prompt(getattr(args, 'prompt_data', None), args.run_dir)
+    system = build_system_prompt(system=original_system, local=True, allow_visit=args.allow_visit,
+        answer_instruction=HOTPOT_INSTRUCTION if args.benchmark == "hotpotqa" else BCP_INSTRUCTION)
     verify_index(args, manifest)
     from search_comp.evaluation.tool_agent import ModelGenerator, run_agent
     from search_comp.models.model_loader import load_beacon_model, load_tokenizer
@@ -77,9 +81,6 @@ def run_phase(args, output, rows, manifest):
     model = (load_beacon_model if kind == "beacon" else load_sft_model)(model_path)
     model.eval()
     generate = ModelGenerator(model, tokenizer, kind == "beacon")
-    from search_comp.data.agent_prompt import build_system_prompt
-    system = build_system_prompt(local=True, allow_visit=args.allow_visit,
-        answer_instruction=HOTPOT_INSTRUCTION if args.benchmark == "hotpotqa" else BCP_INSTRUCTION)
     statuses = Counter()
     start = time.monotonic()
     with LocalIndex(args.root / "index.sqlite") as index, (output / "predictions.jsonl").open("x", encoding="utf-8") as target:
@@ -93,6 +94,7 @@ def run_phase(args, output, rows, manifest):
             result = run_agent(messages, tokenizer, generate, tools, args.max_turns,
                                args.max_context, args.max_new_tokens, args.max_tool_tokens)
             result.update(id=row["id"], sample_index=args.shard_index + position * args.shard_count,
+                          prompt_source=prompt_source,
                           query=row["query"], final_response=result["prediction"],
                           seconds=time.monotonic() - tick, retrieved_docids=sorted(tools.retrieved),
                           visited_docids=sorted(tools.visited), retrieval_trace=tools.trace,
@@ -117,7 +119,7 @@ def worker_command(args, output, rank, count):
     model, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     command = [sys.executable, str(ROOT / "scripts/py/52_offline_benchmark.py"), "run"]
     excluded = {"action", "output_dir", "num_workers", "shard_index", "shard_count",
-                "model", "kind", "run_dir", "judge_model", "predictions", "dry_run"}
+                "model", "kind", "judge_model", "predictions", "dry_run"}
     for key, value in vars(args).items():
         if key in excluded or value is None or value is False:
             continue
@@ -293,6 +295,8 @@ def make_parser():
     parser.add_argument("--title-weight", type=float, default=1.0)
     parser.add_argument("--verify-index", action="store_true", help="SHA256 scan of full index before run")
     parser.add_argument("--run-dir", type=Path)
+    parser.add_argument("--prompt-data", type=Path,
+                        help="training JSONL providing original system/tools; default: RUN_DIR train_data_path or Polar profile")
     parser.add_argument("--model")
     parser.add_argument("--kind", choices=["plain", "beacon"])
     parser.add_argument("--output-dir", type=Path)

@@ -1,6 +1,6 @@
 """OpenSeeker wire protocol shared by preprocessing, SFT and agent inference.
 
-Unify standard search/visit system instructions, keeping original trajectory and answer;
+Preserve original system, trajectory and answer;
 render structured OpenAI calls into the same protocol.
 Only observation bodies are compressible. No trajectory is silently truncated.
 """
@@ -11,7 +11,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from .agent_prompt import build_system_prompt, PROMPT_VERSION
+from .agent_prompt import render_system, REPLACED_SYSTEM_VERSION
 
 CALL_RE = re.compile(r'<tool_call>\s*(.*?)\s*</tool_call>', re.S)
 RESPONSE_RE = re.compile(r'<tool_response>(.*?)</tool_response>', re.S)
@@ -23,8 +23,7 @@ PROTOCOL = '''You may call the supplied tools. Emit one or more JSON calls as:
 </tool_calls_end>
 Tool observations arrive inside <tool_response>...</tool_response>. After reasoning,
 return the final answer without further tool calls.'''
-VERSION = 'openseeker-chatml-v4-unified-agent'
-LEGACY_VERSION = 'openseeker-chatml-v3-original-answer'
+VERSION = 'openseeker-chatml-v3-original-answer'
 
 
 def json_text(value):
@@ -65,14 +64,8 @@ def normalize(row, source='unknown', index=0):
     if row.get('protocol') == VERSION:
         validate(row)
         return row
-    if row.get('protocol') == LEGACY_VERSION:
-        # Upgrade only through normalization/preparation: old token lengths are stale.
-        upgraded = copy.deepcopy(row)
-        upgraded['protocol'] = VERSION
-        _unify_system(upgraded)
-        upgraded.pop('lengths', None)
-        validate(upgraded)
-        return upgraded
+    if row.get('protocol') == REPLACED_SYSTEM_VERSION:
+        raise ValueError('v4 replaced the original system; rebuild from original raw/v3 data')
     if row.get('protocol'):
         raise ValueError('unsupported OpenSeeker protocol: ' + str(row['protocol']))
     messages = copy.deepcopy(row.get('trajectory', row.get('messages')))
@@ -138,29 +131,14 @@ def normalize(row, source='unknown', index=0):
         raise ValueError('unanswered structured calls')
     if out[0]['role'] != 'system':
         out.insert(0, dict(role='system', content='You are a tool-augmented QA agent.'))
-    if tools:
-        out[0]['content'] += '\n\n# Tools\n<tools>\n' + '\n'.join(
-            json_text(t.get('function', t)) for t in tools) + '\n</tools>\n' + PROTOCOL
     question = row.get('question') or next((m['content'] for m in out if m['role'] == 'user'), '')
     result = dict(id=f'{source}:{index}', protocol=VERSION, messages=out, tools=tools,
                   question=question, question_id=question_key(question), answer=row.get('answer', ''),
                   source=source, source_index=index,
                   correctness=row.get('trajectory correctness'),
                   declared_tool_calls=row.get('number of tool calls', row.get('n_tool_calls')))
-    _unify_system(result)
     validate(result)
     return result
-
-
-def _unify_system(row):
-    """Canonicalize search/visit tasks; retain custom-tool system instructions."""
-    names = {call['name'] for message in row['messages'] if message['role'] == 'assistant'
-             for call in parse_calls(message['content'])}
-    names.update(tool.get('function', tool).get('name') for tool in row.get('tools', []))
-    standard_system = row['messages'][0]['content'].startswith('You are a tool-augmented QA agent.')
-    if names <= {'search', 'visit'} and (names or standard_system):
-        row['messages'][0]['content'] = build_system_prompt()
-        row['prompt_version'] = PROMPT_VERSION
 
 
 def validate(row):
@@ -209,14 +187,16 @@ def pieces(messages, generation_prompt=False):
 
 
 def encode(messages, tokenizer, generation_prompt=False, loss_segments=None,
-           return_loss_segment_ids=False):
+           return_loss_segment_ids=False, tools=None):
     from ..loss_segments import (LossSegmentConfig, SEGMENT_IGNORE, SEGMENT_IDS,
                                  classify_assistant_text)
     loss = LossSegmentConfig.from_dict(loss_segments)
     segmented = return_loss_segment_ids or not loss.is_default
     ids, labels, regions = [], [], []
     segment_ids = []
-    for text, supervised, compressible in pieces(messages, generation_prompt):
+    rendered = [dict(message) for message in messages]
+    rendered[0]['content'] = render_system(rendered[0]['content'], tools)
+    for text, supervised, compressible in pieces(rendered, generation_prompt):
         tokens = tokenizer.encode(text, add_special_tokens=False)
         if compressible and tokens:
             regions.append((len(ids), len(ids) + len(tokens)))
@@ -264,11 +244,11 @@ class OpenSeekerDataset:
             row = json.loads(f.readline())
         if row.get('protocol') != VERSION:
             raise ValueError('OpenSeeker training requires current original-answer data; '
-                             'run scripts/sh/10_prepare.sh to regenerate and remeasure the unified prompt')
+                             'run scripts/sh/10_prepare.sh using original raw/v3 data; v4 cannot recover the original system')
         row = normalize(row, index=index)
         validate(row)
         sample = encode(row['messages'], self.tokenizer, loss_segments=self.loss_segments,
-                        return_loss_segment_ids=self.return_loss_segment_ids)
+                        return_loss_segment_ids=self.return_loss_segment_ids, tools=row.get('tools'))
         if len(sample['input_ids']) > self.max_length:
             raise ValueError(f"{row['id']}: exceeds max_length={self.max_length}; run prepare first")
         return sample

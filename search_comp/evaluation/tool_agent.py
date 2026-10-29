@@ -10,7 +10,7 @@ import json
 import re
 import urllib.request
 from ..data.openseeker import (encode, parse_calls, json_text, CALL_END, RESPONSE_RE)
-from ..data.agent_prompt import prompt_metadata
+from ..data.agent_prompt import prompt_metadata, render_system
 
 
 class ToolError(RuntimeError):
@@ -154,9 +154,10 @@ def extract_response(text):
 
 
 def run_agent(messages, tokenizer, generate, tools, max_turns=32,
-              max_context=16384, max_new_tokens=8192, max_tool_tokens=8192):
+              max_context=16384, max_new_tokens=8192, max_tool_tokens=8192, tool_schemas=None):
     # Only the original system/question enter inference; no reference is injected.
     history = [dict(message) for message in messages[:2]]
+    history[0]['content'] = render_system(history[0]['content'], tool_schemas)
     events = []; status = 'turn_limit'; prediction = ''; generated_tokens = 0
     for turn in range(max_turns):
         encoded = encode(history, tokenizer, generation_prompt=True)

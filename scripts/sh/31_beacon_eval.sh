@@ -76,7 +76,7 @@ if run:
 if not model:
     sys.exit("请在脚本顶部填写 RUN_DIR 或 MODEL_PATH")
 kind = kind or "beacon"
-data = data or f"outputs/data/openseeker/polar_correct_qwen35_16k_unified/{split}.jsonl"
+data = data or f"outputs/data/openseeker/polar_correct_qwen35_16k/{split}.jsonl"
 if kind not in ("plain", "beacon"):
     sys.exit("KIND 必须是 plain 或 beacon")
 if not Path(data).is_file():

@@ -4,7 +4,7 @@ set -euo pipefail
 PROJECT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$PROJECT_ROOT"
 
-INPUT="${1:-${DATASET_PATH:-outputs/data/openseeker/polar_correct_qwen35_16k_unified}}"
+INPUT="${1:-${DATASET_PATH:-outputs/data/openseeker/polar_correct_qwen35_16k}}"
 OUTPUT="${2:-${OUTPUT_DIR:-${INPUT%/}_with_observations}}"
 DATA_FORMAT="${DATA_FORMAT:-openseeker}"  # openseeker / searchr1
 

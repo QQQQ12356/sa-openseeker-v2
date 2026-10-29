@@ -1,7 +1,8 @@
 # 43 固定语料离线评测：BrowseComp-Plus 与 HotpotQA
 
-当前训练/评测共享提示词、v4 数据迁移、算法一致性检查及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
 
+`PROMPT_DATA` / `--prompt-data` 指定原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 的 train_data_path，无两者时用内置原始 Polar profile。在线保留原文，离线仅适配必要能力和答案格式；多 system 必须显式选择单 profile，详情见 45。
 本文是新增离线流程的操作手册。所有修改均为增量：原来的 21/31 EM/F1、47 在线 OpenSeeker、48 SGLang、Search-R1 和训练器继续保留。新增实现位于 `search_comp/offline/`，统一 Python 入口为 `scripts/py/52_offline_benchmark.py`，一键入口是 **56 BrowseComp-Plus** 和 **57 HotpotQA**。
 
 ## 43.1 两套基准的用途与边界

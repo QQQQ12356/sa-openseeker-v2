@@ -167,7 +167,7 @@ def evaluate(args):
                 progress.sample(index)
                 t = time.time()
                 result = run_agent(row["messages"], tok, generate, backend, args.max_turns,
-                                   args.max_context, args.max_new_tokens, args.max_tool_tokens)
+                                   args.max_context, args.max_new_tokens, args.max_tool_tokens, row.get('tools'))
                 correct, answer_f1 = score_answer(result, row["answer"])
                 result["final_response"] = result["prediction"]
                 result.update(id=row["id"], sample_index=index, answer=row["answer"],

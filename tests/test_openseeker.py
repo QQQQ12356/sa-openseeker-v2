@@ -22,12 +22,11 @@ def polar():
         dict(role='assistant',content='<think>Done.</think><answer>Alice</answer>')])
 
 
-def test_polar_unifies_system_without_changing_trajectory_or_arguments():
+def test_polar_preserves_original_system_trajectory_and_arguments():
     raw=polar(); saved=copy.deepcopy(raw); row=normalize(raw)
     assert raw==saved
     assert row['messages'][1:-1]==raw['trajectory'][1:-1]
-    from search_comp.data.agent_prompt import build_system_prompt
-    assert row['messages'][0]['content'] == build_system_prompt()
+    assert row['messages'] == raw['trajectory']
     assert row['messages'][-1]['content'].startswith(raw['trajectory'][-1]['content'])
     assert row['messages'][1:] == raw['trajectory'][1:]
     assert parse_calls(row['messages'][4]['content'])[0]['arguments']['goal']=='identity'
@@ -60,7 +59,9 @@ def test_structured_calls_reasoning_null_content_and_ids():
         dict(role='tool',tool_call_id='c1',content='result'),dict(role='assistant',content='a')])
     row=normalize(raw)
     assert 'Original instructions.' in row['messages'][0]['content']
-    assert '"name": "custom"' in row['messages'][0]['content']
+    assert row['messages'][0]['content'] == 'Original instructions.'
+    encoded = encode(row['messages'], Tokenizer(), tools=row['tools'])
+    assert '"name": "custom"' in ''.join(map(chr, encoded['input_ids']))
     assert '<think>\nReason\n</think>' in row['messages'][2]['content']
     assert parse_calls(row['messages'][2]['content'])==[dict(name='custom',arguments={'n':7})]
     raw['messages'][3]['tool_call_id']='orphan'
@@ -233,7 +234,7 @@ def test_generated_response_is_used_without_gold_leakage(output):
 def test_old_training_data_requires_remeasurement(tmp_path):
     row=normalize(polar());row['protocol']='obsolete-protocol'
     path=tmp_path/'old.jsonl';path.write_text(json.dumps(row)+'\n')
-    with pytest.raises(ValueError,match='regenerate and remeasure'):
+    with pytest.raises(ValueError,match='original raw/v3'):
         OpenSeekerDataset(path,Tokenizer())[0]
 
 

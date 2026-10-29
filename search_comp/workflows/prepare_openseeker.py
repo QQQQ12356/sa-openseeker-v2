@@ -54,7 +54,7 @@ def measure(item):
         row = normalize(raw, source, index)
         lengths = {}
         for name, tok in TOKENIZERS.items():
-            encoded = encode(row['messages'], tok)
+            encoded = encode(row['messages'], tok, tools=row.get('tools'))
             lengths[name] = dict(total=len(encoded['input_ids']),
                                  observations=sum(b-a for a,b in encoded['regions']),
                                  assistant=sum(v != -100 for v in encoded['labels']))

@@ -11,6 +11,7 @@ export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 NUM_WORKERS="${NUM_WORKERS:-1}"        # 每卡完整模型副本，按题并行；不超过可见 GPU 数
 RUN_DIR="${RUN_DIR:-}"                 # 已训练实验目录；自动识别 Plain/Beacon 和最终模型
 MODEL_PATH="${MODEL_PATH:-}"           # 可覆盖 RUN_DIR 的模型；必须为本地已合并 checkpoint
+PROMPT_DATA="${PROMPT_DATA:-}"          # 原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 自动定位；无两者用内置 Polar 原提示
 KIND="${KIND:-}"                       # plain / beacon；留空自动识别
 DATA="${DATA:-}"                       # 默认 ROOT_DIR/raw/queries（官方加密 Parquet）
 CORPUS="${CORPUS:-}"                   # 默认 ROOT_DIR/raw/corpus；独立完整语料

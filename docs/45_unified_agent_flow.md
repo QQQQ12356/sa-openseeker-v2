@@ -1,182 +1,185 @@
-# 45 Plain / Beacon 训练与在线、离线评测的统一流程
+# 45 保留原始 system 的 Plain / Beacon 统一训练与测试
 
-## 45.1 目的与适用范围
+## 45.1 当前规则与适用范围
 
-OpenSeeker 标准 search/visit 任务现在共用提示词构造、工具 schema、调用协议、ChatML 编码、答案提取和 native agent 循环。Plain 和 Beacon 不再各自选择提示词；区别在于模型是否压缩 observation。在线 search/visit、本地固定语料、replay、HTTP 网关，以及官方 v1/v2 评测入口全部保留。
+训练数据已有 system，不需要重新设计或替换。当前 `normalize()` 保留每条 OpenSeeker 轨迹原始 system；native 在线测试读取对应训练数据的 system 与工具 schema；离线测试在同一主体上仅调整实际能力、语料限制和答案格式。Plain、Beacon 使用相同构造器、ChatML 编码及 native Agent。
 
-该修改不改变 Beacon 压缩公式、线性状态 writer、LoRA 算法、分段损失、官方评分函数或离线索引。Search-R1 保留独立的 `<search>/<information>` 协议，不把旧数据强行改成 OpenSeeker。自定义工具轨迹保留其原 system/schema；不能将任意工具视为 search/visit。
+在线 Search/Visit、固定语料离线测试、replay、本地 corpus、HTTP 网关、官方 v1/v2 原样复现和 Search-R1 入口全部保留。本次不改变 Beacon 压缩公式、线性状态 writer、LoRA、损失定义、索引或官方评分函数，不启动真实训练。
 
-## 45.2 OpenSeeker 参考流程：哪些可以统一
+**此前 v4“替换训练 system”的方案已撤销。** 当前训练协议恢复为 `openseeker-chatml-v3-original-answer`。它是本项目的数据版本名，不是 OpenSeeker 官方发布的协议编号；“统一”指测试复用训练约定，不是把训练文本改成另一套提示。
 
-参考本地 `outputs/vendor/OpenSeeker`，固定提交 `e3dec1f727d87c5eaa93506e4882c67237647098`：
+## 45.2 参考来源与统一边界
 
-- [官方源码](https://github.com/PolarSeeker/OpenSeeker/tree/e3dec1f727d87c5eaa93506e4882c67237647098) 的 `src/llm_tool_openseeker.py` 定义 v1 developer_prompt、Search、Visit，并在每轮循环中用 `_render_prompt()` 渲染完整历史。
-- `src/config/chat_template.jinja` 定义 system、工具 schema、工具响应、assistant 思考和生成前缀。推理时使用同一套工具语法，接收真实工具结果，再接续下一轮。
-- 本项目 Polar 训练轨迹的原 system 使用相应 search/visit 提示，工具调用为 `{"name": ..., "arguments": ...}`，工具结果为 `<tool_response>`。这种“轨迹和推理协议一致”是本次统一的依据。
-- 固定上游 checkout 提供推理、工具和部署代码，不能据此声称已经验证其未提供的完整训练器。训练侧核对依据为本地公开轨迹和本项目编码器。
-- 官方 v2 另有工具和 boxed 答案要求，不能把 v2 当作 v1 的同一提示词。官方 Jinja 还会处理历史 reasoning 并以 `<think>` 开启生成；本项目保留原始 assistant 文本，生成前缀为 `<|im_start|>assistant\n`，由模型输出 think 标签。native 不是官方模板的逐字复现。
+参考 OpenSeeker 固定提交 `e3dec1f727d87c5eaa93506e4882c67237647098`：
 
-本项目选择统一自己的训练和 native 推理；需要原样官方复现时显式选择 `official-v1` 或 `official-v2`，不修改 vendor 文件。
+- [官方源码](https://github.com/PolarSeeker/OpenSeeker/tree/e3dec1f727d87c5eaa93506e4882c67237647098) 的 `src/llm_tool_openseeker.py` 提供 v1 developer_prompt、Search/Visit 和完整历史工具循环。
+- `src/config/chat_template.jinja` 定义消息、schema、工具响应和 assistant 生成前缀；公开 Polar 轨迹携带相应 system 和工具调用文本。
+- 本地 Polar 原始首条记录与现有 v3 预处理首条记录的 system 完全相等，含 `<tools>` 的 schema、换行和尾部空行。默认参考副本保存为 `search_comp/data/openseeker_v1_system.txt`，不是重新编写的通用提示。
+- 上游 v1/v2 的提示、工具和 boxed 要求并不完全相同。`official-v1` / `official-v2` 保持原样复现，不强行改成 native 的模板。
+- 本项目 native 保留原 assistant 文本并共用自己的 `encode()`，生成前缀为 `<|im_start|>assistant\n`；官方 Jinja 会处理历史 reasoning，并在生成前缀加 `<think>`。共享原 system 不代表逐 token 复现整个官方推理引擎。
 
-## 45.3 唯一提示词来源与必要扩展
+本地 upstream checkout 不是其完整训练器的审计证据；训练侧以公开轨迹和本项目训练输入为准。vendor 文件和官方评分源未修改。
 
-源码为 `search_comp/data/agent_prompt.py`：
+## 45.3 训练数据：什么保留，什么仅在渲染时处理
 
-| 定义 | 作用 | 修改提示 |
+| 内容 | 当前行为 |
+|---|---|
+| 原始 system.content | 原样保存，不替换、不清理空白、不添加新的角色指令 |
+| 已内嵌的 `<tools>` schema | 原样保留，不重写为另一份描述 |
+| 单独提供的 row.tools | 作为独立元数据保留；没有内嵌 schema 时，在编码输入中补充一次 |
+| 问题、assistant 推理/调用/回答、工具观察 | 保留；结构化 OpenAI calls 和 tool role 按既有 wire protocol 转换 |
+| 独立参考 answer | 仅训练数据监督/评分使用，不加入测试问题 |
+| 原始文件与现有 v3 文件 | 不写回，不覆盖 |
+
+`render_system(system, tools)` 只负责把独立 schema 渲染成模型可见的工具说明，不修改保存的 system。若 system 已有实际 JSON `<tools>` 块，不再次拼接，避免重复 schema。说明文字中的字面量 `<tools></tools>` 不会被误判为真正的 schema 块。
+
+因此，对于当前 Polar 数据（schema 已内嵌、row.tools 为空），预处理、SFT 编码和 native 在线看到的是同一个 system 字符串。对于工具 schema 单独存储的结构化数据，SFT、预处理计长和 native 测试都用同一个 renderer；比较前缀时也必须传入同一份 tools。
+
+缺失 system 的原始输入仍沿用既有默认补全规则；“保留原始 system”适用于原本携带 system 的记录，不凭空推断丢失文本。
+
+## 45.4 native 如何选择对应训练提示词
+
+唯一实现是 `search_comp/data/agent_prompt.py` 的 `resolve_system_prompt()`。优先级：
+
+1. 显式 `PROMPT_DATA` / `--prompt-data` 指定的训练 JSONL。
+2. `RUN_DIR/experiment.json` 中 `training_config.train_data_path` 指向的训练 JSONL。
+3. 两者均未提供时，使用内置原始 Polar v1 提示副本。
+
+不是从测试集、参考答案、qrels 或工具返回中提取 system。JSONL 可以是原始 trajectory、规范化 messages，或只含 system/messages 与独立 tools 的提示配置记录；messages/trajectory 和 tools 的 JSON 字符串形式同样支持。
+
+读取过程逐行检查所有有效记录的**实际渲染 system**是否相等：
+
+- 有不同 system：报 mixed training systems，不擅自选择第一条；用一个只包含目标提示配置的 PROMPT_DATA 指定实验所需 profile。
+- 文件不存在、文件为空、缺少/空 system：报错；RUN_DIR 的训练文件不可访问时不会静默换成默认提示。
+- 指定 PROMPT_DATA 时，它优先于 RUN_DIR 的训练路径，适用于训练目录迁移到另一台机器。
+- 默认内置副本只代表已核对的 Polar v1 profile。单独测试其他来源的 MODEL_PATH 时，应显式指定其训练 PROMPT_DATA，不能据默认副本断言与任意 checkpoint 的训练提示一致。
+
+这里只使用 system/schema；JSONL 中即使存在训练问题、参考答案或推理，也不会被复制到新测试问题。使用 API 的 native 在线工具仍是 upstream v1 Search/Visit；包含其他工具的训练 profile 不会使在线工具注册表自动增加该工具。
+
+## 45.5 离线只做必要适配
+
+离线也从上述规则读取原提示，并调用 `build_system_prompt(system=原提示, local=True, ...)`：
+
+| 部分 | 处理方式 | 原因 |
 |---|---|---|
-| `BASE_INSTRUCTION` | 所有标准任务的基础角色 | 修改后重新 prepare 并训练；不能将新提示词成绩直接归入旧实验 |
-| `TOOL_SCHEMAS` | search/visit 的参数结构和通用描述 | 不承诺固定 top-k、互联网访问或摘要模型；这些由实际后端决定 |
-| `TOOL_PROTOCOL` | JSON envelope、observation、think、answer 约定 | 与 `openseeker.parse_calls()` 同步修改，更新协议版本和回归 |
-| `build_system_prompt()` | 组合基础提示、能力和任务要求 | 按后端参数构造，不按 plain/beacon 分支 |
-| `initial_messages(question)` | 构建在线 system/question | 不接收参考答案、qrels 或证据标注 |
-| `PROMPT_VERSION` | 提示词身份 | 内容语义变化时更新，并重新计长 |
-| `prompt_metadata(system)` | 记录版本和 system 的 SHA256 | 自定义 system 标记为 custom，不冒充共享提示 |
+| schema 前的角色说明、工具格式要求与尾部主体 | 保留原文 | 保持训练约定 |
+| search.description | 改为固定本地语料搜索 | 不再承诺网络搜索或固定 top 10 |
+| visit.description | 改为读取 local://docid 的存储文本 | 不再承诺网页联网或按 goal 进行 LLM 摘要 |
+| 工具 name、参数结构 | 保留 | 不改变模型已经学习的参数接口 |
+| `ALLOW_VISIT=0` | 从 schema 移除 visit，明确禁止调用 | 不宣称不存在的能力 |
+| 本地环境限制 | 追加仅固定语料、无外网、local URL 的说明 | 防止把 source_url 当成可联网地址 |
+| BCP 答案要求 | 追加 `[docid]` 引用 | 评分契约保留 |
+| Hotpot 答案要求 | 追加 answer/sp JSON | 支持事实评分契约保留 |
 
-`build_system_prompt()` 的参数：
+离线后端只实现 search/visit。profile 没有实际 JSON schema、缺少 search，或包含本地不支持的工具时，明确报错；不凭空补另一套 schema。搜索返回仍为真实离线 JSON 文档，在线返回仍为 upstream 文本，不能为了看起来一致伪造来源。TOPK、snippet/read 预算由真实后端控制。
 
-| 参数 | 默认 | 含义 |
+在线默认 `build_system_prompt(system=原提示)` 不做这些本地适配，返回原提示的相同字节内容。离线完整 system 的 hash 与在线不同是正常现象；应比较主体、schema 能力和具体后端，不能靠删除真实环境限制强求相同 hash。
+
+## 45.6 数据版本与恢复方法
+
+| 输入 | 当前支持 | 操作 |
 |---|---|---|
-| `allow_visit` | true | false 时从 schema 中移除 visit，并明确只允许 search |
-| `local` | false | true 时限定固定本地语料和 local:// 文档读取，不允许联网 |
-| `answer_instruction` | 空字符串 | 附加基准必需的引用或答案格式要求 |
+| 原始 Polar / 结构化轨迹 | 支持 | prepare 保留 system，正常规范化和计长 |
+| 原有 v3 prepared 数据/manifest | 支持 | 原 system 和 tokenizer 未变时可直接训练、筛选和测试，无需仅因本次修改重建 |
+| v4-unified-agent prepared 数据 | 不自动恢复 | v4 已丢失原 system，必须回到原始数据或完整原 v3 版本 |
+| 未知 protocol | 拒绝 | 确认数据来源和版本，再显式准备 |
 
-标准训练与 native 在线评测的基础 system 完全相同。离线评测复用同一个构造器，但必须保留真实环境差异：BCP 要求 `[docid]` 引用；Hotpot 要求 answer/sp JSON；search-only 不能假装支持 visit。这些扩展不会因模型类型而变化。比较 Plain/Beacon 时应固定相同后端、能力选项和任务要求。
+当前 `VERSION` 是 `openseeker-chatml-v3-original-answer`。不能把 v4 的 protocol 字符串改成 v3 来绕过检查；也不能用默认 Polar 提示去猜测 v4 每条记录原来的 system。
 
-## 45.4 新数据协议与旧数据迁移
-
-当前协议为 `openseeker-chatml-v4-unified-agent`；旧协议为 `openseeker-chatml-v3-original-answer`。
-
-标准 search/visit 轨迹在 `normalize()` 中替换 system 为共享提示，问题、原始 assistant 思考/工具调用/最终答案、工具 observation 和独立 answer 参考保持不变。工具名包含其他工具时保留自定义 system，不做标准任务替换。原始源文件不会被修改。
-
-修改 system 会改变 token 长度、压缩区域的绝对偏移及长度筛选结果，因此不能只改 manifest 中的版本字符串。`normalize()` 支持读取 v3 并升级，但会清除旧 `lengths`；训练 Dataset 拒绝直接读取 v3；实验入口也拒绝 v3 manifest。必须通过 prepare 重新分词、计长和筛选。
-
-默认新输出目录为 `outputs/data/openseeker/polar_correct_qwen35_16k_unified`，旧目录和旧结果保留。10/20/30 与 `configs/openseeker.yaml` 以及筛选、评测回退路径和数据报告入口已统一到新路径。12 的显存样本输出与 26/37 的输入同步使用 `polar_memory_probe_unified`，避免默认连接旧 v3 数据。
+默认 10/20/30、21/31 回退路径、筛选/报告/HTML 入口恢复指向 `outputs/data/openseeker/polar_correct_qwen35_16k`，显存探针指向 `polar_memory_probe`。旧 `_unified` 文件夹不会被删除或写回；先核对里面的实际 protocol。目录名不决定数据版本。
 
 ```bash
-# 只加载 tokenizer，不加载模型权重，不训练。输出目录必须尚不存在。
-bash scripts/sh/10_prepare.sh
-
-# 另选输入和输出，均可通过同名环境变量覆盖。
-INPUT_FILE=/data/polar.jsonl OUTPUT_DIR=/data/polar_unified \
+# 已有原始 v3 数据时，无需再运行 prepare。
+# 需要重新准备时，选择尚不存在的输出目录；只加载 tokenizer，不训练。
+INPUT_FILE=/data/original_polar.jsonl OUTPUT_DIR=/data/polar_original_system \
   MODEL_NAME=/models/Qwen3.5-4B bash scripts/sh/10_prepare.sh
 ```
 
-优先从原始数据重建。若只有旧规范化数据，可将其作为 `INPUT_FILE`；输入 train/validation/test 多文件时编辑 INPUTS 数组，保留旧划分。只输入旧 train 不能恢复原 validation/test；只输入旧筛选结果也不能恢复之前被过滤的样本。prepare 的长度/正确性参数仍会重新生效。
+从 v4 恢复应使用原始源文件，或原先未替换 system 的完整 v3 文件；不要把 v4 本身当作 INPUT_FILE。prepare 会把不支持的记录列为拒绝，训练入口也拒绝错误版本或空数据。只保留旧 train 无法恢复原 validation/test；多文件时编辑 INPUTS，保留原问题划分规则。
 
-10_prepare.sh 参数：
+## 45.7 一键入口与保留范围
 
-| 变量 | 默认 | 含义与修改提示 |
+| 入口 | 用途 | 当前提示行为 |
 |---|---|---|
-| `PYTHON` | 空 | Python 绝对路径；优先于 CONDA_ENV |
-| `CONDA_ENV` | search-comp-qwen3.5 | 已安装依赖的环境；不自动安装 |
-| `SOURCE` | polar | polar / zephyr / combined，标记输入来源 |
-| `INPUT_FILE` / `INPUTS` | 原 Polar JSONL | 前者适合单文件环境变量覆盖；多文件编辑脚本数组 |
-| `OUTPUT_DIR` | 上述 `_unified` 目录 | 必须新建；不会覆盖旧数据 |
-| `MODEL_NAME` / `MODELS` | Qwen/Qwen3.5-4B | tokenizer 身份必须与训练模型一致；多模型编辑数组 |
-| `MIN_LENGTH` / `MAX_LENGTH` | 1 / 16384 | 完整 ChatML 序列闭区间；超长过滤，不截断 |
-| `CORRECTNESS` | Correct | Correct / Incorrect / any；用于质量筛选 |
-| `OBSERVATIONS` | any | any / with / without；按 observation 正文判断 |
-| `WORKERS` | 4 | tokenizer 预处理进程数；内存不足时减少 |
-| `OFFLINE` | 1 | 仅用本地 tokenizer 缓存；0 允许下载 tokenizer |
-| `VAL_FRACTION` / `TEST_FRACTION` | 0.02 / 0.02 | 问题分组划分比例；训练为剩余部分；和必须小于 1 |
-| `SEED` | 42 | 稳定哈希划分的 seed |
+| 20 / 30，28 / 38 | Plain/Beacon 单卡/多卡训练 | 使用每条训练轨迹原始 system |
+| 21 / 31 | replay / corpus / HTTP，EM/F1 | 直接复用所选数据记录的 system/schema |
+| 47，默认 native | Plain/Beacon 在线工具测试 | 从 PROMPT_DATA/RUN_DIR/默认 Polar profile 读取原提示 |
+| 47，official-v1/v2；48 | 原样官方评测与 Plain 服务 | 保留官方提示、模板与工具，不读取 native PROMPT_DATA |
+| 56 / 57 | BCP/Hotpot 固定语料评测 | 原提示主体 + 必要本地能力/格式适配 |
+| 59 | CPU 协议/小模型一致性检查 | 无真实训练、模型下载或在线 API 调用 |
 
-末尾 CLI 标量参数可覆盖脚本默认值，例如 `--max-length 32768`。`--input` 是追加列表，额外传它不会替换 INPUTS；单输入替换应使用 INPUT_FILE。MAX_LENGTH、模型和输出目录变化后，需要同步修改训练脚本中的 dataset/max_length/models。
-
-## 45.5 训练与生成算法的统一边界
-
-```text
-原始轨迹 → normalize(共享 system) → encode(完整 ChatML / labels / regions)
-                                  ├─ Plain：标准因果 LM，忽略 regions
-                                  └─ Beacon：同一 token/labels，仅压缩 regions
-
-新问题 → 同一提示词构造器 → run_agent → 同一 encode(历史 + 生成前缀)
-                                  ├─ Plain：model.generate(显式 greedy GenerationConfig)
-                                  └─ Beacon：prefill + decode_step，贪心生成
-```
-
-训练中真实 assistant token 作为前文；测试中模型自己的输出作为前文。这是监督训练与自回归测试的正常差异，不通过注入正确答案来“统一”。dropout 只在训练启用。native Plain 显式使用新的贪心 GenerationConfig，不继承 checkpoint 中的 beam、采样或 repetition penalty；Beacon 使用相同的 argmax 策略。两路使用相同停止文本和模型 EOS（支持多个 EOS ID）。当前 native 轮间 `reuse_cache=False`，完整历史每轮重新 prefill；轮内逐 token 使用缓存，不跨题复用状态。
-
-Beacon 的监督 forward 和推理 prefill 共用 memory、step、native_forward 和 update_memory，Qwen3.5 全注意力 KV 与线性循环状态采用相同提交规则。新 tiny CPU 测试比较相同前缀的 logits 和缓存，覆盖 append/intersect，以及有/无压缩；不代表所有真实 GPU kernel、精度和 checkpoint 已完成数值验证。
-
-Beacon SFT 布局由 `models/beacon_config.configure_whole_trajectory()` 统一解析，在 experiment 归档前和 trainer 加载前均调用：whole、window_enabled=false、doc_region_split=false、keep_window=0。避免归档写 1024 而实际训练使用 0。模型保存后的 config 才是推理的配置来源；不要只拿 source_config.yaml 判断实际运行值。
-
-随机压缩仍为训练每轨迹采样一次，验证/生成使用 beacon_ratio；这是保留的算法选项。需要严格固定压缩比比较时使用 fixed，并检查结果中的 generation_config.beacon_config。
-
-训练一键入口不变：20 Plain、30 Beacon、28/38 四卡；只审查配置用 `ACTION=plan`。本次没有运行真实训练，尚未生成 v4 checkpoint。
-
-## 45.6 在线、离线与历史诊断入口
-
-| 入口 | 模型 | 工具/数据 | 提示词与评分 |
-|---|---|---|---|
-| 21 / 31 | Plain / Beacon | replay / corpus / HTTP | 当前规范化轨迹 system，共享 native Agent；历史 EM/F1 保留 |
-| 47，默认 native | Plain / Beacon | 官方 v1 在线 Search/Visit | 共享 system/encoder；官方裁判 |
-| 47，official-v1 | Plain completion 服务 | 官方 v1 工具 | 原样官方提示/模板/生成/裁判；显式复现模式 |
-| 47，official-v2 | Plain completion 服务 | 官方 v2 + E2B | 原样 v2 与 boxed 指令；显式复现模式 |
-| 48 | Plain | SGLang completion 服务 | 服务入口保留，配合 official 模式使用 |
-| 56 | Plain / Beacon | BCP 固定语料 BM25 | 共享基础提示 + 本地/引用约束；官方评分逻辑 |
-| 57 | Plain / Beacon | Hotpot 官方 Wiki 摘要库 | 共享基础提示 + 本地/JSON约束；官方 EM/F1、SP/Joint |
-
-47 的默认值从 official-v2 改为 native，Python 与 shell 一致。原先只设置 OPENSEEKER_BASE_URL/MODEL 的部署脚本，需要显式 `MODE=official-v1` 或 `MODE=official-v2`；原功能未删除。
+21 是设置 KIND=plain 后调用 31 的薄包装；参数在 31 顶部或用同名环境变量覆盖。Plain/Beacon 不按模型类型选择另一套 prompt。Search-R1 保留独立 `<search>/<information>` 协议。
 
 ```bash
-# CPU 协议和 tiny 算法回归，不训练、不请求在线 API。
+# 只核对代码，不运行真实模型。
 bash scripts/sh/59_check_agent_alignment.sh
 
-# 只显示计划，不加载模型或调用 API。
-DRY_RUN=1 bash scripts/sh/47_openseeker_benchmark.sh
-
-# 真实在线运行示例：由使用者在配置好模型/API 后执行，Plain/Beacon 用同一命令。
-MODE=native RUN_DIR=/path/to/run ENV_FILE=/private/api.env LIMIT=8 \
+# 在线：由 RUN_DIR 自动选择实际训练提示。
+RUN_DIR=/path/to/run ENV_FILE=/private/api.env LIMIT=8 \
   bash scripts/sh/47_openseeker_benchmark.sh
 
-# 原样官方流程继续保留。
-MODE=official-v2 ENV_FILE=/private/api.env \
-  bash scripts/sh/47_openseeker_benchmark.sh
+# 模型和训练文件搬迁后：显式给对应训练数据。
+MODEL_PATH=/models/merged KIND=beacon PROMPT_DATA=/data/original_train.jsonl \
+  ENV_FILE=/private/api.env bash scripts/sh/47_openseeker_benchmark.sh
 
-# 固定语料测试：先按 43 文档完成 download/prepare/index。
-ACTION=run RUN_DIR=/path/to/run LIMIT=8 bash scripts/sh/56_browsecomp_plus.sh
-ACTION=run RUN_DIR=/path/to/run LIMIT=8 bash scripts/sh/57_hotpotqa_offline.sh
+# 离线：先按 43 完成数据与索引准备；PROMPT_DATA 对两种模型使用同一来源。
+ACTION=run RUN_DIR=/path/to/run PROMPT_DATA=/data/original_train.jsonl LIMIT=8 \
+  bash scripts/sh/56_browsecomp_plus.sh
+ACTION=run RUN_DIR=/path/to/run PROMPT_DATA=/data/original_train.jsonl LIMIT=8 \
+  bash scripts/sh/57_hotpotqa_offline.sh
+
+# 原样官方模式继续保留，不设置 PROMPT_DATA。
+MODE=official-v1 ENV_FILE=/private/api.env bash scripts/sh/47_openseeker_benchmark.sh
+MODE=official-v2 ENV_FILE=/private/api.env bash scripts/sh/47_openseeker_benchmark.sh
+
+# 只检查参数计划，不加载模型、不调用 API。
+DRY_RUN=1 PROMPT_DATA=/data/original_train.jsonl bash scripts/sh/47_openseeker_benchmark.sh
 ```
 
-统一的是 native 推理协议；离线工具仍返回 JSON 文档，在线工具仍返回上游摘要文本。不伪造互联网搜索结果，不改变固定语料权限，也不把 replay 当作真实检索成绩。若希望研究 observation 格式对模型的影响，应作为独立实验同时适配训练数据和工具渲染，再重新计长训练。
+Dry-run 只展示参数/命令，不宣称训练提示文件、模型或 API 已完成真实联调。native 在线和离线生成前会读取并校验 prompt profile。离线多卡 worker 同样接收 PROMPT_DATA 和 RUN_DIR，不会在子进程意外退回默认 profile。
 
-## 45.7 测试参数与修改位置
+## 45.8 参数与修改提示
 
-| 变量 | 入口/默认 | 含义与注意事项 |
+| 参数/变量 | 默认或位置 | 说明与修改提示 |
 |---|---|---|
-| `MODE` | 47 / native | native 统一 Plain/Beacon；official-v1/v2 原样复现 |
-| `RUN_DIR` | 47/56/57 / 空 | 读取实验与 train_summary 定位已合并模型 |
-| `MODEL_PATH` | 同上 / 空 | 显式模型目录；覆盖 RUN_DIR 自动定位；不能是未合并 adapter |
-| `KIND` | 同上 / 自动 | plain/beacon；统一比较不修改提示词；Beacon 不能改用普通服务来替代 |
-| `ENV_FILE` | 47 / 空 | 私有在线 API shell 配置；不影响严格离线入口 |
-| `DATA` / `CORPUS` / `ROOT_DIR` | 56/57 | 问题、独立语料、索引根目录；保留原来源/指纹验证 |
-| `ALLOW_VISIT` | 56=0，57=1 | 实际能力和 schema 同步；两个模型必须相同 |
-| `TOPK` | 56/57=5 | 每个查询结果数；通过后端控制，不硬编码在提示词 |
-| `SNIPPET_TOKENS` | 56/57=512 | 每篇搜索正文上限；按待测 tokenizer 计数 |
-| `READ_TOKENS` | 56/57=4096 | 每篇 visit 正文上限；不是整轮工具返回预算 |
-| `MAX_TOOL_TOKENS` | 47/56/57=32768 | 单条完整工具响应上限，含包装/JSON；超出则失败，不静默截断 |
-| `MAX_CONTEXT` | 47/56/57=131072 | 未压缩完整历史的逻辑 token 上限；不是 Beacon 物理 KV 长度 |
-| `MAX_TOKENS` | 47=32768 | native 每轮最大生成 token；official 模式按上游参数处理 |
-| `MAX_NEW_TOKENS` | 56/57=8192 | 离线每轮最大生成 token，不是整题总量 |
-| `MAX_TURNS` | 47/56/57=200 | native 循环上限，不能解决单轮重复生成 |
-| `TOOL_COUNT` | 47/56/57=200 | 离线为实际调用上限；47 该参数沿用官方模式上限，native 仍以 MAX_TURNS 控制循环 |
-| `LIMIT` | 47/56/57=-1 | 全量；正数仅前 N 题，不报告为全量成绩 |
-| `NUM_WORKERS` | 56/57=1 | 每卡完整模型副本，按题分片；非 tensor parallel |
-| `WORKERS` / `JUDGE_WORKERS` | 47=60/20 | 官方在线生成/裁判并发；native 生成逐题，WORKERS 不提供 native 多卡并发 |
-| `JUDGE_MODEL` | 56 / 空 | 本地独立裁判；ACTION=run 可仅生成，完整评分需配置 |
-| `OUTPUT_DIR` | 测试 / 新时间戳目录 | 不覆盖旧结果；不要在旧结果目录继续写入 |
-| `PREDICTIONS` | 评分入口 / 空 | 只评分已有预测时使用；提示词、checkpoint 来源以原预测记录为准 |
-| `DRY_RUN` | 47/56/57=0 | 1 只审查计划；56/57 仍有原有的本地输入/参数预检查 |
+| `PROMPT_DATA` / `--prompt-data` | 47/56/57，空 | 原训练 JSONL，优先级最高；单 profile；不会读取其问题作为评测输入 |
+| `RUN_DIR` / `--run-dir` | 空 | 从 experiment.json 解析模型与训练提示来源；搬迁后路径失效请指定 PROMPT_DATA |
+| `MODEL_PATH` / `--model` | 空 | 本地合并 checkpoint，优先于模型自动定位；不能只传未合并 adapter |
+| `KIND` | 自动 | plain/beacon，仅选择模型，不改变 system |
+| `MODE` | 47=native | official-v1/v2 使用原样 upstream；显式给它们 --prompt-data 会报错 |
+| `ENV_FILE` | 47，空 | 私有在线 API 配置；不影响离线工具 |
+| `ALLOW_VISIT` | 56=0、57=1 | 同时改变实际能力及 schema，比较两个模型时保持一致 |
+| `TOPK` | 56/57=5 | 每个查询返回数，不再由 system 承诺固定 10 |
+| `SNIPPET_TOKENS` / `READ_TOKENS` | 512/4096 | 每篇搜索/读取正文上限，按待测 tokenizer 计数 |
+| `MAX_TOOL_TOKENS` | 47/56/57=32768 | 单条完整观察上限，含 JSON/包装；超出报预算失败 |
+| `MAX_CONTEXT` | 47/56/57=131072 | 完整未压缩历史逻辑上限，不是物理 KV 长度 |
+| `MAX_TOKENS` | 47=32768 | native 每轮生成上限；官方模式交给原脚本 |
+| `MAX_NEW_TOKENS` | 56/57=8192 | 离线每轮生成上限，不是整题总数 |
+| `MAX_TURNS` | 47/56/57=200 | native 循环上限；不能解决单轮重复生成 |
+| `TOOL_COUNT` | 200 | 离线真实调用上限；47 沿用官方模式工具次数参数，native 仍由轮数控制 |
+| `LIMIT` | -1 | 全量；正数为前 N 题，不能称全量成绩 |
+| `NUM_WORKERS` | 56/57=1 | 每 GPU 完整模型副本，按题并行；训练提示来源随子进程传播 |
+| `WORKERS` / `JUDGE_WORKERS` | 47=60/20 | 官方生成/裁判并发；native 生成仍逐题 |
+| `DATA` | 测试脚本默认问题集 | 评测问题来源，与 PROMPT_DATA 的训练提示来源区分 |
+| `CORPUS` / `ROOT_DIR` | 56/57 | 独立文档/索引；保留原来源和指纹检查 |
+| `OUTPUT_DIR` | 新结果目录 | 禁止覆盖旧结果，防止缓存混用 |
+| `PREDICTIONS` | 空 | 导入已有预测评分；提示来源以原预测记录为准，不重新生成 |
+| `DRY_RUN` | 0 | 1 展示计划；不验证实际模型效果 |
+| `PYTHON` / `CONDA_ENV` | 项目公共解析规则 | 不自动安装依赖；使用已装 torch/transformers/peft 的环境 |
+| `OMP_NUM_THREADS` | 59=1 | CPU tiny 测试线程数；末尾额外参数直接传 pytest |
 
-59 的 PYTHON/CONDA_ENV 与项目相同；OMP_NUM_THREADS 默认 1，仅用于 CPU 回归；末尾参数传给 pytest。21 是设置 KIND=plain 后转入 31 的薄包装；两者的全部参数在 31 顶部说明，支持同名环境变量覆盖。示例：`RUN_DIR=/path/to/run BACKEND=replay DRY_RUN=1 bash scripts/sh/21_plain_eval.sh`。21/31 的专用参数见 40，索引、评分和网络隔离的完整参数见 43，在线密钥与官方部署参数见 42。
+10_prepare.sh 仍支持同名环境变量：SOURCE、INPUT_FILE、OUTPUT_DIR、MODEL_NAME、MIN_LENGTH、MAX_LENGTH、CORRECTNESS、OBSERVATIONS、WORKERS、OFFLINE、VAL_FRACTION、TEST_FRACTION、SEED。INPUTS/MODELS 多值编辑脚本数组；--input 在末尾是追加而非替换。默认 MAX_LENGTH=16384、Correct、观察不限、4 进程、OFFLINE=1、划分约 96%/2%/2%、seed=42。OUTPUT_DIR 必须不存在，已有 v3 数据无需覆盖重建。详见 10/11。
 
-## 45.8 结果身份、复现与排查
+改训练 system，应修改自己的源数据并建立新实验，而不是修改 normalizer 统一覆盖；新增数据必须重新计长。改工具能力只改后端及适配函数，保留训练 profile；自定义工具需同时提供真实实现。改默认参考副本必须说明数据来源、核对字节/hash，并运行 59；自定义 checkpoint 优先显式 PROMPT_DATA。
 
-每条 native 预测新增 prompt_version、system_prompt_sha256、generation_config。实际 messages 仍完整保存，便于直接检查提示词。generation_config 记录 kind、贪心解码、checkpoint、model_config_sha256，Beacon 额外记录实际 beacon_config。自定义生成器测试桩可没有 generation_config 信息；不能把空字典解释为真实模型来源已核验。
+## 45.9 模型算法和结果追踪
 
-比较两个结果应核对：问题/语料指纹、索引设置、能力和答案要求、system hash、模型目录、实际模型/Beacon 配置、预算、裁判。离线扩展会改变完整 system hash，这是预期行为，不应为了让 hash 一样而删除环境约束。
+训练仍是整条真实轨迹的 teacher forcing。Plain/Beacon 使用相同 input_ids 和 labels，Beacon 额外按 observation 正文 regions 压缩。SFT 的工具 schema 渲染与 native 初始 system 渲染共用 render_system；每个生成前缀与训练 token 前缀对齐。
 
-v3 checkpoint 可继续用于诊断和官方复现，但修改代码不会将旧权重变成 v4 训练权重，也不能保证原有重复生成立即消失。需要评估改动效果时，先重建 v4 数据、训练新模型，再按相同环境比较完成率、非法调用率、重复行为、召回和准确率。
+native Plain 使用显式贪心 GenerationConfig；Beacon 为相同 argmax 策略，统一停止文本与多 EOS 处理。每轮完整历史重新 prefill（reuse_cache=false），轮内缓存解码。Qwen3.5 tiny 的 forward/prefill/decode 数值一致性测试保留；这些不等于所有真实 GPU kernel/checkpoint 均已数值验证。
 
-如果只想修改模型、压缩比、训练步数或预算，编辑对应脚本顶部变量/YAML；无需复制提示词。若修改提示词/schema/序列化，需同步升级数据协议、重新 prepare、建立新实验，运行 59，并在结果中保留版本与指纹。不要改写旧实验代码指纹来继续训练。
+Beacon whole SFT 布局仍在归档和加载前统一解析；随机压缩训练时采样、推理固定的既有选项保持不变。参数与算法细节见 30/31/60。本次不因保留 system 改变压缩算法或训练损失。
+
+native 预测保存完整 messages、prompt_source、prompt_version（当前构造策略版本）、system_prompt_sha256 和 generation_config。prompt_source 区分显式训练文件、RUN_DIR 自动定位与内置参考文件；完整 system hash 才代表具体文本身份，不能仅凭策略版本号判断不同 profile 相同。generation_config 记录模型、配置指纹及实际 Beacon 设置。
+
+已有 v3 模型可直接使用其原训练提示评测；不要求为本次修复重训。已有实验仍保留代码/数据指纹校验；代码变化后要新建训练计划，不改写旧实验指纹绕过校验。若模型此前确实用替换 system 的 v4 数据训练，原提示与该权重不再是同一条件，应作为独立历史实验报告，不能给数据换标签冒充恢复。重复推理/非法调用是否改善，仍需真实模型评测；本次仅修改代码、文档和回归测试。

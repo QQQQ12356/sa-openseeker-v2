@@ -181,6 +181,11 @@ def test_native_uses_question_only_and_preserves_compression_path(tmp_path, monk
     rows = [dict(query="question", answer="REFERENCE_DO_NOT_PROMPT")]
     model = SimpleNamespace(eval=lambda: None)
     calls = []
+    from search_comp.data.agent_prompt import build_system_prompt
+    original_system = build_system_prompt() + "\nOriginal training-specific instruction."
+    prompt_data = jsonl(tmp_path / "training.jsonl", [dict(messages=[
+        dict(role="system", content=original_system),
+        dict(role="user", content="TRAINING_QUESTION_DO_NOT_COPY")], answer="TRAINING_ANSWER_DO_NOT_COPY")])
     class Tool:
         def call(self, params):
             return "observation"
@@ -194,14 +199,17 @@ def test_native_uses_question_only_and_preserves_compression_path(tmp_path, monk
     def agent(messages, tokenizer, generate, tools, *budgets):
         assert "REFERENCE" not in json.dumps(messages)
         from search_comp.data.agent_prompt import initial_messages
-        assert messages == initial_messages("question")
+        assert messages == initial_messages("question", system=original_system)
+        assert "TRAINING_QUESTION" not in json.dumps(messages)
+        assert "TRAINING_ANSWER" not in json.dumps(messages)
         assert tools.execute([dict(name="search", arguments=dict(query=["q"]))])[0]["content"] == "<tool_response>observation</tool_response>"
         return dict(prediction="prediction", status="completed", events=[])
     monkeypatch.setattr(tool_agent, "run_agent", agent)
     monkeypatch.setattr(benchmark, "resolve_checkpoint", lambda *a: ("checkpoint", kind))
-    args = SimpleNamespace(official_dir=tmp_path, run_dir=None, model=None, kind=kind,
+    args = SimpleNamespace(official_dir=tmp_path, run_dir=None, model=None, kind=kind, prompt_data=prompt_data,
         max_turns=200, max_context=131072, max_tokens=32768, max_tool_tokens=32768)
     output = tmp_path / "native.jsonl"
     benchmark.native_generate(args, rows, output)
     assert calls == [kind == "beacon"]
     assert json.loads(output.read_text())["final_response"] == "prediction"
+    assert json.loads(output.read_text())["prompt_source"] == str(prompt_data)

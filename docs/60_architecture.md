@@ -1,10 +1,10 @@
 # 60 核心架构与损失
 
-当前训练/评测共享提示词、v4 数据迁移、算法一致性检查及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
 
 `search_comp/models/` 保留 Plain/Beacon 的 Qwen3、Qwen3.5 实现、共享压缩配置、Qwen3.5 线性状态、question memory 与模型加载；`trainer/` 保留普通 SFT、Beacon、native、continuation、输出/读出/信息蒸馏、适配器合并和多卡 launcher。`data/` 保留 Search-R1、文档规范化、BM25、语料构建、OpenSeeker 编码与数据工厂。`evaluation/` 保留原交互式、native、直接回答和统一指标实现。
 
-OpenSeeker 标准任务 system 使用共享构造器，其余原始轨迹文本保留，结构化工具调用统一为 tool_calls_begin/tool_call JSON；仅 observation 正文可压缩，不截断轨迹。数据读取使用 JSONL offset 懒加载，减少多 GB 数据常驻内存。训练和 agent 推理共享 encode()/pieces()，测试验证每个生成前缀与训练序列对齐。
+OpenSeeker 原始 system 和轨迹文本保留，测试从对应训练数据读取提示并共用渲染器，结构化工具调用统一为 tool_calls_begin/tool_call JSON；仅 observation 正文可压缩，不截断轨迹。数据读取使用 JSONL offset 懒加载，减少多 GB 数据常驻内存。训练和 agent 推理共享 encode()/pieces()，测试验证每个生成前缀与训练序列对齐。
 
 主 CE 的分段类别：think_tag/content、search_tag/content、answer_tag/content、tool_call_tag/content、other。`beacon.loss_segments` 同时用于 Plain 和 Beacon，默认全部启用、权重 1。每 token 权重乘交叉熵，分母为有效权重和。关闭类别等价于权重 0，不参与主 CE 梯度与分母；全部关闭得到可反传的有限零损失。token/labels/压缩区域不受权重改变影响。
 

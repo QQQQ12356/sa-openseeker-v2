@@ -13,7 +13,7 @@
 | [42 官方 Benchmark](42_openseeker_benchmark.md) | BrowseComp、固定官方 v1/v2、Beacon native、LLM 裁判、覆盖审计、一键运行 |
 | [43 离线基准](43_offline_benchmarks.md) | BrowseComp-Plus / HotpotQA、持久化 BM25、断网构建与评测、参数和修改提示 |
 | [44 离线来源](44_offline_sources.md) | 固定官方代码、数据版本、许可证与升级规则 |
-| [45 统一训练与测试](45_unified_agent_flow.md) | 共享提示/schema、v4 数据迁移、算法一致性、在线/离线入口、变量和修改说明 |
+| [45 统一训练与测试](45_unified_agent_flow.md) | 保留原始 system、训练提示来源、离线能力适配、算法一致性、在线/离线入口、变量和修改说明 |
 | [50 多卡](50_multigpu.md) | torchrun、DDP、ZeRO-2/3、每卡日志、Beacon 与固定语料多卡测试 |
 | [51 显存测试](51_memory_probe.md) | 特定长度数据、短步数训练、峰值显存 |
 | [52 四卡 A800 长轨迹 OOM](52_beacon_oom.md) | 原因、重计算修复、参数说明与修改提示 |

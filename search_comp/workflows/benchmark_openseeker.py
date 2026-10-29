@@ -171,11 +171,12 @@ def native_generate(args, rows, output):
     """Use the shared SFT/native protocol with upstream online search/visit."""
     sys.path.insert(0, str(args.official_dir / "src"))
     from llm_tool_openseeker import Search, Visit
-    from search_comp.data.agent_prompt import initial_messages
+    from search_comp.data.agent_prompt import initial_messages, resolve_system_prompt
     from search_comp.evaluation.tool_agent import ModelGenerator, Registry, run_agent
     from search_comp.models.model_loader import load_beacon_model, load_tokenizer
     from search_comp.models.plain_qwen3 import load_sft_model
 
+    system, prompt_source = resolve_system_prompt(getattr(args, 'prompt_data', None), args.run_dir)
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     tokenizer = load_tokenizer(model_path)
     model = (load_beacon_model if kind == "beacon" else load_sft_model)(model_path)
@@ -186,10 +187,10 @@ def native_generate(args, rows, output):
     with output.open("x", encoding="utf-8") as target:
         for index, row in enumerate(rows):
             start = time.monotonic()
-            messages = initial_messages(row["query"])
+            messages = initial_messages(row["query"], system=system)
             result = run_agent(messages, tokenizer, generate, tools, args.max_turns,
                                args.max_context, args.max_tokens, args.max_tool_tokens)
-            result.update(row, final_response=result["prediction"],
+            result.update(row, final_response=result["prediction"], prompt_source=prompt_source,
                           elapsed_seconds=time.monotonic() - start,
                           tool_calls=sum(len(e.get("calls", [])) for e in result["events"]))
             target.write(json.dumps(result, ensure_ascii=False) + "\n")
@@ -208,6 +209,8 @@ def main():
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--predictions", type=Path, help="judge existing query/answer/final_response JSONL")
     parser.add_argument("--run-dir", type=Path)
+    parser.add_argument("--prompt-data", type=Path,
+                        help="training JSONL supplying original system/tools; overrides RUN_DIR training data")
     parser.add_argument("--model")
     parser.add_argument("--kind", choices=["plain", "beacon"])
     parser.add_argument("--workers", type=int, default=60)
@@ -225,12 +228,14 @@ def main():
             parser.error(f"--{name.replace('_', '-')} must be positive")
     if args.limit != -1 and args.limit < 1:
         parser.error("--limit must be -1 (full benchmark) or positive")
-    for name in ("official_dir", "data", "output_dir", "predictions", "run_dir", "csv"):
+    for name in ("official_dir", "data", "output_dir", "predictions", "run_dir", "csv", "prompt_data"):
         value = getattr(args, name)
         if value is not None:
             setattr(args, name, value.expanduser().resolve())
     if args.mode != "native" and (args.run_dir or args.model or args.kind == "beacon"):
         parser.error("official modes use OPENSEEKER_BASE_URL/MODEL; serve Plain via 48, use --mode native for Beacon")
+    if args.mode != "native" and args.prompt_data:
+        parser.error("--prompt-data is for native mode; official modes retain upstream prompts")
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     output = args.output_dir or ((args.run_dir / "evaluation" if args.run_dir else ROOT / "outputs/results")
                                  / f"benchmark_{args.mode}_{stamp}")
@@ -240,7 +245,8 @@ def main():
         if args.predictions:
             command = ["import_predictions", str(args.predictions)]
         print(json.dumps(dict(revision=OFFICIAL_REVISION, mode=args.mode, data=str(args.data),
-                              output=str(output), generation=command), indent=2))
+                              output=str(output), prompt_data=str(args.prompt_data) if args.prompt_data else None,
+                              generation=command), indent=2))
         return
     if output.exists() and not args.prepare_only:
         parser.error("output directory exists; use a new --output-dir (no overwriting or stale judge cache)")
@@ -271,7 +277,7 @@ def main():
                     created_at=datetime.now(timezone.utc).isoformat())
     if args.mode == "native" and not args.predictions:
         model, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
-        manifest.update(model=model, kind=kind, generation_alignment="shared SFT/native prompt and serializer; upstream v1 tools")
+        manifest.update(model=model, kind=kind, generation_alignment="original training system/schema; shared native serializer; upstream v1 tools")
     elif not args.predictions:
         manifest.update(model=os.environ["OPENSEEKER_MODEL"], generation_alignment="unmodified official script")
     else:

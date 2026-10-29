@@ -6,6 +6,7 @@ CONDA_ENV="${CONDA_ENV:-search-comp-qwen3.5}"
 MODE="${MODE:-native}"                # native：Plain/Beacon 共用训练协议；official-v1/v2：保留官方原样复现
 RUN_DIR="${RUN_DIR:-}"                # native 自动读取训练结果
 MODEL_PATH="${MODEL_PATH:-}"          # native 可显式指定已合并模型
+PROMPT_DATA="${PROMPT_DATA:-}"          # 原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 自动定位；无两者用内置 Polar 原提示
 KIND="${KIND:-}"                      # native: plain / beacon；默认读 RUN_DIR
 DATA="${DATA:-outputs/data/benchmarks/browsecomp.jsonl}"
 BENCHMARK="${BENCHMARK:-BrowseComp}"
@@ -31,6 +32,7 @@ COMMAND=("$PY" scripts/py/47_benchmark.py --mode "$MODE" --data "$DATA" --benchm
   --max-turns "$MAX_TURNS" --max-tool-tokens "$MAX_TOOL_TOKENS")
 if [[ -n "$RUN_DIR" ]]; then COMMAND+=(--run-dir "$RUN_DIR"); fi
 if [[ -n "$MODEL_PATH" ]]; then COMMAND+=(--model "$MODEL_PATH"); fi
+if [[ -n "${PROMPT_DATA:-}" ]]; then COMMAND+=(--prompt-data "$PROMPT_DATA"); fi
 if [[ -n "$KIND" ]]; then COMMAND+=(--kind "$KIND"); fi
 if [[ -n "$OUTPUT_DIR" ]]; then COMMAND+=(--output-dir "$OUTPUT_DIR"); fi
 if [[ -n "$PREDICTIONS" ]]; then COMMAND+=(--predictions "$PREDICTIONS"); fi

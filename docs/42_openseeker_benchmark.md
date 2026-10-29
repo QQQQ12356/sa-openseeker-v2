@@ -1,7 +1,8 @@
 # 42 OpenSeeker 官方 Benchmark 对齐评测
 
-当前训练/评测共享提示词、v4 数据迁移、算法一致性检查及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
 
+`PROMPT_DATA` / `--prompt-data` 指定原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 的 train_data_path，无两者时用内置原始 Polar profile。在线保留原文，离线仅适配必要能力和答案格式；多 system 必须显式选择单 profile，详情见 45。
 本入口在现有训练、EM/F1、replay/corpus/http 和 Search-R1 流程之外增量添加。原有代码和编号入口继续可用。默认选择论文报告的英文 **BrowseComp**，它需要真实在线搜索和网页访问，适合评估训练后的复杂检索能力。它与从 Polar 训练轨迹切出的 test 集不同，不能互相代替。
 
 官方来源：

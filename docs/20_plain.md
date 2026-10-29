@@ -1,6 +1,6 @@
 # 20 Plain 训练与评测
 
-当前训练/评测共享提示词、v4 数据迁移、算法一致性检查及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
 
 修改 `scripts/sh/20_plain_train.sh` 顶部 Python、GPU 列表和脚本中的 YAML，然后直接执行。默认 Qwen3.5-4B、16k、LoRA、batch=1；`model_family` 支持 qwen3 / qwen35。`ACTION="plan"` 只生成实验目录、配置快照、指纹和启动命令，`train` 才加载模型训练。数据路径与 tokenizer 必须在 manifest 中匹配。
 

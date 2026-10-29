@@ -11,6 +11,7 @@ export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 NUM_WORKERS="${NUM_WORKERS:-1}"        # 每卡完整模型副本，按题并行；不超过可见 GPU 数
 RUN_DIR="${RUN_DIR:-}"
 MODEL_PATH="${MODEL_PATH:-}"
+PROMPT_DATA="${PROMPT_DATA:-}"          # 原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 自动定位；无两者用内置 Polar 原提示
 KIND="${KIND:-}"                       # plain / beacon；默认自动识别
 DATA="${DATA:-}"                       # 默认 ROOT_DIR/raw/hotpot_dev_fullwiki_v1.json
 CORPUS="${CORPUS:-}"                   # 默认 ROOT_DIR/raw/wiki-abstracts.tar.bz2
