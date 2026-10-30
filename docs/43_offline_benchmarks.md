@@ -442,6 +442,8 @@ OUTPUT_DIR=outputs/results/bcp_beacon_full_001 \
 
 父结果目录下的 `predictions.jsonl` 保持原题目顺序，增加零基 `sample_index`；manifest 保留整次测试的 selected_ids、参数、可见卡和预测 SHA256，可直接交给已有 score 流程。`generation.metrics.json` 汇总所有题目的状态、总数、并行耗时与实际使用卡。`workers/worker_<rank>/` 保存分片预测、指标与 manifest，`workers/worker_<rank>.log` 保存各卡日志；主进程转发生成进度，并在加载期间每 15 秒打印存活 worker 数。
 
+每完成一道题，终端立即追加完成计数。多卡额外汇总所有分片，例如 `LIMIT=8` 时显示 `[offline hotpotqa all] done=1/8; elapsed=...s`，最终达到 `8/8`；单卡和评分阶段也显示逐题计数。分母是 LIMIT 截取后的实际题数，计数表示已完成尝试（包括工具错误、预算耗尽等状态），不代表答对题数。
+
 某个 worker 非零退出时，主进程终止并回收其他 workers，保留日志并将父 manifest 标记 failed，不继续评分。合并会校验每个分片的完成状态、问题指纹、selected_ids、预测 SHA256、题目 ID/query 和样本索引；漏题、重复、错序或校验失败均报错，不发布最终 predictions.jsonl。不同 GPU 的缓存和压缩状态由各自进程独立持有，工具预算仍逐题重置。
 
 多副本测试要求**每张卡都能容纳完整模型和单条轨迹的推理状态**；它不把一条 Beacon 样本分摊到多卡。`NPROC_PER_NODE`、`DISTRIBUTED_BACKEND` 不参与此入口，直接运行脚本即可，不需要 torchrun。`NUM_WORKERS` 只控制生成，不会并行启动多个裁判；裁判权重自动分配也不等于张量并行。57 复用同一实现，可用相同多卡参数测试 HotpotQA。

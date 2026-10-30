@@ -488,7 +488,7 @@ runpy.run_path(ENTRY_PATH, run_name='__main__')
 
 
 @pytest.mark.parametrize('workers,limit,action', [(2, -1, 'run'), (4, 1, 'run'), (2, 3, 'all')])
-def test_parallel_real_processes_merge_and_score(tmp_path, monkeypatch, workers, limit, action):
+def test_parallel_real_processes_merge_and_score(tmp_path, monkeypatch, capsys, workers, limit, action):
     root = prepared_bcp(tmp_path, count=5)
     model = tmp_path / 'model with spaces'
     model.mkdir()
@@ -501,6 +501,9 @@ def test_parallel_real_processes_merge_and_score(tmp_path, monkeypatch, workers,
         '--num-workers', str(workers), '--output-dir', str(output)])
     workflow.main()
     rows, _ = workflow.prepared_questions(root, 'browsecomp-plus', limit)
+    progress_log = capsys.readouterr().out
+    for completed in range(len(rows) + 1):
+        assert f'[offline browsecomp-plus all] done={completed}/{len(rows)};' in progress_log
     predictions = list(records(output / 'predictions.jsonl'))
     assert [row['id'] for row in predictions] == [row['id'] for row in rows]
     assert [row['sample_index'] for row in predictions] == list(range(len(rows)))

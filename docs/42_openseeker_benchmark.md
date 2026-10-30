@@ -268,11 +268,13 @@ native 的 max_tokens 是每轮生成上限，max_turns 是轮数，不等于官
 | `questions.jsonl` | 本次选定的题目/参考答案，不含参考轨迹 |
 | `manifest.json` | 模式、官方提交及脚本指纹、数据指纹、配置、裁判模型、搜索供应商、模型或导入预测来源；不保存密钥 |
 | `result_tool200.jsonl`（随 TOOL_COUNT 改名） | 官方原始生成产物，保留轨迹、工具次数与耗时；native 保留 messages/events/status |
-| `generation.log`、上游日志 | 官方生成 stdout/stderr 与上游统计；native 进度输出到终端，轨迹逐题落盘 |
+| `generation.log`、上游日志 | 官方生成 stdout/stderr、上游统计与逐题完成计数；native 进度输出到终端，轨迹逐题落盘 |
 | `result_for_judge.jsonl` | 统一评分输入，按基准顺序每题一条，重试同题使用最后一条；缺失生成填空回答并标记失败 |
 | `coverage.json` | 原始尝试数、唯一预测数、漏题数、空回答数 |
 | `result_for_judge_eval.jsonl` | 官方裁判结果与官方 summary |
 | `judge.log`、`summary.metrics.json` | 裁判日志与增加覆盖审计后的汇总 |
+
+生成和评分分别实时输出 `done=已完成/实际题数`。例如 `LIMIT=8` 时，官方生成显示 `[benchmark BrowseComp generation] done=1/8; elapsed=...s`，裁判显示 `[benchmark BrowseComp judge] done=1/8; elapsed=...s`；这些记录也写入对应的 `.log`。重试同题只计一次，计数表示已有结果，不代表回答正确或裁判标签有效。
 
 `official_accuracy` 沿用官方已得到有效 0/1 标签的分母；`accuracy_all_questions` 以所有选定题目为分母，未知/错误裁判按 0 计入，作为覆盖审计补充指标。成功完整评分时两者一致。上游可能过滤裁判异常条目；因此本入口重新检查 item_index 覆盖率，缺任何裁判结果都会写出汇总并以非零状态结束，不能当成完整成绩。生成缺失题保留空回答交给同一官方裁判，不从分母删除。v2 的 boxed 后缀通过读取固定官方源码的常量处理，不修改其提示。
 

@@ -202,6 +202,8 @@ def test_real_worker_processes_receive_separate_gpus_and_merge(tmp_path, monkeyp
     output = capsys.readouterr().out
     assert "[eval worker=0] done" in output
     assert "[eval worker=1] done" in output
+    for completed in range(6):
+        assert f"[eval all] done={completed}/5;" in output
     assert "merging predictions" in output
 
 

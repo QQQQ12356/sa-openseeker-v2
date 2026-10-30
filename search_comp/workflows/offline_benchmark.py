@@ -22,6 +22,7 @@ from search_comp.offline.scoring import LocalJudge, load_predictions, score_brow
 from search_comp.offline.tools import BCP_INSTRUCTION, HOTPOT_INSTRUCTION, LocalTools
 from search_comp.workflows.benchmark_openseeker import resolve_checkpoint
 from search_comp.workflows.evaluate_openseeker import worker_devices
+from search_comp.utils.progress import CompletionProgress
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -83,6 +84,7 @@ def run_phase(args, output, rows, manifest):
     generate = ModelGenerator(model, tokenizer, kind == "beacon")
     statuses = Counter()
     start = time.monotonic()
+    print(f"[offline {args.benchmark}] done=0/{len(rows)}", flush=True)
     with LocalIndex(args.root / "index.sqlite") as index, (output / "predictions.jsonl").open("x", encoding="utf-8") as target:
         tools = LocalTools(index, tokenizer, args.topk, args.snippet_tokens, args.read_tokens,
                            args.allow_visit, args.tool_count)
@@ -102,7 +104,7 @@ def run_phase(args, output, rows, manifest):
             target.write(json.dumps(result, ensure_ascii=False) + "\n")
             target.flush()
             statuses[result["status"]] += 1
-            print(f"[offline] done={position + 1}/{len(rows)} status={result['status']} "
+            print(f"[offline {args.benchmark}] done={position + 1}/{len(rows)} status={result['status']} "
                   f"sample={result['seconds']:.1f}s elapsed={time.monotonic() - start:.1f}s", flush=True)
     dump(output / "generation.metrics.json", dict(statuses=dict(statuses), count=len(rows),
                                                   seconds=time.monotonic() - start))
@@ -210,9 +212,11 @@ def run_parallel(args, output, rows, manifest):
                 readers.append(stack.enter_context(log_path.open(encoding="utf-8", errors="replace")))
                 buffers.append("")
             pending = list(processes)
+            progress = CompletionProgress(paths, len(rows), f"offline {args.benchmark} all")
             heartbeat = time.monotonic()
             while pending:
                 forward_worker_progress(readers, buffers)
+                progress.poll()
                 for process in pending[:]:
                     code = process.poll()
                     if code is None:
@@ -227,6 +231,7 @@ def run_parallel(args, output, rows, manifest):
                 if pending:
                     time.sleep(0.1)
             forward_worker_progress(readers, buffers)
+            progress.poll()
         finally:
             for process in processes:
                 if process.poll() is None:

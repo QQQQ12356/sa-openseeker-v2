@@ -104,3 +104,16 @@ OMP_NUM_THREADS=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
 47 native 和 56 的 PROMPT_DATA dry-run 参数映射通过，全部 shell 的 bash -n、Python compileall、文档本地链接和 git diff --check 通过。dry-run 仅打印计划，不声称真实 checkpoint/API 已联调。47/56/57 的 PROMPT_DATA 参数说明已写入脚本及 42/43/45；离线 worker 保留 RUN_DIR 和显式提示源。
 
 未运行真实训练、真实 checkpoint 在线或离线生成、在线搜索/摘要/裁判服务，也未重建全量数据或索引。现有数据、模型、tmp 的结果均未删除或改写。已有原始 v3 数据无需为本次修复重新计长。
+
+## 2026-10-30 Beacon 完整实验指南与流程整理
+
+新增 [32 Beacon 完整实验指南](32_beacon_experiment_guide.md)，按环境、数据准备/筛选、配置与 plan、训练、合并、少量诊断、离线/在线基准、结果审查的顺序给出命令、参数、阅读路径和每步完成条件。README、文档索引、30、45 已接入该指南。已删除不再使用的数据协议专项分支、迁移历史段落和对应专用测试断言；现行数据仍保留原始 system，使用原有数据格式。
+
+验证结果：
+
+- 全量 CPU/离线回归 **564 passed、2 skipped、9 warnings，85.72 秒**，日志为 `outputs/reports/verification/beacon_experiment_guide_pytest.log`。
+- 指南中 23 个 bash 命令块通过 bash -n；内嵌 Python 示例通过 AST 语法检查；所有脚本路径和本地 Markdown 链接存在。
+- 全部 shell 语法、Python compileall 和 git diff --check 通过；废弃数据协议标识及其专用兼容常量在维护代码/文档中无残留。
+- 使用现有真实 prepared 数据分别运行 30 的单卡 ACTION=plan 和 38 的四卡 ACTION=plan：生成配置与启动命令成功，四卡命令包含 nproc_per_node=4 和 ds_zero2.json。日志分别为 `beacon_guide_single_plan.log`、`beacon_guide_four_gpu_plan.log`，均位于 `outputs/reports/verification/`。
+
+plan 仅创建新的配置目录，没有加载真实训练模型或执行日志中的 next 训练命令。没有执行本指南中的真实训练、显存训练探针、模型合并、在线 API 请求或真实 checkpoint 评测，也未重建数据或索引。已有数据、模型和评测结果保持不变。

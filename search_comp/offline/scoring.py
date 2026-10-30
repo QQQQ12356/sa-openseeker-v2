@@ -70,6 +70,7 @@ def score_hotpot(root, questions, predictions, output):
     namespace = {"__name__": "official_hotpot_metrics"}
     exec(compile(tree, str(script), "exec"), namespace)
     answers, supporting, details = {}, {}, []
+    print(f"[score hotpotqa] done=0/{len(questions)}", flush=True)
     for row in questions:
         prediction = predictions.get(row["id"])
         detail = dict(id=row["id"], completed=False, answer_parse_error=None)
@@ -89,6 +90,7 @@ def score_hotpot(root, questions, predictions, output):
         else:
             detail.update(em=0.0, f1=0.0)
         details.append(detail)
+        print(f"[score hotpotqa] done={len(details)}/{len(questions)}", flush=True)
     dump(output / "hotpot_predictions.json", dict(answer=answers, sp=supporting))
     dump(output / "hotpot_gold.json", [dict(_id=row["id"], answer=row["answer"],
                                              supporting_facts=row["supporting_facts"]) for row in questions])
@@ -171,6 +173,7 @@ def score_browsecomp(root, questions, predictions, output, judge=None, retrieval
     counts = Counter()
     exports = output / "official_runs"
     exports.mkdir()
+    print(f"[score browsecomp-plus] done=0/{len(questions)}", flush=True)
     with (output / "judge.jsonl").open("x", encoding="utf-8") as log:
         for index, row in enumerate(questions):
             prediction = predictions.get(row["id"], {})
@@ -209,7 +212,7 @@ def score_browsecomp(root, questions, predictions, output, judge=None, retrieval
             details.append(result)
             log.write(json.dumps(result, ensure_ascii=False) + "\n")
             log.flush()
-            print(f"[score] {index + 1}/{len(questions)}; judge_errors={errors}", flush=True)
+            print(f"[score browsecomp-plus] done={index + 1}/{len(questions)}; judge_errors={errors}", flush=True)
     metrics = dict(recalls, count=len(questions), judge_errors=errors, complete=errors == 0,
                    score_mode="retrieval-only" if retrieval_only else "official prompt/parser with local HF judge",
                    metric="BrowseComp-Plus", official_evaluator_sha256=digest(script),

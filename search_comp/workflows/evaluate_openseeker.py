@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from search_comp.data.openseeker import normalize, VERSION
 from search_comp.evaluation.em_f1 import compute_f1
 from search_comp.evaluation.tool_agent import HTTPTools, ReplayTools, CorpusTools, ModelGenerator, run_agent
+from search_comp.utils.progress import CompletionProgress
 
 
 def score_answer(result, answer):
@@ -237,8 +238,10 @@ def evaluate_parallel(args):
                 readers.append(stack.enter_context(Path(log.name).open(errors='replace')))
                 buffers.append('')
             pending = list(processes)
+            progress = CompletionProgress(paths, sample_count(args), "eval all", key="sample_index")
             while pending:
                 forward_progress(readers, buffers)
+                progress.poll()
                 for process in pending[:]:
                     code = process.poll()
                     if code is None:
@@ -249,6 +252,7 @@ def evaluate_parallel(args):
                 if pending:
                     time.sleep(0.1)
             forward_progress(readers, buffers)
+            progress.poll()
         finally:
             for process in processes:
                 if process.poll() is None:

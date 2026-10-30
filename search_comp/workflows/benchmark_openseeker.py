@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+from contextlib import nullcontext
 from datetime import datetime, timezone
 import json
 import os
@@ -10,9 +11,11 @@ from pathlib import Path
 import shlex
 import subprocess
 import sys
+import threading
 import time
 
 from search_comp.evaluation.benchmark_data import prepare_browsecomp, read_questions, sha256
+from search_comp.utils.progress import CompletionProgress
 
 OFFICIAL_URL = "https://github.com/PolarSeeker/OpenSeeker.git"
 OFFICIAL_REVISION = "e3dec1f727d87c5eaa93506e4882c67237647098"
@@ -82,17 +85,27 @@ def resolve_checkpoint(run_dir, model, kind):
     return str(path), kind
 
 
-def run_logged(command, cwd, log):
+def run_logged(command, cwd, log, progress_path=None, total=None, label=None, key="query", item_type=None):
     print("[benchmark] " + shlex.join(map(str, command)), flush=True)
     with log.open("x", encoding="utf-8") as target:
-        process = subprocess.Popen(command, cwd=cwd, stdout=subprocess.PIPE,
-                                   stderr=subprocess.STDOUT, text=True)
-        try:
-            for line in process.stdout:
-                print(line, end="", flush=True)
-                target.write(line)
+        lock = threading.Lock()
+
+        def emit(line):
+            with lock:
+                print(line, flush=True)
+                target.write(line + "\n")
                 target.flush()
-            code = process.wait()
+
+        progress = (CompletionProgress([progress_path], total, label, key=key,
+                                       item_type=item_type, emit=emit) if progress_path else None)
+        process = subprocess.Popen(command, cwd=cwd, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, text=True,
+                                   env=dict(os.environ, PYTHONUNBUFFERED="1"))
+        try:
+            with progress.watch() if progress else nullcontext():
+                for line in process.stdout:
+                    emit(line.rstrip("\n"))
+                code = process.wait()
             if code:
                 raise subprocess.CalledProcessError(code, command)
         finally:
@@ -176,6 +189,7 @@ def native_generate(args, rows, output):
     from search_comp.models.model_loader import load_beacon_model, load_tokenizer
     from search_comp.models.plain_qwen3 import load_sft_model
 
+    print(f"[benchmark native generation] done=0/{len(rows)}", flush=True)
     system, prompt_source = resolve_system_prompt(getattr(args, 'prompt_data', None), args.run_dir)
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     tokenizer = load_tokenizer(model_path)
@@ -298,13 +312,16 @@ def main():
         if args.mode == "native":
             native_generate(args, rows, raw)
         else:
-            run_logged(generation_command(args, dataset, output), args.official_dir, output / "generation.log")
+            run_logged(generation_command(args, dataset, output), args.official_dir, output / "generation.log",
+                       raw, len(rows), f"benchmark {args.benchmark} generation")
     aligned = output / "result_for_judge.jsonl"
     suffix = boxed_instruction(args.official_dir) if args.mode == "official-v2" else ""
     coverage = align_results(rows, raw, aligned, suffix)
     (output / "coverage.json").write_text(json.dumps(coverage, indent=2) + "\n")
     run_logged([sys.executable, str(args.official_dir / "eval/eval.py"), "--data_path", str(aligned),
-                "--max_workers", str(args.judge_workers)], args.official_dir, output / "judge.log")
+                "--max_workers", str(args.judge_workers)], args.official_dir, output / "judge.log",
+               output / "result_for_judge_eval.jsonl", len(rows), f"benchmark {args.benchmark} judge",
+               key="item_index", item_type="item")
     scores = audit_scores(output / "result_for_judge_eval.jsonl", len(rows))
     summary = dict(coverage, **scores, mode=args.mode, benchmark=args.benchmark,
                    official_revision=revision, metric="OpenSeeker JUDGE_PROMPT_BC_en A/B accuracy")
