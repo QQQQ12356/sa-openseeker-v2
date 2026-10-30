@@ -187,6 +187,10 @@ ACTION=index bash scripts/sh/57_hotpotqa_offline.sh
 
 将示例 `DATA`、`CORPUS` 替换为服务器实际绝对路径；保存验证集 Parquet 时不需要转换成 JSON。后续使用 `ACTION=all` 时继续指定同样的 `DATA` 和 `CORPUS` 路径。prepare 会流式读取语料，并在 `prepared/manifest.json` 记录文件 SHA256、文档数和来源路径；文件、规范化语料及 SQLite/FTS 索引需要另外的磁盘空间。
 
+Wikipedia 语料中可能有只有标题的记录，例如 `text: [title]`。prepare 会跳过去掉标题/HTML 后正文为空的文档，在 `prepared/skipped_documents.jsonl` 逐条记录输入记录序号（从 1 开始）、ID、标题和原因，并在终端及 manifest 中汇总跳过数量；manifest 同时记录跳过日志的 SHA256。有跳过记录时不会标记为完整官方语料。其他结构错误仍会终止准备；有效文档内的空句子保持原位，避免改变 supporting-fact 句子索引。
+
+如果旧版本曾因 `Wikipedia document text must be nonempty text` 失败，先同步更新后的 `search_comp/offline/data.py`，再将本次失败留下的 `prepared/` 目录改名备份（例如 `mv outputs/data/benchmarks/hotpotqa/prepared outputs/data/benchmarks/hotpotqa/prepared.failed-$(date +%Y%m%d-%H%M%S)`），然后用相同 DATA/CORPUS 重新 prepare。准备不支持从残留半成品继续，也不能把缺少 manifest 的目录直接交给 index。
+
 此副本不具有官方压缩包的原始 MD5，因此项目会标记为 **custom/subset corpus**，即使下载了完整文件也不会自动认定为官方固定语料。不要改 manifest 去除该标记；比较实验应使用同一份语料及索引，并记录上述 revision、SHA256 和实际文档数。
 
 ### 43.4.2 断网机器：规范化与构建一次，后续复用

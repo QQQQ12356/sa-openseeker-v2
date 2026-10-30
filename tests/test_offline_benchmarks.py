@@ -125,6 +125,53 @@ def test_parquet_encrypted_bcp_uses_official_canary(tmp_path):
     assert 'do not prompt' not in json.dumps(rows)
 
 
+def test_hotpot_prepare_skips_empty_bodies_and_preserves_valid_sentences(tmp_path, capsys):
+    data, corpus = hotpot_sources(tmp_path)
+    title = 'Albert Alcibiades, Margrave of Brandenburg-Kulmbach'
+    empty_texts = [[title], [[title]], [[title], []], [[title], ['  ', '<br/>']]]
+    rows = [dict(id=str(i), title=title, text=text) for i, text in enumerate(empty_texts)]
+    rows.append(dict(id='valid', title='Bridge', text=[['Bridge'], ['First. ', '', 'Third.']]))
+    write_jsonl(corpus, rows)
+    root = tmp_path / 'benchmark'
+    install_official(root, 'hotpotqa')
+    manifest = prepare('hotpotqa', root, data, corpus, corpus_limit=1)
+    assert manifest['documents'] == 1
+    assert manifest['skipped_documents'] == 4
+    skip_path = root / 'prepared/skipped_documents.jsonl'
+    assert manifest['skipped_documents_sha256'] == digest(skip_path)
+    skipped = list(records(skip_path))
+    assert [row['id'] for row in skipped] == ['0', '1', '2', '3']
+    assert [row['record_index'] for row in skipped] == [1, 2, 3, 4]
+    assert all(row['title'] == title for row in skipped)
+    documents = list(records(root / 'prepared/corpus.jsonl'))
+    assert [row['id'] for row in documents] == ['valid']
+    assert documents[0]['sentences'] == ['First. ', '', 'Third.']
+    build_index(root)
+    with LocalIndex(root / 'index.sqlite') as index:
+        assert index.get('valid')['sentences'][2] == 'Third.'
+    assert 'skipped_empty=4' in capsys.readouterr().out
+
+
+def test_hotpot_prepare_does_not_skip_malformed_text(tmp_path):
+    data, corpus = hotpot_sources(tmp_path)
+    write_jsonl(corpus, [dict(id='bad', title='Bridge', text='unexpected string')])
+    root = tmp_path / 'benchmark'
+    install_official(root, 'hotpotqa')
+    with pytest.raises(ValueError, match='sentence arrays'):
+        prepare('hotpotqa', root, data, corpus)
+    assert not (root / 'prepared/manifest.json').exists()
+
+
+def test_hotpot_prepare_rejects_all_empty_corpus(tmp_path):
+    data, corpus = hotpot_sources(tmp_path)
+    write_jsonl(corpus, [dict(id='empty', title='Bridge', text=['Bridge'])])
+    root = tmp_path / 'benchmark'
+    install_official(root, 'hotpotqa')
+    with pytest.raises(ValueError, match='questions/corpus must be nonempty'):
+        prepare('hotpotqa', root, data, corpus)
+    assert not (root / 'prepared/manifest.json').exists()
+
+
 def test_tar_bz2_stream_without_extracting_paths(tmp_path):
     row = dict(id=1, title='Bridge', text=[['<a href="x">A bridge</a> exists.']])
     compressed = bz2.compress((json.dumps(row) + '\n').encode())

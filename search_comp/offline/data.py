@@ -81,6 +81,10 @@ def required_text(value, label):
     return value
 
 
+class EmptyDocumentError(ValueError):
+    """A structurally valid Wikipedia record has no body after normalization."""
+
+
 def document(row, benchmark):
     docid = str(row.get("docid", row.get("id", "")))
     if not docid:
@@ -102,7 +106,8 @@ def document(row, benchmark):
     else:
         raise ValueError("invalid Wikipedia sentence array")
     body = "".join(sentences)
-    required_text(body, "Wikipedia document text")
+    if not body.strip():
+        raise EmptyDocumentError("Wikipedia document text must be nonempty text")
     return dict(id=docid, title=title, text=body, sentences=sentences,
                 source_url=str(row.get("url") or ""))
 
@@ -212,16 +217,30 @@ def prepare(benchmark, root, data, corpus, encrypted=False, corpus_limit=None):
                 row[kind + "_docs"] = sorted(expected)
             target.write(json.dumps(row, ensure_ascii=False) + "\n")
             qcount += 1
-    count = 0
-    with (output / "corpus.jsonl").open("x", encoding="utf-8") as target:
-        for row in records(corpus):
+    count = skipped = 0
+    skipped_path = output / "skipped_documents.jsonl"
+    with ((output / "corpus.jsonl").open("x", encoding="utf-8") as target,
+          skipped_path.open("x", encoding="utf-8") as skip_log):
+        for position, row in enumerate(records(corpus), 1):
             if corpus_limit is not None and count >= corpus_limit:
                 break
-            value = document(row, benchmark)
+            try:
+                value = document(row, benchmark)
+            except EmptyDocumentError:
+                skipped += 1
+                skip_log.write(json.dumps(dict(record_index=position,
+                    id=str(row.get("docid", row.get("id", ""))), title=row["title"],
+                    reason="empty Wikipedia body after removing heading/HTML"), ensure_ascii=False) + "\n")
+                skip_log.flush()
+                if skipped <= 5:
+                    print(f"[prepare] skipping empty Wikipedia document: record={position} "
+                          f"id={row.get('id')}; skipped={skipped}", flush=True)
+                continue
             target.write(json.dumps(value, ensure_ascii=False) + "\n")
             count += 1
             if count % 10000 == 0:
-                print(f"[prepare] documents={count}", flush=True)
+                print(f"[prepare] documents={count}; skipped_empty={skipped}", flush=True)
+    print(f"[prepare] documents={count}; skipped_empty={skipped}; skipped_log={skipped_path}", flush=True)
     if not count or not qcount:
         raise ValueError("questions/corpus must be nonempty")
     canonical = ("wiki_sha256" in assets and str(Path(corpus).resolve()) == str((root / "raw/wiki-abstracts.tar.bz2").resolve())
@@ -229,9 +248,10 @@ def prepare(benchmark, root, data, corpus, encrypted=False, corpus_limit=None):
                  and qcount == 7405) if benchmark == "hotpotqa" else (
                  "corpus_revision" in assets and Path(data).resolve() == (root / "raw/queries").resolve()
                  and Path(corpus).resolve() == (root / "raw/corpus").resolve() and qcount == 830 and count == 100195)
-    canonical = canonical and corpus_limit is None
+    canonical = canonical and corpus_limit is None and skipped == 0
     manifest = dict(benchmark=benchmark, canonical_corpus=canonical, split="dev" if benchmark == "hotpotqa" else "test",
                     questions=qcount, documents=count, corpus_limit=corpus_limit,
+                    skipped_documents=skipped, skipped_documents_sha256=digest(skipped_path),
                     corpus_scope=("official fixed corpus" if canonical else "custom/subset corpus; not a full benchmark claim"),
                     source_data=source_data, source_corpus=source_corpus,
                     source_data_path=str(Path(data).resolve()), source_corpus_path=str(Path(corpus).resolve()),
