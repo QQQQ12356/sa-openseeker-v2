@@ -1,9 +1,15 @@
 # Linux NVIDIA serving environment, separate from search-comp-qwen35-cu126.
 # Create with conda, then install requirements.serve-sglang.txt as documented in
 # docs/plain/48_sglang_deployment.md. CUDA/driver compatibility must be checked first.
+# CUDA 13.0 nvcc is required for FlashInfer JIT; system CUDA may still be 11.8.
+# After activation, select this Toolkit with CUDA_HOME/CUDA_PATH/FLASHINFER_NVCC
+# as documented; Conda package installation alone does not override CUDA_HOME.
 name: search-comp-sglang
 channels:
+  - nvidia
   - conda-forge
 dependencies:
   - python=3.12
   - pip
+  - cuda-toolkit=13.0
+  - ninja

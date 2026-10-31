@@ -1,5 +1,8 @@
 # Serving only; do not combine with requirements.txt or requirements.train-cu126.txt.
 # Verified against upstream package metadata, not a GPU-tested environment lock.
 # Install with uv --prerelease=allow; see docs/plain/48_sglang_deployment.md.
-# This release's dependencies use CUDA 13; let SGLang select torch/transformers.
+# Reported server versions: torch 2.14.1+cu130, FlashInfer 0.7.2, SGLang 0.5.23.
+# The CUDA 13.0 compiler/headers are installed via environment.serve-sglang.yml,
+# not pip. Explicitly select that Toolkit before serving (see deployment guide).
+# Let SGLang select torch/transformers; this is not a full environment lock.
 sglang==0.5.23

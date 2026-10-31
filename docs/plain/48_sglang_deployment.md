@@ -2,7 +2,7 @@
 
 入口：`scripts/sh/plain/48_serve_checkpoint.sh`。它读取本地已合并 Plain checkpoint，通过 `python -m sglang.launch_server` 提供 HTTP completion 服务。训练后的 Qwen3 与 Qwen3.5 必须分别核对架构支持；Beacon 使用 native 推理。
 
-本文给出可执行的环境创建、启动、检查和评测连接命令。此次只验证脚本与配置，没有在目标 GPU 安装 SGLang 或实际启动模型；下述版本是核对上游元数据后的安装基线，不是已实测的完整 GPU 环境锁。
+本文给出可执行的环境创建、启动、检查和评测连接命令。本地验证限于配置与文档。用户提供的远端日志已显示 Qwen3.5 权重加载成功，但在 FlashInfer JIT 阶段失败；新的 CUDA Toolkit 配置仍需远端重启验证，不能视作服务已完成联调。
 
 ## 48.1 先确认模型是否适合这个服务入口
 
@@ -10,14 +10,13 @@
 |---|---|
 | Plain Qwen3 完整模型，架构为 `Qwen3ForCausalLM` | 在支持该模型的 SGLang 环境执行下文步骤 |
 | 原始 Qwen3.5 多模态模型，架构为 `Qwen3_5ForConditionalGeneration` | SGLang 有对应原生入口；它是原始基座，不能代替已训练 Plain 权重 |
-| 本项目 Qwen3.5 Plain 纯文本训练产物，常见为 `qwen3_5_text` / `Qwen3_5ForCausalLM` | 必须核对纯文本架构及权重加载兼容性，不能仅根据“支持 Qwen3.5”认定可直接部署 |
+| 本项目 Qwen3.5 Plain 纯文本训练产物，常见为 `qwen3_5_text` / `Qwen3_5ForCausalLM` | 用户提供的远端日志已显示该架构完成权重加载；仍需修复 JIT 工具链并验证实际请求 |
 | 只有 `adapter_config.json` 的 LoRA 目录 | 先在训练环境合并；48 会拒绝此目录 |
 | Beacon 模型或带 Beacon 配置的产物 | 48 会拒绝，使用 `beacon/47_beacon_browsecomp.sh` 的 native 模式 |
 
-**Qwen3.5 纯文本兼容性是本仓库的关键限制。** 本项目从原始多模态模型提取文本主干后训练，保存的是 `Qwen3_5ForCausalLM`。核对的 SGLang v0.5.23 `qwen3_5.py` 虽包含同名内部类，但 `EntryClass` 只注册 `Qwen3_5ForConditionalGeneration` 和 MoE 多模态类。内部类存在不等于能直接加载 Hugging Face 纯文本 checkpoint。SGLang 的通用 Transformers 回退也不等于该混合线性注意力架构已经完成适配，需实际核验。
+**以实际日志更新兼容性结论。** 本项目保存的是纯文本 `Qwen3_5ForCausalLM`。此前根据上游 `EntryClass` 对直接加载提出兼容性疑问；用户提供的远端日志已显示 `Load weight end ... type=Qwen3_5ForCausalLM ... mem usage=7.96 GB`，并完成 Mamba 状态缓存和 KV Cache 分配。因此这次失败的直接原因是 CUDA 编译工具链选择，不能归因于模型架构不支持。加载成功仍不代表权重数值、所有执行路径及 completion 输出已通过验证。
 
-因此，48 的 dry-run 成功只表示本地路径和参数通过本项目检查。若实际启动出现架构不支持、权重名不匹配、缺失 `text_config` 或加载大量参数失败，请停止此服务路径，保留完整日志；不要修改 `architectures` 冒充多模态模型，也不要换成原始基座来代替训练产物。当前可使用原模型的 native 基准入口完成评测（见 48.9）。为纯文本 Qwen3.5 增加 SGLang 原生适配属于后续工作，本文不宣称已经实现。
-
+48 的 dry-run 仅检查路径和配置。其他版本或产物若确实出现架构不支持、权重名不匹配、缺失 `text_config` 等问题，仍需保留日志核对，不要只改架构名称或更换原始基座来代替训练权重。当前远端环境应先按 48.3 修复 CUDA 13.0 Toolkit 选择，再检查 health 与真实请求。
 依据：[本项目文本主干加载器](../../search_comp/milestones/qwen35_text.py)、[SGLang v0.5.23 Qwen3.5 实现](https://github.com/sgl-project/sglang/blob/v0.5.23/python/sglang/srt/models/qwen3_5.py)、[模型注册表](https://github.com/sgl-project/sglang/blob/v0.5.23/python/sglang/srt/models/registry.py)。
 
 ## 48.2 独立环境与硬件前提
@@ -26,14 +25,18 @@
 
 本仓库新增配置：
 
-- 根目录 `environment.serve-sglang.yml`：创建 Python 3.12 + pip 的 Conda 环境。
+- 根目录 `environment.serve-sglang.yml`：创建 Python 3.12、pip、CUDA Toolkit 13.0 和 Ninja 的 Conda 环境；Toolkit 提供 JIT 所需 nvcc 与开发文件。
 - 根目录 `requirements.serve-sglang.txt`：固定 `sglang==0.5.23`；其余依赖由该发行版解析，安装成功后再冻结。
 
 核对的 PyPI 元数据中，0.5.23 依赖包括 `torch==2.14.1`、`transformers==5.19.0`、`flashinfer_python[cu13]==0.7.2` 和 `sglang-kernel==0.4.10`。不要在这个环境先装训练所用的 torch 2.7/cu126，再强行安装 SGLang；不要混装 `requirements.txt`、`requirements.train-cu126.txt` 或 `requirements.eval-openseeker.txt`。
 
-这套安装基线使用 CUDA 13。CUDA 13.x 的驱动兼容基线是 R580 或更高；具体 CUDA 小版本、JIT/PTX、GPU 架构及内核还可能有更高要求。`nvidia-smi` 显示的 CUDA Version 是驱动能力，不是当前 Conda 环境的 CUDA runtime 版本。Conda 无法替换宿主机 NVIDIA 驱动。如果目标服务器仍是 CUDA 12.6 时代的旧驱动，不要直接套用这份环境；需由管理员安排驱动兼容方案，或重新选择并验证较旧的 SGLang/PyTorch/内核组合。
+用户已确认远端使用 `torch 2.14.1+cu130`、`torch.version.cuda=13.0`、`sglang 0.5.23` 和 `flashinfer-python 0.7.2`。因此本配置将编译工具链固定为 **CUDA Toolkit 13.0**，与 runtime 对齐。CUDA 13.x 的驱动兼容基线是 R580 或更高；具体 CUDA 小版本、JIT/PTX、GPU 架构及内核还可能有更高要求。`nvidia-smi` 显示的 CUDA Version 是驱动能力，不是当前 Conda 环境的 CUDA runtime 版本。Conda 无法替换宿主机 NVIDIA 驱动。如果目标服务器仍是 CUDA 12.6 时代的旧驱动，不要直接套用这份环境；需由管理员安排驱动兼容方案，或重新选择并验证较旧的 SGLang/PyTorch/内核组合。
+
+Toolkit 安装方法参考 [NVIDIA Conda 安装说明](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#conda-installation)。
 
 来源：[SGLang 安装说明](https://docs.sglang.io/docs/get-started/install)、[0.5.23 包元数据](https://pypi.org/pypi/sglang/0.5.23/json)、[NVIDIA CUDA 驱动兼容表](https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html)。这里没有将“最后支持 CUDA 12 的镜像标签”当成同版本 PyPI wheel 支持 CUDA 12 的保证。
+
+用户口述的 `13.3` 通常对应 `nvidia-smi` 的 **CUDA Version**，不是 Driver Version。驱动版本一般形如 `580.xx` 或 `590.xx`，用下方 `--query-gpu=...driver_version...` 明确查询。若页面实际显示 CUDA Version 13.3，表示驱动宣告的 CUDA 能力；无需据此把本环境 Toolkit 从 13.0 升为 13.3。编译器版本由 `nvcc --version` 确认。
 
 在实际运行模型服务的计算节点检查：
 
@@ -57,13 +60,42 @@ conda activate search-comp-sglang
 # 显式绑定解释器，防止继承之前终端设置的训练环境 PYTHON
 export PYTHON="$CONDA_PREFIX/bin/python"
 export CONDA_ENV=search-comp-sglang
+
+# 显式选择环境内的 Toolkit，避免 /usr/local/cuda -> cuda-11.8
+export CUDA_HOME="$CONDA_PREFIX"
+export CUDA_PATH="$CUDA_HOME"
+export FLASHINFER_NVCC="$CUDA_HOME/bin/nvcc"
+export PATH="$CUDA_HOME/bin:$PATH"
+hash -r
+
+# 确认这里显示 CUDA 13.0，并能查到 compress-mode，再安装服务依赖
+test -x "$FLASHINFER_NVCC"
+"$FLASHINFER_NVCC" --version
+"$FLASHINFER_NVCC" --help | grep compress-mode
 "$PYTHON" -m pip install --upgrade pip uv
 "$PYTHON" -m uv pip install --python "$PYTHON" --prerelease=allow \
   -r requirements.serve-sglang.txt
 "$PYTHON" -m pip check
 ```
 
-如已创建同名环境，直接 activate 后执行安装步骤；无需删除旧环境。若更改环境名，用 `conda env create -n 自定义名称 -f environment.serve-sglang.yml`，并同步 `CONDA_ENV` 或显式 `PYTHON`。
+已有 `search-comp-sglang` 环境用以下命令补齐依赖，无需删除或重建环境，也不需要更改系统 CUDA 链接：
+
+```bash
+conda env update -n search-comp-sglang -f environment.serve-sglang.yml
+conda activate search-comp-sglang
+export PYTHON="$CONDA_PREFIX/bin/python"
+export CONDA_ENV=search-comp-sglang
+export CUDA_HOME="$CONDA_PREFIX"
+export CUDA_PATH="$CUDA_HOME"
+export FLASHINFER_NVCC="$CUDA_HOME/bin/nvcc"
+export PATH="$CUDA_HOME/bin:$PATH"
+hash -r
+"$FLASHINFER_NVCC" --version
+"$FLASHINFER_NVCC" --help | grep compress-mode
+"$PYTHON" -m pip check
+```
+
+上面的更新会按 YAML 安装 CUDA 13.0 Toolkit 和 Ninja；已确认版本正确的 SGLang/PyTorch 不需要为这次编译器错误单独重装。更新后再次核对包版本。若更改环境名，用 `conda env create -n 自定义名称 -f environment.serve-sglang.yml`，并同步 `CONDA_ENV` 或显式 `PYTHON`。
 
 安装时保留解析器选择的依赖，不使用 `--no-deps` 绕过冲突。目标节点无外网时，应先在匹配 Linux/CPU 架构/Python/CUDA 的联网环境准备 wheelhouse；有源码构建/JIT 依赖时仅复制 wheel 文件未必足够，需同时准备编译工具链和缓存。不要复制另一个服务器的 Conda 目录就认定 CUDA 内核兼容。
 
@@ -86,7 +118,25 @@ PY
 "$PYTHON" -m sglang.launch_server --help
 ```
 
-若内核构建提示 `CUDA_HOME`，设置为实际匹配的 CUDA Toolkit 目录，再检查 `nvcc --version`；例如系统已安装 CUDA 13.0 时可用 `export CUDA_HOME=/usr/local/cuda-13.0`，不要指向不存在的路径或训练环境的 12.6 Toolkit。只安装 pip runtime 不保证所有即时编译所需工具齐全。
+### 48.3.1 固定 CUDA 路径并持久化
+
+FlashInfer 编译器选择优先检查 `FLASHINFER_NVCC`；Toolkit 根目录通过 `CUDA_HOME`/`CUDA_PATH` 指定，缺省还可能从 PATH 或 `/usr/local/cuda` 查找。仅让 `command -v nvcc` 指向新版本不足以覆盖旧的 CUDA_HOME 或 FLASHINFER_NVCC；请同步设置三项。48 脚本只继承这些变量，不会自动激活环境或替换工具链。
+
+确认 `$CONDA_PREFIX/bin/nvcc` 存在并输出 13.0 后，可把绝对路径保存在当前 Conda 环境配置中，每次激活自动恢复：
+
+```bash
+conda env config vars set -n search-comp-sglang \
+  CUDA_HOME="$CONDA_PREFIX" CUDA_PATH="$CONDA_PREFIX" \
+  FLASHINFER_NVCC="$CONDA_PREFIX/bin/nvcc"
+conda deactivate
+conda activate search-comp-sglang
+export PYTHON="$CONDA_PREFIX/bin/python"
+"$FLASHINFER_NVCC" --version
+```
+
+环境路径搬迁后需要重新设置这些绝对路径；新终端或作业必须重新 activate，或在作业脚本中显式 export。不要向 YAML 的 variables 字段写入字面量 `$CONDA_PREFIX` 并假设它一定会展开。如果根目录没有 nvcc，先执行 `find "$CONDA_PREFIX" -type f -name nvcc` 核对 Conda 包布局与安装结果；不要把缺失路径持久化。
+
+也可使用管理员已安装的系统 CUDA 13.0 Toolkit，但 CUDA_HOME/CUDA_PATH/FLASHINFER_NVCC 必须共同指向该 Toolkit。避免继承 CUDA 11.8 的 LD_LIBRARY_PATH；不需要为了选编译器给 LD_LIBRARY_PATH 全局添加 CUDA 的所有库，更不要添加 stubs 目录。宿主机仍必须提供兼容驱动。
 
 ## 48.4 准备模型目录
 
@@ -133,6 +183,8 @@ DEVICE_MAP=cpu bash scripts/sh/plain/29_plain_merge_adapter.sh \
 | `CONDA_ENV` | `search-comp-sglang` | 自动查找的环境名；脚本不会创建/激活环境 |
 | `RUN_DIR` | 空 | 训练实验根目录，用于自动定位最终权重 |
 | `MODEL_PATH` | 空 | 本地完整模型目录，优先于实验记录；不是 adapter 目录 |
+| `CUDA_HOME` / `CUDA_PATH` | 启动脚本继承环境 | 本方案设置为服务环境的绝对路径，选择 CUDA 13.0 Toolkit |
+| `FLASHINFER_NVCC` | 启动脚本继承环境 | 本方案设置为 `$CONDA_PREFIX/bin/nvcc`；显式覆盖系统 CUDA 11.8 编译器 |
 | `CUDA_VISIBLE_DEVICES` | `0` | 对服务可见的物理卡列表，例如 `2,3`；进程内部重新编号为 0,1 |
 | `HOST` | `127.0.0.1` | 监听地址；跨节点用 `0.0.0.0`，客户端用真实节点名/IP |
 | `PORT` | `30018` | HTTP 端口，1—65535，启动前确认未被占用 |
@@ -298,6 +350,7 @@ ENV_FILE=/private/path/benchmark.env.sh \
 | `text_config`、缺失权重、意外 vision 参数 | checkpoint 格式与后端模型类不匹配；停止并核对实际架构/权重键，不忽略大量 missing keys |
 | `merge the LoRA adapter first` | 使用训练环境的 29 合并后指定新输出目录 |
 | `Beacon needs --mode native` | 使用 beacon/47 native，不能作为普通 Plain 模型部署 |
+| `nvcc fatal: Unknown option --compress-mode=size` | 远端已确认 runtime 13.0 配上系统 nvcc 11.8；按 48.3 安装 Toolkit 13.0 并同时设置 CUDA_HOME/CUDA_PATH/FLASHINFER_NVCC，重启进程；缩短上下文和关闭 CUDA graph 不修复此工具链问题 |
 | `CUDA_HOME` / nvcc / PTX 错误 | 核对匹配的 CUDA Toolkit、编译器及驱动；不复用训练环境的旧 CUDA_HOME/LD_LIBRARY_PATH |
 | 显存不足 | 缩短上下文、降低并发和 prefill，或使用符合模型约束的 TP；先检查是否还有其他进程占卡 |
 | NCCL/TP hang | GPU 数量与 TP、节点分配及互联是否正确；先单卡小上下文复现 |
@@ -310,4 +363,11 @@ ENV_FILE=/private/path/benchmark.env.sh \
 
 新增独立 Conda 与 SGLang 依赖配置；48 默认环境改为 `search-comp-sglang`，新增 HOST 环境变量和 DRY_RUN 的 0/1 校验，其余启动流程保持不变。实际默认值与旧 benchmark 迁移后的脚本保持一致（上下文仍为 131072）。旧调用可显式设定原 CONDA_ENV/PYTHON。
 
-本次没有创建环境、安装 GPU 包、加载真实模型、部署服务或启动训练。静态检查和替代 checkpoint 的 dry-run 不覆盖 CUDA 内核、Qwen3.5 纯文本加载、真实 completion 输出或官方服务联调；这些需要按本文在目标服务器逐项验证。
+本次没有创建环境、安装 GPU 包、加载真实模型、部署服务或启动训练。静态检查和替代 checkpoint 的 dry-run 不覆盖真实 CUDA 内核或 completion 输出。用户提供的远端日志证明模型完成加载，但修正编译工具链后的服务启动和请求仍待验证。
+
+
+### 48.11.1 远端失败案例与此次环境修订
+
+远端日志显示 FlashInfer 0.7.2 在 prefill CUDA graph 初始化时调用 `/usr/local/cuda/bin/nvcc`，报 `Unknown option '--compress-mode=size'`。用户确认 `/usr/local/cuda` 指向 `cuda-11.8`，而 PyTorch 为 `2.14.1+cu130`。此次在 Conda YAML 中补齐 CUDA Toolkit 13.0 与 Ninja，并新增环境更新、路径显式选择和持久化说明。没有修改服务启动参数或训练依赖。
+
+日志中的 `Load weight end ... Qwen3_5ForCausalLM` 已完成；Mamba/KV 缓存分配后进入内核编译，当前错误不是已证实的显存不足或架构不支持。Ninja build failed 和后续 sigquit 为编译失败的连锁结果。修复后首先确认新的编译命令不再调用 `/usr/local/cuda/bin/nvcc`，再执行 health 和 completion 检查。尚无证据要求删除整个缓存、重装权重或降级 SGLang；也不建议直接从 FlashInfer 源码中删掉该编译参数。

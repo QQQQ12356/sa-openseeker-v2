@@ -108,3 +108,5 @@ python -m scripts.check_train_environment
 - [Transformers 5.9.0 依赖声明](https://github.com/huggingface/transformers/blob/v5.9.0/setup.py)
 
 Plain checkpoint 的独立 Conda 环境（`search-comp-sglang`）、SGLang 安装、架构兼容检查、单卡/多卡服务启动与联调见 [48 部署手册](../plain/48_sglang_deployment.md)。Qwen3.5 纯文本训练产物需要单独验证后端兼容性。
+
+服务环境的 CUDA 编译工具链已在 `environment.serve-sglang.yml` 固定为 Toolkit 13.0，包含 Ninja。已有环境用 `conda env update -n search-comp-sglang -f environment.serve-sglang.yml` 补齐，并按 [48.3](../plain/48_sglang_deployment.md#483-创建和安装独立-conda-环境) 设置及持久化 CUDA_HOME/CUDA_PATH/FLASHINFER_NVCC；这不会更改训练环境的 CUDA 12.6 配置或宿主机驱动。

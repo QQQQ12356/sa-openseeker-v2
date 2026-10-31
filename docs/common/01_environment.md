@@ -10,4 +10,4 @@
 
 固定语料离线流程使用 SQLite FTS5、pyarrow 和既有模型环境，不要求 Java/Pyserini/vLLM/OpenAI SDK/ujson。56/57 的 prepare/index/run/score/all 禁止网络连接，依赖、数据和模型必须预先准备；只有显式 download 动作可联网。本地裁判仅 BCP 完整答案评分需要，Hotpot 官方 EM/F1 不需要辅助模型。详见 [43](../benchmark/43_offline_benchmarks.md)。
 
-Plain HTTP 服务使用独立环境 `search-comp-sglang`，配置为根目录 `environment.serve-sglang.yml` 和 `requirements.serve-sglang.txt`。48 默认查找该服务环境；不要与训练依赖混装。驱动、CUDA 13、模型架构核验及完整命令见 [48 服务部署](../plain/48_sglang_deployment.md)。
+Plain HTTP 服务使用独立环境 `search-comp-sglang`，配置为根目录 `environment.serve-sglang.yml` 和 `requirements.serve-sglang.txt`。48 默认查找该服务环境；不要与训练依赖混装。服务 YAML 已包含 CUDA Toolkit 13.0 与 Ninja；激活后须将 CUDA_HOME/CUDA_PATH/FLASHINFER_NVCC 指向该环境，避免 PyTorch cu130 使用系统 CUDA 11.8 编译。驱动字段区分、模型架构核验及完整命令见 [48 服务部署](../plain/48_sglang_deployment.md)。

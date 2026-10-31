@@ -1,5 +1,13 @@
 # 99 本次验证记录
 
+## 服务 CUDA 13.0 Toolkit 补齐与远端故障记录
+
+用户提供的远端日志及版本信息确认：torch 2.14.1+cu130、SGLang 0.5.23、FlashInfer 0.7.2，系统 `/usr/local/cuda` 指向 11.8；JIT 编译器拒绝 `--compress-mode=size`。模型已完成 Qwen3_5ForCausalLM 权重和缓存加载，失败发生在预热期内核编译。
+
+服务 Conda YAML 增加 NVIDIA channel、cuda-toolkit=13.0 和 Ninja；pip 依赖说明补充 runtime/compiler 分工。48 文档补充新建/更新环境、CUDA_HOME/CUDA_PATH/FLASHINFER_NVCC、持久化、版本核验及 Driver Version/CUDA Version 区分，并根据日志更新架构判断。训练配置和服务启动代码未修改。
+
+本轮仅执行 YAML 与依赖格式检查、文档 bash/Python 示例语法、本地链接和 diff 空白检查；没有在本地或远端安装 Conda 环境、运行模型服务或训练。修复后的 GPU JIT 编译与 health/completion 请求仍需目标服务器验证。
+
 ## Plain SGLang 独立服务环境与部署文档（2026-10-31）
 
 新增 `environment.serve-sglang.yml`、`requirements.serve-sglang.txt` 和 [48 部署手册](../plain/48_sglang_deployment.md)。48 Shell 默认查找 `search-comp-sglang`，新增 HOST 环境变量及 DRY_RUN 二值检查；未改变服务 Python 实现。核对 SGLang 0.5.23 官方包元数据、架构注册源码与 NVIDIA 驱动兼容资料，明确 Qwen3.5 纯文本训练产物的后端兼容性未完成实测。
