@@ -28,7 +28,7 @@ Qwen3.5 的记录如下。EM/F1/格式列均为百分比；表中“训练集”
 
 **2. 当前实际执行的压缩流程。**
 
-[beacon_trainer.py](../../search_comp/trainer/beacon_trainer.py#L154) 在读取配置后强制设置 `whole`、关闭 window、关闭子文档拆分、`keep_window=0`。一条轨迹仍按 keep / information / keep 依次计算，只是每个 information 完整处理。单纯覆盖旧 window 参数不会产生分窗实验。
+本节是历史代码审计：当时 [beacon_trainer.py](../../search_comp/trainer/beacon_trainer.py#L154) 强制设置 `whole`、关闭 window、关闭子文档拆分、`keep_window=0`。当前自包含脚本改用 `beacon_layout_policy=configured`，可显式选择受支持的布局；旧配置未声明 policy 时仍保持历史 whole 行为。详细设置见 [53](../tools/53_self_contained_training.md)。
 
 正文长 N 时生成 `ceil(N / beacon_ratio)` 个 Beacon，默认 ratio=16、append。全注意力层让 Beacon 读取整个正文，然后只提交 Beacon KV，已有 keep 和 Beacon KV 继续保留。位置按压缩后缓存重新编号；并非始终保留原始 token 位置。
 
@@ -133,7 +133,7 @@ S_j=A S_{j-1}+U,\qquad A=\alpha(I-\beta kk^\top).
 
 [beacon_common.py](../../search_comp/models/beacon_common.py#L215) 的 whole 模式用原文行预测下一原文 token。append 时这些原文行位于 Beacon 之前，所以同一段的损失无法监督当前尾部 Beacon 或其 writer。它能训练普通 backbone/LoRA，也可能在多轮情形监督之前已经提交的压缩记忆，但不能被当作当前正文的压缩后重建监督。
 
-当前 Qwen3.5 Beacon 基础配置为 `beacon_qwen35_whole_searchr1.yaml`，显式设 `beacon_information_loss=false`，因此不计算此项。实际实验应检查 resolved config 中的覆盖值。
+当前 OpenSeeker Beacon 自包含脚本默认 `beacon_information_loss=false`，因此不计算此项；历史分析所用的外部基础 YAML 仅用于兼容。实际实验应检查 resolved config 的字段与门控。
 
 本地单 information 小模型，仅开启此损失时，loss=4.837116，writer 非零梯度参数数为 0，Beacon embedding 最大梯度为 0。这是该因果路径的验证，不能外推为当前总训练损失对 writer 没有梯度。
 

@@ -39,6 +39,7 @@
 | [50 多卡](tools/50_multigpu.md) | torchrun、DDP、ZeRO-2/3、每卡日志、Beacon 与固定语料多卡测试 |
 | [51 显存测试](tools/51_memory_probe.md) | 特定长度数据、短步数训练、峰值显存 |
 | [52 四卡 A800 长轨迹 OOM](beacon/52_beacon_oom.md) | 原因、重计算修复、参数说明与修改提示 |
+| [53 自包含训练配置](tools/53_self_contained_training.md) | Shell 内训练、LoRA、Beacon、DeepSpeed 参数及 plan 检查 |
 | [60 架构](architecture/60_architecture.md) | 保留的核心实现、训练协议与分段损失 |
 | [61 旧实现](architecture/61_legacy_implementation.md) | 保留的早期实现和算法背景 |
 | [62 第一阶段蒸馏](architecture/62_stage1_distillation.md) | 第一阶段配置与训练 |
@@ -65,6 +66,8 @@ Shell 脚本按功能分目录，保留全局唯一的历史编号，方便文�
 | `scripts/sh/benchmark/` | 在线与离线基准 | `46_prepare_benchmark.sh`、`47_openseeker_benchmark.sh`、`48_serve_checkpoint.sh`、`49_benchmark_env.example.sh`、`56_browsecomp_plus.sh`、`57_hotpotqa_offline.sh`、共享 `58_offline_common.sh` |
 | `scripts/sh/baseline/` | 原始模型独立评测 | `70_qwen35_base_eval.sh` 总入口；71 OpenSeeker、72 在线 BrowseComp、73 离线基准 |
 
-22—25、32—34 为保留的 Search-R1 入口，其数据不随本次迁移，需要另行准备。`scripts/py/` 保留参数接口便于自动化；日常运行优先修改 shell 顶部变量。
+Plain 21 和 Beacon 31 分别独立调用通用 Python 评测器，不能通过 `KIND` 切换成另一种入口。默认训练入口在 shell 内包含训练和 DeepSpeed 配置，不读取外部基础配置，详见 [53](tools/53_self_contained_training.md)。同一模型类型内仍有便利用的转发入口：Plain 28 调用 Plain 20，Beacon 38 调用 Beacon 30；Plain 27 是按阶段分发的工作流入口。这些不会跨 Plain / Beacon 调用。
+
+22/23、32—34 为保留的 Search-R1 入口，其数据不随本次迁移，需要另行准备。Plain 旧的 24/25 无训练 shell 入口已移除；原始 Qwen3.5 基线使用 baseline 70–73。`scripts/py/` 保留参数接口便于自动化；日常运行优先修改 shell 顶部变量。
 
 46—49 为新增官方 Benchmark 流程：46 准备官方代码与 BrowseComp，47 在线生成及官方裁判，48 部署训练后的 Plain checkpoint，49 是私有 API 配置示例。详见 [42 说明](benchmark/42_openseeker_benchmark.md)。

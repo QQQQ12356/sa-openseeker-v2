@@ -8,8 +8,7 @@
 
 ## 报错原因
 
-`ds_zero2.json` 和 `ds_zero3.json` 都有 `offload_optimizer.device=cpu`，
-DeepSpeed 因此选择 CPUAdam。虽然优化器参数在 CPU 上，其扩展构建仍检查 CUDA。
+默认训练脚本的 `distributed.zero2` 和 Plain 的 `distributed.zero3` 都有 `offload_optimizer.device=cpu`；旧兼容 JSON 也使用相同默认值。DeepSpeed 因此选择 CPUAdam。虽然优化器参数在 CPU 上，其扩展构建仍检查 CUDA。
 本次构建检测到 Toolkit 12.8，但 `torch.version.cuda` 是 12.6。
 DeepSpeed 0.15.0 的 CUDA 次版本兼容白名单只列到 12.5，因此拒绝该组合。
 

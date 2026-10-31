@@ -24,6 +24,19 @@ def configure_whole_trajectory(cfg: dict) -> None:
     )
 
 
+def configure_sft_layout(cfg: dict) -> None:
+    """Keep the legacy whole layout by default; allow explicitly configured layouts."""
+    policy = cfg.get('beacon_layout_policy', 'whole')
+    if policy == 'whole':
+        configure_whole_trajectory(cfg)
+    elif policy == 'configured':
+        beacon = BeaconConfig.from_dict(cfg.get('beacon', {}))
+        if cfg.get('data_mode') == 'openseeker' and beacon.beacon_doc_region_split:
+            raise ValueError('OpenSeeker 暂不支持 beacon_doc_region_split')
+    else:
+        raise ValueError("beacon_layout_policy 必须是 whole 或 configured")
+
+
 @dataclass
 class BeaconConfig:
     """Beacon 压缩机制的超参数配置。

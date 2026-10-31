@@ -6,4 +6,6 @@
 
 原 scripts 中 Python 实现移入可导入的 search_comp/workflows，编号的 shell 入口按功能分入 scripts/sh 下的 common、tools、data、plain、beacon、report、benchmark、baseline，Python 入口放入 scripts/py，模板单独存放。旧路径到新路径的逐项映射见 [90_script_mapping.json](90_script_mapping.json)，目录说明见 [00 索引](../00_index.md)。核心文件保留清单和来源 SHA256 见 [90_core_inventory.json](90_core_inventory.json)。
 
+映射中值为 `null` 的两个旧无训练 shell 入口已移除，不应作为当前可执行路径；Qwen3.5 原始模型基线使用 [baseline 70–73](../baseline/24_qwen35_base_benchmark.md)。核心清单为历史迁移记录，不代表当前推荐入口。
+
 原算法/环境文档保留为 61—67；旧工作流与旧结果报告已由本套编号文档替换，不再把旧数据条数当成当前结果。根索引为 `00_README.md`。本次没有初始化 Git 或创建提交。

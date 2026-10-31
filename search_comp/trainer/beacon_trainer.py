@@ -28,7 +28,7 @@ from pathlib import Path
 import torch
 from transformers import TrainerCallback, TrainingArguments
 
-from ..models.beacon_config import BeaconConfig, configure_whole_trajectory
+from ..models.beacon_config import BeaconConfig, configure_whole_trajectory, configure_sft_layout
 from ..milestones.qwen35_text import load_text_tokenizer
 from ..utils.runtime import (
     count_parameters,
@@ -161,7 +161,11 @@ def main_train(
     from ..models.model_loader import load_beacon_model
 
     cfg = load_yaml_config(config_path, overrides)
-    configure_whole_trajectory(cfg)
+    if cfg.get('per_device_batch_size', 1) != 1:
+        raise ValueError('Beacon 轨迹 collator 仅支持 per_device_batch_size=1；请调整 grad_accum_steps')
+    if cfg.get('per_device_eval_batch_size', 1) != 1:
+        raise ValueError('Beacon 轨迹 collator 仅支持 per_device_eval_batch_size=1')
+    configure_sft_layout(cfg)
     model_device = setup_training(cfg, beacon=True)
     shuffle_train_data = cfg.setdefault("shuffle_train_data", True)
     if not isinstance(shuffle_train_data, bool):

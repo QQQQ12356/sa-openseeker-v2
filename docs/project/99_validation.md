@@ -1,5 +1,17 @@
 # 99 本次验证记录
 
+## 自包含训练脚本验证
+
+20/26/30/37 内嵌训练、模型和 DeepSpeed 参数；22/34 的 Search-R1 默认配置同样内嵌，旧外部 YAML 仍支持显式传入。多卡启动器对新配置内联传递 ZeRO 字典，缺失配置不回退外部文件。CPU 验证覆盖 ZeRO-2/3 参数解析和覆盖、DDP 冲突、旧入口兼容、OpenSeeker 不依赖外部基础配置的 plan、Search-R1 plan、数据路径空格、Beacon 配置字段及 whole/window 策略。近期训练器和自包含配置回归 62 项通过（3 条 tiny PEFT 保存提示）；更广的相关回归 177 项通过（5 条 tiny PEFT 保存提示）。实际运行 Plain/Beacon 四卡配置 plan，未启动多卡训练；Search-R1 plan 仅打印配置，不加载模型。GPU、DeepSpeed CPUAdam、真实 4B 显存与训练质量仍需在目标服务器验证。
+
+## Plain / Beacon 入口文档复核
+
+核对 21/31 独立入口、20/26 与 30/37 配置、旧无训练 shell 删除及 baseline 70–73 引用；补充同类型四卡/工作流转发关系，并修正 50、51、66 中 Beacon whole 布局 `keep_window` 的过时描述。自动检查 175 个本地 Markdown 链接（含 3 个文档锚点）和 137 处仓库路径，均无失效；diff 空白检查通过。本次为文档检查，未运行真实训练或模型评测。
+
+## Plain / Beacon shell 入口隔离验证
+
+删除 Plain 的旧 24/25 无训练 shell；原始 Qwen3.5 基线由 baseline 70–73 提供。21 和 31 分别独立调用通用 Python 评测器，自动选择 RUN_DIR 模型时校验实验类型；20/26 和 30/37 的基础配置分别只含对应模型，Plain 分段损失配置移到 `training.loss_segments`，默认权重不变。实际执行两套 ACTION=plan 并审查配置，未加载或训练真实模型。相关入口、adapter、预算及评测回归 46 项通过（2 条 tiny PEFT 保存提示）；独立基座及在线/离线 benchmark 回归 77 项通过（6 条上游评分模板转义警告）。检查 175 个本地 Markdown 链接、shell 语法和 diff 空白均通过。
+
 ## 原始 Qwen3.5 独立基线验证
 
 70 改为仅分发到独立的 71/72/73 脚本；原始多模态 Qwen3.5 通过专用 `base_qwen35` 加载器提取文本主干，不调用 Plain SFT 模型加载器。针对性 CPU 回归 15 项通过，覆盖真实 tiny 多模态权重加载、拒绝 adapter 和 SFT 文本布局、屏蔽 Plain 加载器时三类 agent 生成分支仍工作、四条脚本路由、Hotpot 官方评分、OpenSeeker 评分防覆盖、独立结果目录及多 worker 模型来源透传。原有及相关评测组合回归 107 项通过，包含 2 条 tiny PEFT 保存提示和 6 条上游模板转义警告。未加载真实 4B 权重、未训练、未请求在线服务，也未进行真实 GPU/全量语料基准评测。
@@ -63,7 +75,7 @@ CUDA/NCCL、实际四卡训练、目标服务器 CPUAdam 编译、4B 模型显�
 
 双进程 CPU/Gloo tiny 模型完成 2 个 optimizer steps、每步累积 2 个 micro-batch，实际采样到 2 和 4 两种比例；各 rank 结束后的 LoRA 参数逐位同步，checkpoint/final adapter 保存成功。日志及逐 rank 比例在 `outputs/reports/verification/random_compression_ddp.log` 与 `random_compression_ddp/ratios_rank*.json`。测试显式设置 ACCELERATE_USE_CPU=true 及空 GPU 可见列表；不加载真实模型权重，不在 GPU 上训练。
 
-30/37 两个一键入口均实际以 ACTION=plan、COMPRESSION_MODE=random、候选 [4,8,16] 生成四卡 ZeRO-2 命令与配置快照，未执行训练。索引见 `outputs/reports/verification/random_compression_plans.json`。当前默认仍为 fixed；正式切换只需修改脚本顶部变量。新增说明见 [31 随机压缩](../beacon/31_random_compression.md)。
+当时 30/37 两个入口以 ACTION=plan、COMPRESSION_MODE=random、候选 [4,8,16] 生成四卡 ZeRO-2 命令与配置快照，未执行训练。索引见 `outputs/reports/verification/random_compression_plans.json`。这是历史配置方式；当前在脚本的 `beacon` YAML 段修改模式和候选，默认仍为 fixed。说明见 [31 随机压缩](../beacon/31_random_compression.md)。
 
 ## 2026-10-28 官方 Benchmark 增量验证
 

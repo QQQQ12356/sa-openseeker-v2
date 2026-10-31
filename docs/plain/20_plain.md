@@ -2,6 +2,8 @@
 
 从数据准备到训练、OpenSeeker 测试、BrowseComp 与 Hotpot 测试和评分的完整执行顺序见 [21 Plain 完整实验指南](21_plain_experiment_guide.md)。
 
+训练与 DeepSpeed 参数均可在各自 shell 内修改；配置来源、约束和计划审查见 [53 自包含训练配置](../tools/53_self_contained_training.md)。
+
 21 直接加载 Plain LoRA adapter、基座模型对照和四类基准的命令与参数见 [22 对照评测指南](../baseline/22_qwen35_baseline_and_adapter.md)。47/56/57 仍需完整合并模型。
 
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
@@ -12,9 +14,9 @@
 
 多卡直接修改 `CUDA_VISIBLE_DEVICES="0,1,2,3"`，默认随可见卡数推断进程数。支持 DDP、ZeRO-2，以及仅 Plain 支持的 ZeRO-3，见 [50 多卡](../tools/50_multigpu.md)。
 
-评测修改 `21_plain_eval.sh` 的 `RUN_DIR` 或 `MODEL_PATH`，以及 `SPLIT`、工具后端和预算后执行。`RUN_DIR` 可自动定位模型和测试数据。`DRY_RUN=1` 只检查并打印命令。`26_plain_memory_probe.sh` 是短步数显存实验入口，见 [51 显存测试](../tools/51_memory_probe.md)。
+评测修改 `21_plain_eval.sh` 的 `RUN_DIR` 或 `MODEL_PATH`，以及 `SPLIT`、工具后端和预算后执行。21 直接调用通用 Python 评测器，不执行 Beacon shell；Beacon 的 31 同样独立。21 只接受 `KIND=plain`，31 只接受 `KIND=beacon`；旧的 `KIND=plain bash .../31_beacon_eval.sh` 应改用 21。`RUN_DIR` 可自动定位模型和测试数据。`DRY_RUN=1` 只检查并打印命令。`26_plain_memory_probe.sh` 是短步数显存实验入口，见 [51 显存测试](../tools/51_memory_probe.md)。
 
-22—25 保留原 Search-R1 训练、交互评测和未训练基线入口；本次没有迁移 Search-R1 数据。
+22/23 保留 Search-R1 训练与交互评测入口；未训练基线改用 [24 的独立 Qwen3.5 入口](../baseline/24_qwen35_base_benchmark.md)。Search-R1 数据需要另行准备。
 
 训练后可用 47 默认 native 模式直接加载 Plain，与 Beacon 共用训练提示和工具循环；配置 API 后执行。原样官方 v1/v2 复现仍可通过 48 部署 Plain，再显式选择 47 的官方模式。
 原有测试入口继续保留，准备依赖、完整示例与比较边界见 [42 官方 Benchmark](../benchmark/42_openseeker_benchmark.md)。

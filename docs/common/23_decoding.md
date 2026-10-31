@@ -1,6 +1,6 @@
 # 23 Plain / Beacon 测试解码与重复惩罚
 
-本指南说明在 OpenSeeker（21/31）、在线 BrowseComp native（47）、离线 BrowseComp-Plus（56）和 HotpotQA（57）中调整 Plain 与 Beacon 的生成方式。原始基座入口 70 复用这些入口，因此同样支持这些变量。训练、tokenizer、工具逻辑和参考答案不因此改变。
+本指南说明在 OpenSeeker（21/31）、在线 BrowseComp native（47）、离线 BrowseComp-Plus（56）和 HotpotQA（57）中调整 Plain 与 Beacon 的生成方式。原始基座入口 70 使用独立脚本和相同的通用评测器，也支持这些变量。训练、tokenizer、工具逻辑和参考答案不因此改变。
 
 ## 23.1 参数与默认值
 

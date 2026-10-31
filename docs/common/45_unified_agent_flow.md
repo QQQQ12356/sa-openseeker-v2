@@ -109,7 +109,7 @@ INPUT_FILE=/data/original_polar.jsonl OUTPUT_DIR=/data/polar_original_system \
 | 56 / 57 | BCP/Hotpot 固定语料评测 | 原提示主体 + 必要本地能力/格式适配 |
 | 59 | CPU 协议/小模型一致性检查 | 无真实训练、模型下载或在线 API 调用 |
 
-21 是设置 KIND=plain 后调用 31 的薄包装；参数在 31 顶部或用同名环境变量覆盖。Plain/Beacon 不按模型类型选择另一套 prompt。Search-R1 保留独立 `<search>/<information>` 协议。
+21 和 31 分别是 Plain / Beacon 独立 shell 入口，均直接调用通用 Python 评测器；参数在各自脚本顶部或用同名环境变量覆盖。Plain/Beacon 不按模型类型选择另一套 prompt。Search-R1 保留独立 `<search>/<information>` 协议。
 
 ```bash
 # 只核对代码，不运行真实模型。
@@ -179,7 +179,7 @@ Dry-run 只展示参数/命令，不宣称训练提示文件、模型或 API 已
 
 native 默认使用贪心生成；Plain 可配置采样和重复惩罚，Beacon 可在贪心时对压缩后可见普通 token 设置重复惩罚，具体参数及对照边界见 [23](23_decoding.md)。统一停止文本与多 EOS 处理。每轮完整历史重新 prefill（reuse_cache=false），轮内缓存解码。Qwen3.5 tiny 的 forward/prefill/decode 数值一致性测试保留；这些不等于所有真实 GPU kernel/checkpoint 均已数值验证。
 
-Beacon whole SFT 布局仍在归档和加载前统一解析；随机压缩训练时采样、推理固定的既有选项保持不变。参数与算法细节见 30/31/60。本次不因保留 system 改变压缩算法或训练损失。
+Beacon 默认仍使用 whole SFT；自包含脚本默认 `beacon_layout_policy=configured`，按脚本设置并校验布局，旧配置未声明 policy 时保持强制 whole 的兼容行为。随机压缩训练时采样、推理固定的既有选项保持不变。参数与算法细节见 30/31/53/60。
 
 native 预测保存完整 messages、prompt_source、prompt_version（当前构造策略版本）、system_prompt_sha256 和 generation_config。prompt_source 区分显式训练文件、RUN_DIR 自动定位与内置参考文件；完整 system hash 才代表具体文本身份，不能仅凭策略版本号判断不同 profile 相同。generation_config 记录模型、配置指纹及实际 Beacon 设置。
 

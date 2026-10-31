@@ -9,7 +9,7 @@ ACTION=plan bash scripts/sh/beacon/38_beacon_4xa800.sh  # 只归档，不训练
 bash scripts/sh/beacon/38_beacon_4xa800.sh              # 在目标服务器执行训练
 ```
 
-38默认四卡ZeRO-2，复用30的配置，不维护第二份参数。30/37启用无状态模块重计算 `beacon_checkpoint_blocks`，同时显式启用SDPA、keep_window=1024；完整OOM分析及参数说明见 [52 长轨迹OOM](../beacon/52_beacon_oom.md)。不能把四卡80 GB当成单条样本可用320 GB。
+38 默认四卡 ZeRO-2，复用 30 的配置，不维护第二份参数。30/37 启用无状态模块重计算 `beacon_checkpoint_blocks` 和 SDPA，默认 whole 且 `keep_window=0`；采用 `beacon_layout_policy=configured` 可在脚本内设置其他受支持布局。完整 OOM 分析及参数说明见 [52 长轨迹 OOM](../beacon/52_beacon_oom.md)。不能把四卡 80 GB 当成单条样本可用 320 GB。
 
 多卡机制保留在 `search_comp/trainer/launch.py`、`utils/distributed.py` 和训练器中。修改主训练 shell 脚本顶部变量后直接执行：
 
@@ -27,7 +27,7 @@ export DISTRIBUTED_BACKEND="zero2"
 | zero2 | 支持 | 支持 | 多卡默认，分片梯度/优化器，CPU optimizer offload |
 | zero3 | 支持 | 拒绝 | Plain 参数/优化器分片及 CPU offload |
 
-ZeRO 配置保留在 `configs/train/ds_zero2.json`、`ds_zero3.json`。训练器在 DeepSpeed 下交给 Trainer 放置模型，避免 device_map=auto 与每卡进程冲突。只有 rank 0 写共用模型/汇总，显存诊断按 rank 独立文件写入。单卡路径保持普通 Python 启动；若单卡需要 DeepSpeed，应在基础配置中显式设置 deepspeed。
+默认训练入口的 ZeRO 配置在 shell 的 `distributed` 段；启动器内联传递所选配置，不读取外部 JSON。旧外部配置入口仍保留兼容。训练器在 DeepSpeed 下交给 Trainer 放置模型，避免 device_map=auto 与每卡进程冲突。只有 rank 0 写共用模型/汇总，显存诊断按 rank 独立文件写入。单卡默认不启用 DeepSpeed；需要时可在脚本的 `training.deepspeed` 内直接填写配置字典。详见 [53](53_self_contained_training.md)。
 
 全局有效 batch = `per_device_batch_size × 进程数 × grad_accum_steps`。显存实验固定每卡 batch=1；增加 GPU 数不保证单条最长样本能装入单卡，尤其 DDP/ZeRO-2 不分片模型参数本体。选择零冗余阶段和 offload 时同时考虑 CPU 内存/传输带宽。
 

@@ -37,15 +37,24 @@ def main():
         if args.action=='eval':p.error('eval requires --run-dir from its training run')
         spec=yaml.safe_load(args.config.read_text())
         family=spec['model_family']; kind=spec['kind']; data=spec['dataset']
-        cfg=yaml.safe_load((ROOT/spec['base_configs'][family][kind]).read_text())
+        # New shell experiments carry every training setting inline. Preserve
+        # the old base-config format for existing experiment specifications.
+        base_configs=spec.get('base_configs')
+        if not base_configs and not isinstance(spec.get('distributed'), dict):
+            p.error('自包含配置必须提供 distributed 映射；不会回退到外部 DeepSpeed 文件')
+        cfg=yaml.safe_load((ROOT/base_configs[family][kind]).read_text()) if base_configs else {}
         cfg.update(spec.get('training',{}))
         cfg.update(model_name_or_path=spec['models'][family],data_mode=spec['data_mode'],
                    train_data_path=str((ROOT/data/'train.jsonl').resolve()),
                    val_data_path=str((ROOT/data/'validation.jsonl').resolve()))
+        if cfg.get('per_device_batch_size', 1) != 1:
+            p.error('轨迹 collator 仅支持 per_device_batch_size=1；请调整 grad_accum_steps')
+        if cfg.get('per_device_eval_batch_size', 1) != 1:
+            p.error('轨迹 collator 仅支持 per_device_eval_batch_size=1')
         cfg.setdefault('beacon',{}).update(spec.get('beacon',{}))
         if kind == 'beacon':
-            from search_comp.models.beacon_config import configure_whole_trajectory
-            configure_whole_trajectory(cfg)
+            from search_comp.models.beacon_config import configure_sft_layout
+            configure_sft_layout(cfg)
         if spec['data_mode']=='openseeker':
             manifest=json.loads((ROOT/data/'manifest.json').read_text())
             if manifest.get('protocol') != VERSION:
@@ -89,7 +98,8 @@ def main():
     for key, expected in spec['data_fingerprints'].items():
         if digest(cfg[key])!=expected:raise RuntimeError(f'dataset changed: {key}')
     train_cmd=training_command('search_comp.trainer.'+('beacon_trainer' if spec['kind']=='beacon' else 'plain_sft_trainer'),
-                              ['--config',str(run/'train.yaml')])
+                              ['--config',str(run/'train.yaml')], deepspeed_configs=spec.get('distributed'),
+                              configured_deepspeed=cfg.get('deepspeed'))
     if args.action=='plan':
         print(json.dumps(dict(run_dir=str(run),train_command=train_cmd,
               next=f'{sys.executable} scripts/py/51_experiment.py train --run-dir {run}'),indent=2));return

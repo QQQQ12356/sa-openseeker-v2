@@ -156,3 +156,39 @@ def test_beacon_entry_accepts_visible_penalty_but_rejects_sampling(tmp_path):
            '--kind', 'beacon', '--decoding', 'sample']
     rejected = subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True)
     assert rejected.returncode != 0 and 'Beacon requires greedy' in rejected.stderr
+
+
+@pytest.mark.parametrize('kind,script,other', [
+    ('plain', 'scripts/sh/plain/21_plain_eval.sh', 'beacon'),
+    ('beacon', 'scripts/sh/beacon/31_beacon_eval.sh', 'plain'),
+])
+def test_plain_and_beacon_shell_entries_are_independent_and_enforce_kind(tmp_path, kind, script, other):
+    content = (ROOT / script).read_text()
+    assert f'../{other}/' not in content
+    assert 'scripts/py/50_evaluate.py' in content
+    run = tmp_path / 'run'
+    run.mkdir()
+    (run / 'experiment.json').write_text(json.dumps({'kind': other, 'training_config': {}}))
+    env = {**os.environ, 'PYTHON': sys.executable, 'RUN_DIR': str(run), 'DRY_RUN': '1', 'KIND': kind}
+    env.pop('MODEL_PATH', None)
+    result = subprocess.run(['bash', script], cwd=ROOT, env=env, text=True, capture_output=True)
+    assert result.returncode != 0 and 'RUN_DIR' in result.stderr
+
+
+@pytest.mark.parametrize('kind,script', [
+    ('plain', 'scripts/sh/plain/20_plain_train.sh'),
+    ('plain', 'scripts/sh/plain/26_plain_memory_probe.sh'),
+    ('beacon', 'scripts/sh/beacon/30_beacon_train.sh'),
+    ('beacon', 'scripts/sh/beacon/37_beacon_memory_probe.sh'),
+])
+def test_training_entry_contains_only_its_own_model_configs(kind, script):
+    import yaml
+    text = (ROOT / script).read_text()
+    embedded = text.split("cat > \"$CONFIG_FILE\" <<'YAML'\n", 1)[1].split('\nYAML\n', 1)[0]
+    config = yaml.safe_load(embedded)
+    assert config['kind'] == kind
+    assert 'base_configs' not in config
+    assert config['distributed']['zero2']['zero_optimization']['stage'] == 2
+    assert ('zero3' in config['distributed']) == (kind == 'plain')
+    if kind == 'plain':
+        assert 'beacon' not in config and config['training']['loss_segments']['tool_call_content'] == 1.0

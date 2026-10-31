@@ -26,7 +26,6 @@ _BUDGET_SCRIPTS = (
     "tools/60_searchagent_probe.sh",
     "plain/23_plain_searchr1_eval.sh",
     "beacon/33_beacon_searchr1_eval.sh",
-    "plain/25_plain_untrained_eval.sh",
 )
 
 

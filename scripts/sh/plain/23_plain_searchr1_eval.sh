@@ -3,10 +3,9 @@
 # 真实交互式 Agent：think -> <search> -> <information> -> <answer>，不做任何压缩。
 # 评测入口：search_comp.evaluation.plain_interactive_eval
 #
-# 默认 jsonl 模式（与 scripts/sh/beacon/33_beacon_searchr1_eval.sh 一致）：对训练 Search-R1 轨迹做在线
+# 默认 jsonl 模式：对训练 Search-R1 轨迹做在线
 # 检索评估，题目取 jsonl（NQ+HotpotQA），语料从 jsonl 的 <information> 抽文档。
-# 注意默认即 jsonl，无法用空值关闭；要跑 HotpotQA-validation 老路径，参考
-# scripts/sh/plain/25_plain_untrained_eval.sh 的非 jsonl 写法。
+# 注意默认即 jsonl，无法用空值关闭；独立 Qwen3.5 基座评测见 baseline/70。
 set -euo pipefail
 source "$(dirname "$0")/../common/00_common.sh"
 PYTHON_BIN=$(resolve_python)

@@ -36,7 +36,9 @@ Plain / Beacon native 的贪心与重复惩罚、Plain 采样和生成种子配�
 
 现有原始 v3 数据（train/validation/test=644/9/11）、43 条约 64k 的显存测试数据和数据 HTML 保留，可用于当前流程，详情见 [数据说明](docs/data/10_data.md) 与 [验证记录](docs/project/99_validation.md)。当前保留原始 system 的统一流程全量回归为 **564 通过、2 项跳过**，详细命令和边界见验证记录。
 
-Beacon 训练支持固定/随机压缩比：修改 `30_beacon_train.sh` 的 `COMPRESSION_MODE`、`BEACON_RATIO` 和 `COMPRESSION_RATIOS` 即可，详见 [31 随机压缩说明](docs/beacon/31_random_compression.md)。默认保持固定压缩。
+Beacon 训练支持固定/随机压缩比：修改 `30_beacon_train.sh` 内 `beacon` 段的 `beacon_compression_mode`、`beacon_ratio` 和 `beacon_compression_ratios`，详见 [31 随机压缩说明](docs/beacon/31_random_compression.md)。默认保持固定压缩。
+
+训练与多卡 DeepSpeed 参数已放入各训练 shell；修改和计划审查方法见 [53 自包含训练配置](docs/tools/53_self_contained_training.md)。
 
 训练后独立 Benchmark：Plain/Beacon 均默认用 `MODE=native RUN_DIR=...` 运行 47；原样官方复现仍可用 48 部署 Plain，再显式选择 `MODE=official-v1` 或 `MODE=official-v2`。native 保留压缩、采用官方 search/visit 和裁判。先配置私有 API 环境文件；实际在线测试会调用这些服务。原有 21/31 的 EM/F1 测试继续保留。完整依赖、参数、失败分母和对齐边界见 [42 说明](docs/benchmark/42_openseeker_benchmark.md)。
 

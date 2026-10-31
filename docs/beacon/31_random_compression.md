@@ -6,28 +6,18 @@ Beacon 支持固定压缩比与随机压缩比，Qwen3/Qwen3.5、OpenSeeker/Sear
 
 ## 一键脚本
 
-修改 `scripts/sh/beacon/30_beacon_train.sh` 顶部变量后直接运行：
-
-```bash
-COMPRESSION_MODE="random"          # fixed / random
-BEACON_RATIO=16                     # fixed 训练，以及验证/生成的固定压缩比
-COMPRESSION_RATIOS=(8 16 32 64)     # random 的候选数组
-```
-
-`37_beacon_memory_probe.sh` 有相同变量；`34_beacon_searchr1_train_impl.sh` 也支持这组控制，32 入口会委托它。34 的模式/数组默认为空，沿用 YAML；填写顶部变量后覆盖 YAML，固定比例可以通过既有 `BEACON_RATIO` 覆盖。候选必须是非空、无重复的正整数数组；不是给每个候选配置权重。
-
-30/37 会把顶部变量写入临时 YAML，校验后归档到实验目录的 `source_config.yaml`、`train.yaml` 和 `experiment.json`。`ACTION="plan"` 只校验和生成配置、启动命令，`train` 才启动训练。配置快照用于确认实际设置。
-
-直接编辑配置时使用以下字段：
+在 `scripts/sh/beacon/30_beacon_train.sh` 的内嵌 YAML 中修改：
 
 ```yaml
 beacon:
-  beacon_ratio: 16
-  beacon_compression_mode: random
+  beacon_ratio: 16                     # fixed 训练，以及验证/生成的固定压缩比
+  beacon_compression_mode: random       # fixed / random
   beacon_compression_ratios: [8, 16, 32, 64]
 ```
 
-`configs/openseeker.yaml` 及现有 Beacon 基础配置都显式提供这些字段。旧 checkpoint 没有新增字段时默认使用 fixed。
+`37_beacon_memory_probe.sh` 有独立的同名 YAML 字段，修改 30 不会同步到 37。`34_beacon_searchr1_train_impl.sh` 的内嵌 `beacon` 段也提供这些参数，32 入口委托 34；34 额外支持环境变量覆盖，见脚本注释。候选必须是非空、无重复的正整数数组；不是给每个候选配置权重。
+
+30/37 会校验脚本内的 Beacon 参数并归档到实验目录。`ACTION=plan` 只生成配置和启动命令，`train` 才启动训练。配置快照用于确认实际设置；旧 checkpoint 没有新增字段时默认使用 fixed。自包含训练参数与 DeepSpeed 见 [53](../tools/53_self_contained_training.md)。
 
 ## 采样规则
 
@@ -37,7 +27,7 @@ beacon:
 
 压缩长度为 `ceil(observation_tokens / 采样比例)`。实际比例同步用于 Beacon 数量、append/intersect 布局和按 Beacon 续写目标，避免出现数量与目标错位。模型参数结构不因比例改变，所以可在同一训练过程中切换。
 
-当前训练器使用 whole 模式，候选不要求整除 observation 长度；尾部不足一个比例单位仍保留一个 Beacon。保留的 window 模式要求所有候选都满足窗口整除及 continuation 布局约束，配置校验会在开始训练前逐个检查。
+默认训练采用 whole 模式，候选不要求整除 observation 长度；尾部不足一个比例单位仍保留一个 Beacon。显式配置的 window 模式要求所有候选都满足窗口整除及 continuation 布局约束，配置校验会在开始训练前逐个检查。
 
 ## 随机性与多卡
 
@@ -47,7 +37,7 @@ beacon:
 
 ## 显存测试
 
-比例越小，通常需要保留越多 Beacon。寻找长样本显存边界时先固定最小候选比例测试；短时间随机训练可能没有覆盖最小比例，不能据此推断最坏情况下的显存上限。正式随机训练仍可使用 37 的同组变量；每卡显存日志沿用既有回调。修改比例不改变预处理 token 长度，不需要重新准备数据。
+比例越小，通常需要保留越多 Beacon。寻找长样本显存边界时先固定最小候选比例测试；短时间随机训练可能没有覆盖最小比例，不能据此推断最坏情况下的显存上限。正式随机训练仍可使用 37 的同组 YAML 字段；每卡显存日志沿用既有回调。修改比例不改变预处理 token 长度，不需要重新准备数据。
 
 ## 验证
 

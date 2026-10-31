@@ -2,8 +2,8 @@
 # 修改下方参数后执行：bash scripts/sh/beacon/31_beacon_eval.sh
 set -euo pipefail
 
-# ===== Plain/Beacon 共用入口；所有顶部标量支持同名环境变量覆盖 =====
-# 21_plain_eval.sh 仅设置 KIND=plain 后转入本脚本。提示与协议见 docs/common/45_unified_agent_flow.md。
+# ===== Beacon 专用入口；所有顶部标量支持同名环境变量覆盖 =====
+# 独立调用通用 Python 评测器；提示与协议见 docs/common/45_unified_agent_flow.md。
 # ===== 运行环境 =====
 # 留空时按 common.sh 的规则选择 Python；也可填 Python 绝对路径。
 PYTHON="${PYTHON:-}"
@@ -16,12 +16,11 @@ DRY_RUN="${DRY_RUN:-0}"                            # 1：只检查配置并打�
 # ===== 模型与数据 =====
 RUN_DIR="${RUN_DIR:-}"                           # train_openseeker.sh 生成的 outputs/experiments/<实验名>
 MODEL_PATH="${MODEL_PATH:-}"                        # 留空：从 RUN_DIR 的 train_summary.json 读取最终模型
-BASE_MODEL_PATH="${BASE_MODEL_PATH:-}"              # 仅 Plain adapter：覆盖记录的原训练基座
 TOKENIZER_PATH="${TOKENIZER_PATH:-}"                # 可选：显式指定训练 tokenizer
-KIND="${KIND:-}"                              # beacon / plain；留空：读取实验配置，无 RUN_DIR 时用 beacon
+KIND="${KIND:-beacon}"                        # 固定为 beacon；Plain 使用 21
 SPLIT="${SPLIT:-test}"                         # train / validation / test；训练集评测用于判断拟合能力
 DATA="${DATA:-}"                              # 留空：按 SPLIT 选择数据；非空时覆盖自动选择的路径
-# Plain 可直接指定 adapter/checkpoint；Beacon LoRA 仍需先合并。
+# Beacon LoRA adapter 必须先合并为完整模型。
 # 同时填写 RUN_DIR 和 MODEL_PATH 时，后者覆盖实验中的模型路径。
 
 # ===== 评测参数 =====
@@ -73,6 +72,8 @@ if run:
     root = Path(run)
     spec = json.loads((root / "experiment.json").read_text())
     if not model:
+        if spec.get("kind") != "beacon":
+            sys.exit("RUN_DIR 不是 Beacon 实验；请提供 Beacon RUN_DIR 或显式 MODEL_PATH")
         summary = root / "models/model/train_summary.json"
         if not summary.is_file():
             sys.exit(f"找不到 {summary}；请先完成训练，或显式设置 MODEL_PATH")
@@ -84,8 +85,8 @@ if not model:
     sys.exit("请在脚本顶部填写 RUN_DIR 或 MODEL_PATH")
 kind = kind or "beacon"
 data = data or f"outputs/data/openseeker/polar_correct_qwen35_16k/{split}.jsonl"
-if kind not in ("plain", "beacon"):
-    sys.exit("KIND 必须是 plain 或 beacon")
+if kind != "beacon":
+    sys.exit("31 是 Beacon 专用入口；KIND 必须是 beacon")
 if not Path(data).is_file():
     sys.exit(f"测试集不存在：{data}")
 print(model)
@@ -117,7 +118,6 @@ COMMAND=(
 )
 if [[ "$BACKEND" == http ]]; then COMMAND+=(--endpoint "$ENDPOINT"); fi
 if [[ "$BACKEND" == corpus ]]; then COMMAND+=(--corpus "$CORPUS"); fi
-if [[ -n "$BASE_MODEL_PATH" ]]; then COMMAND+=(--base-model "$BASE_MODEL_PATH"); fi
 if [[ -n "$TOKENIZER_PATH" ]]; then COMMAND+=(--tokenizer "$TOKENIZER_PATH"); fi
 
 echo "[openseeker-test] Python: $PY"

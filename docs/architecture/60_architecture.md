@@ -6,7 +6,7 @@
 
 OpenSeeker 原始 system 和轨迹文本保留，测试从对应训练数据读取提示并共用渲染器，结构化工具调用统一为 tool_calls_begin/tool_call JSON；仅 observation 正文可压缩，不截断轨迹。数据读取使用 JSONL offset 懒加载，减少多 GB 数据常驻内存。训练和 agent 推理共享 encode()/pieces()，测试验证每个生成前缀与训练序列对齐。
 
-主 CE 的分段类别：think_tag/content、search_tag/content、answer_tag/content、tool_call_tag/content、other。`beacon.loss_segments` 同时用于 Plain 和 Beacon，默认全部启用、权重 1。每 token 权重乘交叉熵，分母为有效权重和。关闭类别等价于权重 0，不参与主 CE 梯度与分母；全部关闭得到可反传的有限零损失。token/labels/压缩区域不受权重改变影响。
+主 CE 的分段类别：think_tag/content、search_tag/content、answer_tag/content、tool_call_tag/content、other。Plain 的 shell 配置用 `training.loss_segments`，Beacon 使用 `beacon.loss_segments`；Plain 仍兼容旧配置中的 `beacon.loss_segments`。默认全部启用、权重 1。每 token 权重乘交叉熵，分母为有效权重和。关闭类别等价于权重 0，不参与主 CE 梯度与分母；全部关闭得到可反传的有限零损失。token/labels/压缩区域不受权重改变影响。
 
 continuation、information、output KL、readout 蒸馏仍各有独立总权重；输出蒸馏会避开关闭监督的片段，stratified 采样按 answer、思考、search、tool_call 等队列分配预算。当前类别 ID 已删除弃用类别，需使用本项目重新生成的分段数据，不能直接复用旧类别数组。
 

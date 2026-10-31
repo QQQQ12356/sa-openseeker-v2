@@ -1,6 +1,6 @@
 # 66 Beacon / Plain 多卡实现细节
 
-默认 Qwen3.5 Beacon 基础配置为 `configs/train/beacon_qwen35_whole_searchr1.yaml`，plain 为 `configs/train/qwen35_plain_sft.yaml`。现有单卡命令保持可用。
+默认 Plain 和 Beacon shell 将模型、训练和 DeepSpeed 参数写在脚本内；自包含配置及旧外部 YAML 兼容方式见 [53](53_self_contained_training.md)。现有单卡命令保持可用。
 
 在训练用的 Python 环境中安装 DeepSpeed：
 
@@ -17,7 +17,7 @@ CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/beacon/32_beacon_searchr1_train.sh
 # plain：默认 ZeRO-2 + CPU 优化器卸载
 CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/plain/22_plain_searchr1_train.sh
 
-# OpenSeeker：修改脚本内 kind: beacon / plain；复用同一启动逻辑
+# OpenSeeker Beacon：Plain 使用自己的 20 脚本
 CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/beacon/30_beacon_train.sh
 
 # plain 可进一步分片参数：ZeRO-3 + CPU 参数和优化器卸载
@@ -36,11 +36,11 @@ CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.run \
   --set deepspeed=configs/train/ds_zero2.json
 ```
 
-`DISTRIBUTED_BACKEND` 接受 `zero2`（多卡默认）、`zero3`（仅 plain）、`ddp`。启动器选择的 DeepSpeed 配置优先于传入的同名覆盖参数。单卡时如需 DeepSpeed，可显式传 `--set deepspeed=configs/train/ds_zero2.json`。它使用 CPU AdamW 优化器，替代基础配置中的 bitsandbytes 优化器；需要足够的 CPU 内存和 CPU/GPU 传输带宽。
+`DISTRIBUTED_BACKEND` 接受 `zero2`（多卡默认）、`zero3`（仅 plain）、`ddp`。默认 shell 的启动器选择脚本内 `distributed` 配置，并将其作为内联 `deepspeed` 覆盖；旧外部 YAML 未提供 `distributed` 时仍按旧方式读取 JSON。单卡需要 DeepSpeed 时可在脚本中直接填写 `deepspeed` 字典。默认 ZeRO 配置使用 CPU AdamW 优化器，替代单卡配置中的 bitsandbytes 优化器；需要足够的 CPU 内存和 CPU/GPU 传输带宽。
 
 ## 显存边界
 
-OpenSeeker 的30/37入口已显式启用 `beacon_checkpoint_blocks=true`，并选择SDPA、1024-token keep分块。新增38四卡入口复用30；Search-R1基础配置不自动开启blocks，需要显式覆盖。该开关只重算无状态模块，不重放跨窗状态更新；顶层 `gradient_checkpointing` 仍不启用Beacon重计算。完整原因分析、参数和修改位置见 [52 长轨迹 OOM](../beacon/52_beacon_oom.md)。
+OpenSeeker 的 30/37 入口已显式启用 `beacon_checkpoint_blocks=true` 并选择 SDPA，默认 whole 且 `beacon_keep_window=0`；默认 `beacon_layout_policy=configured` 使用脚本布局。38 四卡入口复用 30；Search-R1 的 34 脚本默认未开启 blocks，可直接在脚本修改。该开关只重算无状态模块，不重放跨窗状态更新；顶层 `gradient_checkpointing` 仍不启用 Beacon 重计算。完整原因分析、参数和修改位置见 [52 长轨迹 OOM](../beacon/52_beacon_oom.md)。
 
 
 - DDP 每卡保留完整模型、梯度和优化器状态，主要增加吞吐，不降低单条样本的激活峰值。

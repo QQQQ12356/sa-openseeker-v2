@@ -92,7 +92,7 @@ TARGET=openseeker ACTION=prepare bash scripts/sh/plain/27_plain_workflow.sh
 
 ## 21.4 配置并审查训练计划
 
-编辑 `scripts/sh/plain/20_plain_train.sh` 的内嵌 YAML，改 `dataset`、`models.qwen35`、`training.max_length`；数据 manifest 的长度上限不得超过训练上限。`configs/openseeker.yaml` 的修改不会覆盖该脚本内嵌配置。切换 Qwen3 时同时修改 `model_family`、模型与 tokenizer 数据。
+编辑 `scripts/sh/plain/20_plain_train.sh` 的内嵌 YAML，改 `dataset`、`models.qwen35`、`training.max_length`；数据 manifest 的长度上限不得超过训练上限。默认入口的训练参数和 DeepSpeed 均来自该脚本，不读取外部基础配置；完整参数和覆盖规则见 [53](../tools/53_self_contained_training.md)。切换 Qwen3 时同时修改 `model_family`、模型与 tokenizer 数据。
 
 | 参数 | 当前默认 | 说明 |
 |---|---|---|
@@ -107,7 +107,7 @@ TARGET=openseeker ACTION=prepare bash scripts/sh/plain/27_plain_workflow.sh
 | save_freq_steps / eval_steps | 200 / 200 | optimizer step 间隔；短训练可能没有周期 checkpoint |
 | seed | 42 | 训练随机种子，与数据划分 seed 分别记录 |
 
-脚本中 `beacon.loss_segments` 用于设置 assistant 输出的分段权重，默认均为 1；其余 Beacon 压缩/蒸馏参数不使 Plain 启用压缩或教师模型。资源和限制详见 [20](20_plain.md)。
+脚本中 `training.loss_segments` 用于设置 assistant 输出的分段权重，默认均为 1。Plain 脚本只配置 Plain 模型；资源和限制详见 [20](20_plain.md)。旧实验配置中的 `beacon.loss_segments` 仍由训练器兼容读取。
 
 ```bash
 # 单卡：只写实验计划，不加载模型

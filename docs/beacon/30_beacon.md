@@ -10,9 +10,9 @@
 
 多卡使用 DDP 或 ZeRO-2。Beacon 动态分段和压缩训练不支持 ZeRO-3，launcher 会在启动前明确拒绝。CPU activation offload 默认保留；开启 teacher 蒸馏会增加内存和显存需求。
 
-评测用 `31_beacon_eval.sh`；多卡评测每个 GPU 加载一份模型，按样本索引分片，并恢复原始顺序汇总指标；四卡设置和命令见 [50 多卡测试](../tools/50_multigpu.md#beacon-多卡测试)。`35_beacon_merge_adapter.sh` 保留适配器恢复合并入口，脚本顶部填写 TARGET 即可。`37_beacon_memory_probe.sh` 用于长样本短步数测试。本次没有运行真实模型训练或生成。
+评测用 `31_beacon_eval.sh`，它独立调用通用 Python 评测器，不调用 Plain 的 21；31 只接受 `KIND=beacon`。多卡评测每个 GPU 加载一份模型，按样本索引分片，并恢复原始顺序汇总指标；四卡设置和命令见 [50 多卡测试](../tools/50_multigpu.md#beacon-多卡测试)。`35_beacon_merge_adapter.sh` 保留适配器恢复合并入口，脚本顶部填写 TARGET 即可。`37_beacon_memory_probe.sh` 用于长样本短步数测试。本次没有运行真实模型训练或生成。
 
-随机压缩比通过顶部 `COMPRESSION_MODE="random"` 与 `COMPRESSION_RATIOS=(8 16 32 64)` 开启；默认 fixed。每条训练轨迹采样一次，验证/生成仍使用 `BEACON_RATIO`。配置、日志与多卡规则见 [31 随机压缩](31_random_compression.md)。
+随机压缩比通过 30 内嵌 YAML 的 `beacon_compression_mode: random` 与 `beacon_compression_ratios` 开启；默认 fixed。每条训练轨迹采样一次，验证/生成仍使用 `beacon_ratio`。配置、日志与多卡规则见 [31 随机压缩](31_random_compression.md)。
 
 训练后可用 `MODE=native RUN_DIR=... bash scripts/sh/benchmark/47_openseeker_benchmark.sh` 增加独立 BrowseComp 在线评测，保留 Beacon 压缩并使用官方 search/visit 与 LLM 裁判。不能用普通 SGLang 替代 Beacon 推理。
 原有测试入口继续保留，准备依赖、完整示例与比较边界见 [42 官方 Benchmark](../benchmark/42_openseeker_benchmark.md)。
@@ -21,4 +21,4 @@
 
 ## 四卡长轨迹与重计算
 
-OpenSeeker 30/37现在显式启用 `beacon_checkpoint_blocks: true`、SDPA；当前 whole SFT 的 keep_window 统一为 0（整段 keep），38提供四卡A800入口。blocks重算attention、MLP及Qwen3.5 reader/writer，不重放记忆更新，不改变whole布局。旧顶层 `gradient_checkpointing` 仅告警，`beacon_checkpoint_loss` 只作用于loss，两者都不能代替blocks。直接使用Search-R1 YAML时需要自行开启blocks。详细参数和OOM定位见 [52](52_beacon_oom.md)，多卡规则见 [50](../tools/50_multigpu.md)。
+OpenSeeker 30/37 显式启用 `beacon_checkpoint_blocks: true`、SDPA；默认 whole 的 keep_window 为 0（整段 keep），38 提供四卡 A800 入口。默认 `beacon_layout_policy: configured` 使用脚本中的布局字段；`whole` 兼容策略会强制整段布局。blocks 重算 attention、MLP 及 Qwen3.5 reader/writer，不重放跨窗状态更新。旧顶层 `gradient_checkpointing` 仅告警，`beacon_checkpoint_loss` 只作用于 loss，两者都不能代替 blocks。Search-R1 的 34 脚本可自行开启 blocks。详细参数和 OOM 定位见 [52](52_beacon_oom.md)，多卡规则见 [50](../tools/50_multigpu.md)。

@@ -31,7 +31,7 @@
 | 在线 BrowseComp | [42 在线 Benchmark](../benchmark/42_openseeker_benchmark.md) | API 与部署参数均在该文 |
 | 输出核对 | [99 验证记录](../project/99_validation.md) | 这里的 CPU 回归结果不等于真实模型成绩 |
 
-首次实验只需沿正文主线走。62/63 蒸馏、64 线性状态消融、65 压缩分析是后续研究选项；22—25、32—34 等 Search-R1 **脚本**是另一条数据路线，不能混用本文的 OpenSeeker 数据协议。本文编号 32 是文档编号。
+首次实验只需沿正文主线走。62/63 蒸馏、64 线性状态消融、65 压缩分析是后续研究选项；22/23、32—34 等 Search-R1 **脚本**是另一条数据路线，不能混用本文的 OpenSeeker 数据协议。本文编号 32 是文档编号。
 
 ## 32.2 第一步：准备环境、模型与路径
 
@@ -181,14 +181,14 @@ LIMIT=20 OUTPUT_HTML=outputs/reports/beacon_train_samples.html \
 
 ## 32.5 第四步：修改 Beacon 配置，先建立固定比例基线
 
-日常训练参数改 `scripts/sh/beacon/30_beacon_train.sh`，四卡入口 38 也读取它。该脚本在临时文件中写完整 YAML，再归档；改 `configs/openseeker.yaml` 不会自动覆盖 30 内嵌的 YAML。
+日常训练参数改 `scripts/sh/beacon/30_beacon_train.sh`，四卡入口 38 也读取它。训练、Beacon 和 DeepSpeed 参数均在脚本临时 YAML 中，不读取外部基础配置；脚本保存的配置及启动器覆盖规则见 [53](../tools/53_self_contained_training.md)。
 
 修改顺序：
 
 1. `dataset` 改成第二/三步最终选定的 prepared 目录。
 2. `models.qwen35` 与 prepare 的 tokenizer 身份一致；换 Qwen3 时同时改 model_family、模型和数据。
 3. `training.max_length` 至少覆盖 prepared manifest 的上限。
-4. 保持 `COMPRESSION_MODE="fixed"`、`BEACON_RATIO=16`，先验证默认训练和生成行为。
+4. 保持 `beacon_compression_mode: fixed`、`beacon_ratio: 16`，先验证默认训练和生成行为。
 5. 根据资源选择单卡或多卡，再决定训练步数、保存与验证间隔。
 
 | 训练参数 | 当前基线值 | 解释与修改位置 |
@@ -203,11 +203,11 @@ LIMIT=20 OUTPUT_HTML=outputs/reports/beacon_train_samples.html \
 | use_lora / lora_r / lora_alpha | true / 16 / 32 | 基座主体冻结，LoRA 与 Beacon 参数训练；关 LoRA 会改变资源需求 |
 | save_freq_steps / eval_steps | 200 / 200 | optimizer step 间隔；总训练不足间隔时不会有对应周期事件，最终仍保存 |
 | logging_steps / log_freq_steps | 5 / 5 | 日志间隔；短试验可改 1 |
-| COMPRESSION_MODE | fixed | 30 顶部 shell 字面量，不能仅在调用前设置同名环境变量假定它会覆盖 |
-| BEACON_RATIO | 16 | 控制固定训练及生成比例，顶部值最终覆盖 YAML 同名字段 |
-| COMPRESSION_RATIOS | 8 16 32 64 | 仅 random 训练采样候选，编辑顶部数组；推理仍用 BEACON_RATIO |
+| beacon_compression_mode | fixed | 在 30 的 `beacon` 段设置 fixed / random |
+| beacon_ratio | 16 | 控制固定训练及生成比例 |
+| beacon_compression_ratios | 8 16 32 64 | 仅 random 训练采样候选；推理仍用 beacon_ratio |
 | beacon_information_mode | whole | 每个 observation 整段读取后压缩 |
-| beacon_keep_window | 0 | 当前 SFT 统一解析为整段 keep；不靠改旧 window 字段切短轨迹 |
+| beacon_keep_window | 0 | 默认整段 keep；`beacon_layout_policy: configured` 时可设置正数分块 |
 | beacon_attention_backend | sdpa | 减少显式注意力矩阵开销；不保证所有硬件组合都走 FlashAttention |
 | beacon_checkpoint_blocks | true | 重算纯 attention/MLP/reader/writer 块，降低保存激活需求 |
 | beacon_cpu_offload_activations | true | 用 CPU 内存换 GPU 激活保存，须考虑多 rank 主机内存总量 |
@@ -243,11 +243,11 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 NPROC_PER_NODE=4 ACTION=plan \
 ```text
 outputs/experiments/<本次 run>/
 ├── source_config.yaml     入口配置
-├── train.yaml             合并基础配置、覆盖项和实际布局后的训练配置
+├── train.yaml             脚本内训练参数和实际布局解析后的配置
 └── experiment.json        数据/代码指纹、模型、训练与评测配置
 ```
 
-确认 dataset、tokenizer 身份、max_length、训练步数、ratio 和损失符合预期。whole、window_enabled=false、doc_region_split=false、keep_window=0 会在归档与模型加载前统一解析。
+确认 dataset、tokenizer 身份、max_length、训练步数、ratio 和损失符合预期。默认 `beacon_layout_policy=configured`，布局由脚本字段决定；设为 `whole` 会强制兼容整段布局。DeepSpeed 配置来自脚本 `distributed` 段，通过打印的命令内联传递，详见 [53](../tools/53_self_contained_training.md)。
 
 | 运行变量 | 用法与注意事项 |
 |---|---|

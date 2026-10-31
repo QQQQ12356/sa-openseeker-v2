@@ -133,6 +133,13 @@ def main_train(
     from ..models.plain_qwen3 import load_sft_model, load_sft_tokenizer
 
     cfg = load_yaml_config(config_path, overrides)
+    if cfg.get('per_device_batch_size', 1) != 1:
+        raise ValueError('轨迹 collator 仅支持 per_device_batch_size=1；请调整 grad_accum_steps')
+    if cfg.get('per_device_eval_batch_size', 1) != 1:
+        raise ValueError('轨迹 collator 仅支持 per_device_eval_batch_size=1')
+    shuffle_train_data = cfg.get('shuffle_train_data', True)
+    if not isinstance(shuffle_train_data, bool):
+        raise ValueError('shuffle_train_data 必须为 bool（true 或 false）')
     from ..data.factory import require_data_mode
     require_data_mode(cfg.get("data_mode", "searchr1"))
     require_keys(cfg, ("model_name_or_path", "train_data_path", "output_dir", "exp_name"))
@@ -190,7 +197,7 @@ def main_train(
         warmup_ratio=cfg.get("warmup_ratio", 0.05),
         logging_steps=cfg.get("logging_steps", cfg.get("log_freq_steps", 5)),
         save_steps=cfg.get("save_freq_steps", 200),
-        save_total_limit=2,
+        save_total_limit=cfg.get("save_total_limit", 2),
         save_strategy="steps",
         prediction_loss_only=True,
         remove_unused_columns=False,
@@ -201,6 +208,7 @@ def main_train(
         report_to="none",
         disable_tqdm=False,
         seed=cfg.get("seed", 42),
+        train_sampling_strategy="random" if shuffle_train_data else "sequential",
         logging_first_step=True,
         eval_strategy="steps" if eval_ds is not None else "no",
         eval_steps=cfg.get("eval_steps", cfg.get("save_freq_steps", 200)),
