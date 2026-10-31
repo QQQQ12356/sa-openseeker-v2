@@ -146,12 +146,13 @@ def evaluate(args):
     with ProgressReporter(total, args.progress_interval, label) as progress:
         progress.phase(f"loading model libraries; samples={total}; split={args.data_split}")
         from search_comp.models.model_loader import load_beacon_model, load_tokenizer
-        from search_comp.models.plain_qwen3 import load_sft_model
-
         # Keep the ordinary full-checkpoint path unchanged. Adapter loading is
         # Plain-only and can resolve its original base from training metadata.
         from pathlib import Path as ModelPath
         is_adapter = (ModelPath(args.model) / 'adapter_config.json').is_file()
+        origin = getattr(args, 'model_origin', 'checkpoint')
+        if origin == 'base-qwen35' and (is_adapter or args.kind != 'plain'):
+            raise ValueError('Qwen3.5 baseline requires original full weights and kind=plain')
         if is_adapter:
             if args.kind != 'plain':
                 raise ValueError('adapter evaluation supports Plain only; merge Beacon first')
@@ -166,10 +167,20 @@ def evaluate(args):
         progress.phase(f"loading tokenizer: {args.model}")
         tok = load_tokenizer(plan['tokenizer'] if plan else (getattr(args, 'tokenizer', None) or args.model))
         progress.phase(f"loading model and moving to device: {args.model}")
-        model = (load_plain_evaluation_model(plan) if plan else
-                 (load_beacon_model if args.kind == "beacon" else load_sft_model)(args.model))
+        if origin == 'base-qwen35':
+            from search_comp.models.base_qwen35 import load_base_qwen35
+            model = load_base_qwen35(args.model)
+        elif plan:
+            model = load_plain_evaluation_model(plan)
+        elif args.kind == 'beacon':
+            model = load_beacon_model(args.model)
+        else:
+            from search_comp.models.plain_qwen3 import load_sft_model
+            model = load_sft_model(args.model)
         model.eval()
         generate = ModelGenerator(model, tok, args.kind == "beacon", **decoding_options(args, args.kind == "beacon"))
+        if origin == 'base-qwen35':
+            generate.metadata.update(model_origin=origin, base_model_path=args.model)
         if plan:
             generate.metadata.update(adapter_path=plan['model'], base_model_path=plan['base'],
                                      tokenizer_path=plan['tokenizer'])
@@ -287,6 +298,7 @@ def evaluate_parallel(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", required=True)
+    p.add_argument("--model-origin", choices=['checkpoint', 'base-qwen35'], default='checkpoint')
     p.add_argument("--base-model", help="exact training base for a Plain LoRA adapter; overrides saved metadata")
     p.add_argument("--tokenizer", help="training tokenizer path; defaults to adapter tokenizer or model/base")
     p.add_argument("--data", type=Path, required=True)

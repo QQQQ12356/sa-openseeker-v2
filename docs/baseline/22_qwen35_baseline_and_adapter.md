@@ -87,7 +87,7 @@ SPLIT=train LIMIT=8 BACKEND=replay bash scripts/sh/plain/21_plain_eval.sh
 
 ## 22.4 原始 Qwen3.5-4B 一键基线入口
 
-统一入口 `scripts/sh/baseline/70_qwen35_base_eval.sh`，仅转发到现有 Plain 流程，不训练、不改变权重。以 `BASE_CHECKPOINT` 为模型输入；即使同时传 RUN_DIR，也只用该 run 选择数据/训练提示，不会自动选择其训练后模型。`TARGET` 选择数据集，`ACTION` 选择阶段：
+统一入口 `scripts/sh/baseline/70_qwen35_base_eval.sh` 调用独立的 71/72/73 脚本和原始 Qwen3.5 基座加载器，不调用 Plain 训练模型加载器或 Plain shell 流程；通用工具循环与评分器用于保持对照口径。完整的独立脚本、变量和修改提示见 [24 独立基线实验指南](24_qwen35_base_benchmark.md)。以 `BASE_CHECKPOINT` 为模型输入；即使同时传 RUN_DIR，也只用该 run 选择数据/训练提示，不会自动选择其训练后模型。`TARGET` 选择数据集，`ACTION` 选择阶段：
 
 | TARGET | ACTION | 说明 |
 |---|---|---|
@@ -179,7 +179,7 @@ Hotpot 默认可 search+visit，使用官方答案 EM/F1、支持事实与 Joint
 | DRY_RUN | 0 | 下游支持时审查命令；不会加载模型、确认 API 或检验权重 |
 | 其他变量 | 下游脚本默认 | 直接透传；21、47、56、57 参数和预算不完全相同 |
 
-基线脚本把 `BASE_CHECKPOINT` 作为 MODEL_PATH，并清除仅用于 adapter 的 BASE_MODEL_PATH。需要比较已训练模型，请直接使用 21/47/56/57，而不是将训练后模型伪装为基线。
+基线脚本使用 `BASE_CHECKPOINT` 和 `--model-origin base-qwen35`，不读取 MODEL_PATH 或仅用于 adapter 的 BASE_MODEL_PATH。需要比较已训练模型，请直接使用 21/47/56/57，而不是将训练后模型伪装为基线。
 
 ## 22.5 复读诊断和判读
 

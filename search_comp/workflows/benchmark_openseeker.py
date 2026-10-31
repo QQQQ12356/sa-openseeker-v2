@@ -187,16 +187,26 @@ def native_generate(args, rows, output):
     from search_comp.data.agent_prompt import initial_messages, resolve_system_prompt
     from search_comp.evaluation.tool_agent import ModelGenerator, Registry, run_agent, decoding_options
     from search_comp.models.model_loader import load_beacon_model, load_tokenizer
-    from search_comp.models.plain_qwen3 import load_sft_model
 
     print(f"[benchmark native generation] done=0/{len(rows)}", flush=True)
     system, prompt_source = resolve_system_prompt(getattr(args, 'prompt_data', None), args.run_dir)
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     generation_options = decoding_options(args, kind == 'beacon')
     tokenizer = load_tokenizer(model_path)
-    model = (load_beacon_model if kind == "beacon" else load_sft_model)(model_path)
+    if getattr(args, 'model_origin', 'checkpoint') == 'base-qwen35':
+        if kind != 'plain':
+            raise ValueError('Qwen3.5 baseline requires kind=plain')
+        from search_comp.models.base_qwen35 import load_base_qwen35
+        model = load_base_qwen35(model_path)
+    elif kind == 'beacon':
+        model = load_beacon_model(model_path)
+    else:
+        from search_comp.models.plain_qwen3 import load_sft_model
+        model = load_sft_model(model_path)
     model.eval()
     generate = ModelGenerator(model, tokenizer, kind == "beacon", **generation_options)
+    if getattr(args, 'model_origin', 'checkpoint') == 'base-qwen35':
+        generate.metadata.update(model_origin='base-qwen35', base_model_path=model_path)
     search, visit = Search(), Visit()
     tools = Registry({"search": lambda **kw: search.call(kw), "visit": lambda **kw: visit.call(kw)})
     with output.open("x", encoding="utf-8") as target:
@@ -227,6 +237,7 @@ def main():
     parser.add_argument("--prompt-data", type=Path,
                         help="training JSONL supplying original system/tools; overrides RUN_DIR training data")
     parser.add_argument("--model")
+    parser.add_argument("--model-origin", choices=['checkpoint', 'base-qwen35'], default='checkpoint')
     parser.add_argument("--kind", choices=["plain", "beacon"])
     parser.add_argument("--workers", type=int, default=60)
     parser.add_argument("--judge-workers", type=int, default=20)
@@ -246,6 +257,8 @@ def main():
         parser.error(str(error))
     if args.mode != 'native' and generation_options:
         parser.error('decoding overrides are supported in native mode only')
+    if args.mode != 'native' and args.model_origin != 'checkpoint':
+        parser.error('base-qwen35 loading is supported in native mode only')
     for name in ("workers", "judge_workers", "max_tokens", "tool_count", "max_context", "max_turns", "max_tool_tokens"):
         if getattr(args, name) < 1:
             parser.error(f"--{name.replace('_', '-')} must be positive")
@@ -267,7 +280,7 @@ def main():
             "native_generate", "--run-dir", str(args.run_dir), "--model", str(args.model)]
         if args.predictions:
             command = ["import_predictions", str(args.predictions)]
-        print(json.dumps(dict(revision=OFFICIAL_REVISION, mode=args.mode, data=str(args.data),
+        print(json.dumps(dict(revision=OFFICIAL_REVISION, mode=args.mode, model_origin=args.model_origin, data=str(args.data),
                               output=str(output), prompt_data=str(args.prompt_data) if args.prompt_data else None,
                               generation=command,
                               decoding=dict(mode=args.decoding, repetition_penalty=args.repetition_penalty,

@@ -1,5 +1,9 @@
 # 99 本次验证记录
 
+## 原始 Qwen3.5 独立基线验证
+
+70 改为仅分发到独立的 71/72/73 脚本；原始多模态 Qwen3.5 通过专用 `base_qwen35` 加载器提取文本主干，不调用 Plain SFT 模型加载器。针对性 CPU 回归 15 项通过，覆盖真实 tiny 多模态权重加载、拒绝 adapter 和 SFT 文本布局、屏蔽 Plain 加载器时三类 agent 生成分支仍工作、四条脚本路由、Hotpot 官方评分、OpenSeeker 评分防覆盖、独立结果目录及多 worker 模型来源透传。原有及相关评测组合回归 107 项通过，包含 2 条 tiny PEFT 保存提示和 6 条上游模板转义警告。未加载真实 4B 权重、未训练、未请求在线服务，也未进行真实 GPU/全量语料基准评测。
+
 ## 文档分类整理验证
 
 文档按 common、data、plain、baseline、beacon、benchmark、report、tools、architecture、project 分类，保留 `docs/00_index.md` 和原有编号。已检查 162 个本地 Markdown 链接和 27 处明确的仓库文档路径，未发现失效路径；shell 语法和 diff 空白检查通过。相关 Plain 工作流与统一协议 CPU 回归 25 项通过，tiny PEFT 有两条既有保存提示；未执行真实训练或模型评测。

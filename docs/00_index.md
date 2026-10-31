@@ -26,6 +26,7 @@
 | [21 Plain 完整实验指南](plain/21_plain_experiment_guide.md) | OpenSeeker 训练与诊断、BrowseComp 在线及 BrowseComp-Plus / Hotpot 离线数据、生成、评分与归档 |
 | [22 原始基座与 adapter 对照](baseline/22_qwen35_baseline_and_adapter.md) | 21 直接测试 Plain adapter；原始 Qwen3.5-4B 四条基准路线、参数和复读诊断 |
 | [23 Plain / Beacon 解码与重复惩罚](common/23_decoding.md) | 贪心、采样、压缩后可见历史、重复惩罚、随机种子和各 benchmark 参数 |
+| [24 原始 Qwen3.5 独立基线](baseline/24_qwen35_base_benchmark.md) | 独立模型加载、各基准脚本、数据与评分、完整参数和对照 |
 | [30 Beacon](beacon/30_beacon.md) | 压缩范围、损失、蒸馏与训练入口 |
 | [31 随机压缩](beacon/31_random_compression.md) | fixed/random 模式、候选数组、采样粒度与多卡行为 |
 | [32 Beacon 完整实验指南](beacon/32_beacon_experiment_guide.md) | 按实验顺序：环境、数据、筛选、计划、训练、合并、在线/离线评测与归档 |
@@ -62,7 +63,7 @@ Shell 脚本按功能分目录，保留全局唯一的历史编号，方便文�
 | `scripts/sh/beacon/` | Beacon 训练、评测、合并和显存 | `30_beacon_train.sh`、`31_beacon_eval.sh`、`35_beacon_merge_adapter.sh`、`37_beacon_memory_probe.sh`、`38_beacon_4xa800.sh` |
 | `scripts/sh/report/` | HTML、指标汇总和图表 | `40_dataset_html.sh`、`41_predictions_html.sh`、`42_summarize_results.sh`、`43_export_excel.sh`、`44_plot.sh`、`45_report.sh` |
 | `scripts/sh/benchmark/` | 在线与离线基准 | `46_prepare_benchmark.sh`、`47_openseeker_benchmark.sh`、`48_serve_checkpoint.sh`、`49_benchmark_env.example.sh`、`56_browsecomp_plus.sh`、`57_hotpotqa_offline.sh`、共享 `58_offline_common.sh` |
-| `scripts/sh/baseline/` | 原始模型对照评测 | `70_qwen35_base_eval.sh`，通过 TARGET 选择四条评测路线 |
+| `scripts/sh/baseline/` | 原始模型独立评测 | `70_qwen35_base_eval.sh` 总入口；71 OpenSeeker、72 在线 BrowseComp、73 离线基准 |
 
 22—25、32—34 为保留的 Search-R1 入口，其数据不随本次迁移，需要另行准备。`scripts/py/` 保留参数接口便于自动化；日常运行优先修改 shell 顶部变量。
 

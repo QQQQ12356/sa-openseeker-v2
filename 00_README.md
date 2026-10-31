@@ -30,6 +30,8 @@ DRY_RUN=1 bash scripts/sh/benchmark/47_openseeker_benchmark.sh  # 审查官方 B
 
 OpenSeeker 的 21 入口支持直接评测 Plain LoRA adapter；原始 Qwen3.5-4B 在 OpenSeeker、在线 BrowseComp、离线 BrowseComp-Plus 和 HotpotQA 的基线入口及对照方法见 [22](docs/baseline/22_qwen35_baseline_and_adapter.md)。
 
+原始 Qwen3.5 基线有独立加载器及 70–73 脚本，不调用 Plain 训练模型的加载脚本；详细操作和参数见 [24 独立基线实验指南](docs/baseline/24_qwen35_base_benchmark.md)。
+
 Plain / Beacon native 的贪心与重复惩罚、Plain 采样和生成种子配置见 [23](docs/common/23_decoding.md)，默认保留原有贪心且不惩罚重复。
 
 现有原始 v3 数据（train/validation/test=644/9/11）、43 条约 64k 的显存测试数据和数据 HTML 保留，可用于当前流程，详情见 [数据说明](docs/data/10_data.md) 与 [验证记录](docs/project/99_validation.md)。当前保留原始 system 的统一流程全量回归为 **564 通过、2 项跳过**，详细命令和边界见验证记录。

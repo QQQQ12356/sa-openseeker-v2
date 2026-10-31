@@ -77,13 +77,23 @@ def run_phase(args, output, rows, manifest):
     verify_index(args, manifest)
     from search_comp.evaluation.tool_agent import ModelGenerator, run_agent
     from search_comp.models.model_loader import load_beacon_model, load_tokenizer
-    from search_comp.models.plain_qwen3 import load_sft_model
 
     print(f"[offline] loading {kind} checkpoint={model_path}; questions={len(rows)}", flush=True)
     tokenizer = load_tokenizer(model_path)
-    model = (load_beacon_model if kind == "beacon" else load_sft_model)(model_path)
+    if getattr(args, 'model_origin', 'checkpoint') == 'base-qwen35':
+        if kind != 'plain':
+            raise ValueError('Qwen3.5 baseline requires kind=plain')
+        from search_comp.models.base_qwen35 import load_base_qwen35
+        model = load_base_qwen35(model_path)
+    elif kind == 'beacon':
+        model = load_beacon_model(model_path)
+    else:
+        from search_comp.models.plain_qwen3 import load_sft_model
+        model = load_sft_model(model_path)
     model.eval()
     generate = ModelGenerator(model, tokenizer, kind == "beacon", **generation_options)
+    if getattr(args, 'model_origin', 'checkpoint') == 'base-qwen35':
+        generate.metadata.update(model_origin='base-qwen35', base_model_path=model_path)
     statuses = Counter()
     start = time.monotonic()
     print(f"[offline {args.benchmark}] done=0/{len(rows)}", flush=True)
@@ -305,6 +315,7 @@ def make_parser():
     parser.add_argument("--prompt-data", type=Path,
                         help="training JSONL providing original system/tools; default: RUN_DIR train_data_path or Polar profile")
     parser.add_argument("--model")
+    parser.add_argument("--model-origin", choices=['checkpoint', 'base-qwen35'], default='checkpoint')
     parser.add_argument("--kind", choices=["plain", "beacon"])
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--predictions", type=Path)
