@@ -1,0 +1,9 @@
+# Linux NVIDIA serving environment, separate from search-comp-qwen35-cu126.
+# Create with conda, then install requirements.serve-sglang.txt as documented in
+# docs/plain/48_sglang_deployment.md. CUDA/driver compatibility must be checked first.
+name: search-comp-sglang
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip

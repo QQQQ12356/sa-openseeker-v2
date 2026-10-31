@@ -49,3 +49,5 @@ Beacon 训练支持固定/随机压缩比：修改 `30_beacon_train.sh` 内 `bea
 Plain 四卡长轨迹训练：`ACTION=plan bash scripts/sh/plain/28_plain_4xa800.sh` 审查配置，实际训练去掉 `ACTION=plan`。参数统一在 `20_plain_train.sh`；分块 loss、激活卸载及限制见 [20 Plain](docs/plain/20_plain.md)。
 
 各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](docs/benchmark/46_benchmark_scripts.md)。
+
+Plain checkpoint 的独立 Conda 环境（`search-comp-sglang`）、SGLang 安装、架构兼容检查、单卡/多卡服务启动与联调见 [48 部署手册](docs/plain/48_sglang_deployment.md)。Qwen3.5 纯文本训练产物需要单独验证后端兼容性。

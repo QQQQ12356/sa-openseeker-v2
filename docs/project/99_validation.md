@@ -1,5 +1,11 @@
 # 99 本次验证记录
 
+## Plain SGLang 独立服务环境与部署文档（2026-10-31）
+
+新增 `environment.serve-sglang.yml`、`requirements.serve-sglang.txt` 和 [48 部署手册](../plain/48_sglang_deployment.md)。48 Shell 默认查找 `search-comp-sglang`，新增 HOST 环境变量及 DRY_RUN 二值检查；未改变服务 Python 实现。核对 SGLang 0.5.23 官方包元数据、架构注册源码与 NVIDIA 驱动兼容资料，明确 Qwen3.5 纯文本训练产物的后端兼容性未完成实测。
+
+实际检查：48 的 bash 语法、文档所有 bash/Python 示例语法、Conda YAML 结构和 diff 空白检查通过；使用临时配置目录验证 dry-run 的空格路径、不同工作目录、host/port/TP/context 参数、无写入，以及非法 DRY_RUN 和 Beacon 拒绝；已有 checkpoint/训练实验路径解析回归 2 项通过。全库本地 Markdown 文件链接检查通过。没有创建 Conda 环境、安装 SGLang/CUDA、启动真实服务、加载完整模型或运行训练；依赖配置是安装基线，不是 GPU 实测环境锁。
+
 ## Benchmark 分方案独立入口验证（2026-10-31）
 
 Plain/Beacon 各新增独立在线 47、离线 56/57 入口并固定 KIND；Plain 服务 48 移至 plain；benchmark 只保留公共数据准备、API 示例及离线参数映射。Baseline 新增固定数据集的 74/75，70 已调整分发，73 保留共享配置与兼容入口。Python 训练、推理和评分实现未修改。入口与变量说明见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。

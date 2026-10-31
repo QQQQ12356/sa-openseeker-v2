@@ -301,3 +301,5 @@ LIMIT=2 ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
 | 7 | 检查轨迹、评分和覆盖，保存实验条件与结果 |
 
 Plain 专属 Benchmark 入口：`47_plain_browsecomp.sh`（在线）、`56_plain_browsecomp_plus.sh`、`57_plain_hotpotqa.sh`（离线），均位于 `scripts/sh/plain/`。27 工作流已分发到这些脚本。完整变量、运行示例和路径迁移见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。
+
+Plain checkpoint 的独立 Conda 环境（`search-comp-sglang`）、SGLang 安装、架构兼容检查、单卡/多卡服务启动与联调见 [48 部署手册](48_sglang_deployment.md)。Qwen3.5 纯文本训练产物需要单独验证后端兼容性。

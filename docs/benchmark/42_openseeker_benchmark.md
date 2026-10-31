@@ -287,3 +287,5 @@ native 的 max_tokens 是每轮生成上限，max_turns 是轮数，不等于官
 56 BrowseComp-Plus 和 57 HotpotQA 已完整接入数据适配、持久化 BM25 与本地评分。它们不读取 49 的 API 配置，且不通过 47 的在线 search/visit 运行。BCP 完整评分使用本地裁判，Hotpot 使用无需 LLM 的官方 EM/F1。离线流程参数、准备与比较边界见 [43 离线手册](43_offline_benchmarks.md)。
 
 各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](46_benchmark_scripts.md)。
+
+Plain checkpoint 的独立 Conda 环境（`search-comp-sglang`）、SGLang 安装、架构兼容检查、单卡/多卡服务启动与联调见 [48 部署手册](../plain/48_sglang_deployment.md)。Qwen3.5 纯文本训练产物需要单独验证后端兼容性。

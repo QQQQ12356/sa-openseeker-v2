@@ -106,3 +106,5 @@ python -m scripts.check_train_environment
 - [DeepSpeed 0.15.0 CUDA 检查源码](https://github.com/deepspeedai/DeepSpeed/blob/v0.15.0/op_builder/builder.py)
 - [PyTorch 官方历史版本安装命令](https://pytorch.org/get-started/previous-versions/#v270)
 - [Transformers 5.9.0 依赖声明](https://github.com/huggingface/transformers/blob/v5.9.0/setup.py)
+
+Plain checkpoint 的独立 Conda 环境（`search-comp-sglang`）、SGLang 安装、架构兼容检查、单卡/多卡服务启动与联调见 [48 部署手册](../plain/48_sglang_deployment.md)。Qwen3.5 纯文本训练产物需要单独验证后端兼容性。

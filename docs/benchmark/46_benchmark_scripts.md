@@ -249,15 +249,16 @@ Plain/Beacon 离线脚本默认 `ACTION=all`，Baseline 默认 `ACTION=run`，�
 
 ### Plain 模型服务
 
-配置源：`scripts/sh/plain/48_serve_checkpoint.sh`。
+配置源：`scripts/sh/plain/48_serve_checkpoint.sh`。完整服务安装与兼容性说明见 [48 部署手册](../plain/48_sglang_deployment.md)。
 
 | 变量 | 默认值 | 说明与修改提示 |
 |---|---|---|
 | `PYTHON` | `空` | Python 可执行文件的绝对路径；留空自动寻找环境。 |
-| `CONDA_ENV` | `search-comp-qwen35-cu126` | 自动寻找的 Conda 环境名；PYTHON 显式可执行路径优先。 |
+| `CONDA_ENV` | `search-comp-sglang` | 自动寻找的 Conda 环境名；PYTHON 显式可执行路径优先。 |
 | `RUN_DIR` | `空` | 训练实验目录；Baseline 仅选择提示/数据。 |
 | `MODEL_PATH` | `空` | 完整本地模型路径，覆盖 RUN_DIR 自动选择。 |
 | `CUDA_VISIBLE_DEVICES` | `0` | 可见 GPU 编号列表，例如 0,1；只影响实际运行。 |
+| `HOST` | `127.0.0.1` | 监听地址；跨节点设 0.0.0.0，客户端填真实节点名/IP。 |
 | `TP_SIZE` | `1` | Plain 服务张量并行卡数。 |
 | `PORT` | `30018` | Plain completion 服务端口。 |
 | `CONTEXT_LENGTH` | `131072` | Plain 服务最大上下文长度。 |

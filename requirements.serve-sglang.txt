@@ -1,0 +1,5 @@
+# Serving only; do not combine with requirements.txt or requirements.train-cu126.txt.
+# Verified against upstream package metadata, not a GPU-tested environment lock.
+# Install with uv --prerelease=allow; see docs/plain/48_sglang_deployment.md.
+# This release's dependencies use CUDA 13; let SGLang select torch/transformers.
+sglang==0.5.23

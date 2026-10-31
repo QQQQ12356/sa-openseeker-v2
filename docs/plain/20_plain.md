@@ -57,3 +57,5 @@ OOM 时每个失败 rank 写 `failure_rank<N>.json` 后退出，不自动丢弃�
 
 CPU 回归：`python -m pytest tests/test_plain_memory.py -q`，覆盖 loss / 梯度对齐、
 LoRA 梯度累积、验证、保存加载和两进程 Gloo 同步；不代表四卡 A800 的实际显存测量。
+
+Plain checkpoint 的独立 Conda 环境（`search-comp-sglang`）、SGLang 安装、架构兼容检查、单卡/多卡服务启动与联调见 [48 部署手册](48_sglang_deployment.md)。Qwen3.5 纯文本训练产物需要单独验证后端兼容性。

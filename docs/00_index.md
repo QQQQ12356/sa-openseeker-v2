@@ -49,6 +49,7 @@
 | [66 多卡实现细节](tools/66_distributed_details.md) | 设备绑定、DeepSpeed、日志和保存约定 |
 | [67 环境细节](tools/67_environment_details.md) | 安装、兼容性及服务器环境 |
 | [46 Benchmark 独立脚本](benchmark/46_benchmark_scripts.md) | 三方案入口、一键运行、全部变量、配置优先级与修改提示 |
+| [48 Plain 服务部署](plain/48_sglang_deployment.md) | 独立 Conda、SGLang/CUDA、模型架构核验、启动与 completion 联调 |
 | [90 迁移](project/90_migration.md) | 来源、目录重组、保留范围与入口映射 |
 | [99 验证](project/99_validation.md) | 本次实际检查、结果和未实测范围 |
 
@@ -74,3 +75,5 @@ Plain 21 和 Beacon 31 分别独立调用通用 Python 评测器，不能通过 
 Benchmark 流程按职责分目录：benchmark/46 准备官方代码与 BrowseComp，plain/47 与 beacon/47 在线生成及官方裁判，plain/48 部署训练后的 Plain checkpoint，benchmark/49 是私有 API 配置示例。详见 [42 说明](benchmark/42_openseeker_benchmark.md)。
 
 各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](benchmark/46_benchmark_scripts.md)。
+
+Plain checkpoint 的独立 Conda 环境（`search-comp-sglang`）、SGLang 安装、架构兼容检查、单卡/多卡服务启动与联调见 [48 部署手册](plain/48_sglang_deployment.md)。Qwen3.5 纯文本训练产物需要单独验证后端兼容性。
