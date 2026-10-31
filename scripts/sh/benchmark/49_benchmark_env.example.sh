@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 49 Benchmark API 配置示例；完整说明：docs/42_openseeker_benchmark.md 的 42.3。
+# 49 Benchmark API 配置示例；完整说明：docs/benchmark/42_openseeker_benchmark.md 的 42.3。
 # 复制到仓库外的私有路径，填写后：ENV_FILE=/private/path/env.sh bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 # ${VAR:-默认值} 表示已有非空环境变量优先；也可在私有文件改用 export VAR='实际值'。
 # YOUR_... 都是占位符；只需替换当前模式使用的变量组。

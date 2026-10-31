@@ -1,5 +1,5 @@
 # Linux x86_64. Install Python packages separately, in the order documented in
-# docs/training_environment.md (torch must precede DeepSpeed / causal-conv1d).
+# docs/tools/67_environment_details.md (torch must precede DeepSpeed / causal-conv1d).
 name: search-comp-qwen35-cu126
 channels:
   - nvidia/label/cuda-12.6.3

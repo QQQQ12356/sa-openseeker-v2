@@ -1,5 +1,9 @@
 # 99 本次验证记录
 
+## 文档分类整理验证
+
+文档按 common、data、plain、baseline、beacon、benchmark、report、tools、architecture、project 分类，保留 `docs/00_index.md` 和原有编号。已检查 162 个本地 Markdown 链接和 27 处明确的仓库文档路径，未发现失效路径；shell 语法和 diff 空白检查通过。相关 Plain 工作流与统一协议 CPU 回归 25 项通过，tiny PEFT 有两条既有保存提示；未执行真实训练或模型评测。
+
 ## Beacon 压缩后可见历史重复惩罚验证
 
 Beacon native 支持 `REPETITION_PENALTY`，按未压缩的输入 token 和生成 token 计算，不把压缩正文或 Beacon 虚拟状态作为普通词表 token。CPU 回归 105 项通过，覆盖 Qwen3/Qwen3.5、append/intersect、可见与压缩 token、生成及增量缓存、缓存重置、默认系数输出一致和与 HF 正负 logits 规则的对照；tiny PEFT 有两条既有保存提示。另对问题记忆、随机压缩和续写执行 79 项通过、2 项跳过。31/47/57 的参数传递或 dry-run、shell 语法和 diff 检查通过。没有运行真实 GPU 训练、4B 推理或在线 benchmark，实际性能与质量尚待目标服务器测试。
@@ -34,7 +38,7 @@ Shell 按 common、tools、data、plain、beacon、report、benchmark 分类，�
 | Python / shell | compileall 与全部 bash -n 通过 | 本次终端检查 |
 | Python 薄入口 | 13 个非 GPU 入口的 --help 导入和参数检查通过 | 本次终端检查；不执行 03 GPU 探针 |
 | 四卡计划 | Plain 与 Beacon 均生成 torchrun 4 进程、ZeRO-2 命令，支持仅训练集与空 validation | `outputs/reports/verification/plans.json`；使用临时数据，只执行 plan |
-| 核心保留 | 按用户要求精简重复配置后，保留源 search_comp/configs/tests 中 109 个文件，77 个逐字节一致；保留全部核心算法与测试 | `docs/90_core_inventory.json` |
+| 核心保留 | 按用户要求精简重复配置后，保留源 search_comp/configs/tests 中 109 个文件，77 个逐字节一致；保留全部核心算法与测试 | `docs/project/90_core_inventory.json` |
 | 原始数据迁移 | 4 个文件、6,763,061,538 bytes，源/目标 SHA256 全部一致 | `outputs/reports/verification/raw_copy.json` |
 | 快照语义校验 | 官方快照与可读 JSONL 的 11,677 个 JSON 对象逐条一致 | `outputs/reports/snapshot_verification.json` |
 | 协议移除 | 核心代码、脚本、配置、测试和维护文档无旧追加答案标签/配置/提取逻辑 | 本次全文检索 |
@@ -55,7 +59,7 @@ CUDA/NCCL、实际四卡训练、目标服务器 CPUAdam 编译、4B 模型显�
 
 双进程 CPU/Gloo tiny 模型完成 2 个 optimizer steps、每步累积 2 个 micro-batch，实际采样到 2 和 4 两种比例；各 rank 结束后的 LoRA 参数逐位同步，checkpoint/final adapter 保存成功。日志及逐 rank 比例在 `outputs/reports/verification/random_compression_ddp.log` 与 `random_compression_ddp/ratios_rank*.json`。测试显式设置 ACCELERATE_USE_CPU=true 及空 GPU 可见列表；不加载真实模型权重，不在 GPU 上训练。
 
-30/37 两个一键入口均实际以 ACTION=plan、COMPRESSION_MODE=random、候选 [4,8,16] 生成四卡 ZeRO-2 命令与配置快照，未执行训练。索引见 `outputs/reports/verification/random_compression_plans.json`。当前默认仍为 fixed；正式切换只需修改脚本顶部变量。新增说明见 [31 随机压缩](31_random_compression.md)。
+30/37 两个一键入口均实际以 ACTION=plan、COMPRESSION_MODE=random、候选 [4,8,16] 生成四卡 ZeRO-2 命令与配置快照，未执行训练。索引见 `outputs/reports/verification/random_compression_plans.json`。当前默认仍为 fixed；正式切换只需修改脚本顶部变量。新增说明见 [31 随机压缩](../beacon/31_random_compression.md)。
 
 ## 2026-10-28 官方 Benchmark 增量验证
 
@@ -68,7 +72,7 @@ CUDA/NCCL、实际四卡训练、目标服务器 CPUAdam 编译、4B 模型显�
 - 用未经修改的官方 `eval/eval.py` 和本地 OpenAI 兼容模拟裁判跑通真实评分请求，验证 temperature=0、skip_special_tokens=False、A/B 解析、v2 boxed 问题匹配与结果审计。两条合成题得到 1 对/1 错，仅为协议测试，**不是 BrowseComp 模型成绩**。记录：`outputs/reports/verification/official_benchmark_smoke/`。
 - 官方 v1/v2 生成脚本的 `--help`、新增入口的 dry-run、Python 编译、shell 语法和 diff 空白检查通过。
 
-未执行真实训练、真实 checkpoint 在线生成、GPU SGLang 部署、真实外部搜索/visit/E2B 或付费裁判。实际成绩需要训练后的 checkpoint、支持目标模型的服务环境、搜索/摘要/裁判 API 配置。native 的完整模型和真实工具联调仍待用户在目标环境执行；它的序列化、解码与预算差异在 [42](42_openseeker_benchmark.md) 中明确说明。
+未执行真实训练、真实 checkpoint 在线生成、GPU SGLang 部署、真实外部搜索/visit/E2B 或付费裁判。实际成绩需要训练后的 checkpoint、支持目标模型的服务环境、搜索/摘要/裁判 API 配置。native 的完整模型和真实工具联调仍待用户在目标环境执行；它的序列化、解码与预算差异在 [42](../benchmark/42_openseeker_benchmark.md) 中明确说明。
 
 ## 2026-10-28 固定语料离线 Benchmark 验证
 
@@ -82,7 +86,7 @@ CUDA/NCCL、实际四卡训练、目标服务器 CPUAdam 编译、4B 模型显�
 - 已生成可查看的小样本持久化索引与评分产物：`outputs/reports/verification/offline_benchmarks_smoke/`。00_scope.json 明确标注其为**合成协议样本**；其中 Hotpot 执行真实官方指标，BCP 使用真实 qrels/prompt/parser 和模拟裁判。任何其中的正确率都不是实际模型基准成绩。
 - reference 文件与对应固定提交的官方源逐字节一致，许可证和 00_provenance.json 随代码保留；未提交问题明文、corpus、权重、索引或日志。
 
-未下载完整 GB 级 corpus、未完成 fullwiki 全量索引、未加载真实训练 checkpoint 或 Qwen3-32B 裁判，也未测量真实 GPU 显存/吞吐。历史 CMU dev 下载主机在本环境解析失败，代码提供官方 HF fullwiki validation 备选和显式镜像地址；HF 与 Stanford 全量资源下载需在目标联网准备环境执行。完整参数和复现步骤见 [43](43_offline_benchmarks.md)，固定来源和授权见 [44](44_offline_sources.md)。
+未下载完整 GB 级 corpus、未完成 fullwiki 全量索引、未加载真实训练 checkpoint 或 Qwen3-32B 裁判，也未测量真实 GPU 显存/吞吐。历史 CMU dev 下载主机在本环境解析失败，代码提供官方 HF fullwiki validation 备选和显式镜像地址；HF 与 Stanford 全量资源下载需在目标联网准备环境执行。完整参数和复现步骤见 [43](../benchmark/43_offline_benchmarks.md)，固定来源和授权见 [44](../benchmark/44_offline_sources.md)。
 
 补充使用本地保存的 tiny 随机 Qwen3 checkpoint，真实运行 LocalJudge 的 HF tokenizer/chat template/权重加载与 generate，并验证裁判上下文超限处理；该测试不下载权重，也不代表真实裁判的判题质量。Hotpot 独立 score 另在仅标准库的 Python 路径下完成小样本验证，无需导入 torch、Transformers 或 pyarrow。
 
@@ -99,12 +103,12 @@ CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=1 python -m pytest -q \
 
 结果：101 passed、6 skipped；PEFT 小模型保存测试有一条缺少基础模型配置的预期 warning。新测试比对重计算开关前后的 loss、全部梯度和最终记忆，覆盖两类模型、whole/window、offload开关和冻结embedding。未运行两进程DDP更新或DeepSpeed训练；本次多卡验证限于启动参数、设备配置逻辑及相关单元测试。
 
-`bash -n` 检查30/37/38脚本通过，`git diff --check` 通过。38的 `ACTION=plan` 验证仅归档配置并输出四进程ZeRO-2启动命令，不加载模型、不执行该命令。目标服务器的真实80 GB显存峰值、CPU内存、NCCL和融合算子组合尚未实测；按 [52](52_beacon_oom.md) 和 [51](51_memory_probe.md) 验收。
+`bash -n` 检查30/37/38脚本通过，`git diff --check` 通过。38的 `ACTION=plan` 验证仅归档配置并输出四进程ZeRO-2启动命令，不加载模型、不执行该命令。目标服务器的真实80 GB显存峰值、CPU内存、NCCL和融合算子组合尚未实测；按 [52](../beacon/52_beacon_oom.md) 和 [51](../tools/51_memory_probe.md) 验收。
 
 
 ## 2026-10-30 保留原始 system，测试复用训练提示
 
-本节记录保留原始 system 的验收结果。数据协议为 `openseeker-chatml-v3-original-answer`，保留每条训练记录 system；独立 tools 只在输入渲染时补充。native 使用 PROMPT_DATA > RUN_DIR 训练文件 > 内置原始 Polar profile；离线只调整必要的工具描述、能力和格式。详见 [45](45_unified_agent_flow.md)。
+本节记录保留原始 system 的验收结果。数据协议为 `openseeker-chatml-v3-original-answer`，保留每条训练记录 system；独立 tools 只在输入渲染时补充。native 使用 PROMPT_DATA > RUN_DIR 训练文件 > 内置原始 Polar profile；离线只调整必要的工具描述、能力和格式。详见 [45](../common/45_unified_agent_flow.md)。
 
 完整回归：**564 passed、2 skipped、9 warnings，85.90 秒**。环境仍为项目 search-comp-qwen3.5；日志为 `outputs/reports/verification/original_system_pytest.log`，没有覆盖上一版日志。命令：
 
@@ -131,7 +135,7 @@ OMP_NUM_THREADS=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
 
 ## 2026-10-30 Beacon 完整实验指南与流程整理
 
-新增 [32 Beacon 完整实验指南](32_beacon_experiment_guide.md)，按环境、数据准备/筛选、配置与 plan、训练、合并、少量诊断、离线/在线基准、结果审查的顺序给出命令、参数、阅读路径和每步完成条件。README、文档索引、30、45 已接入该指南。已删除不再使用的数据协议专项分支、迁移历史段落和对应专用测试断言；现行数据仍保留原始 system，使用原有数据格式。
+新增 [32 Beacon 完整实验指南](../beacon/32_beacon_experiment_guide.md)，按环境、数据准备/筛选、配置与 plan、训练、合并、少量诊断、离线/在线基准、结果审查的顺序给出命令、参数、阅读路径和每步完成条件。README、文档索引、30、45 已接入该指南。已删除不再使用的数据协议专项分支、迁移历史段落和对应专用测试断言；现行数据仍保留原始 system，使用原有数据格式。
 
 验证结果：
 

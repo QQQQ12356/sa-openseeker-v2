@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 原始 Qwen3.5-4B 基线：复用训练模型的 OpenSeeker 协议与 benchmark。
 # TARGET=openseeker|browsecomp|browsecomp-plus|hotpotqa；ACTION 依目标而定。
-# 完整参数和数据准备见 docs/22_qwen35_baseline_and_adapter.md。
+# 完整参数和数据准备见 docs/baseline/22_qwen35_baseline_and_adapter.md。
 set -euo pipefail
 TARGET="${TARGET:-openseeker}"
 ACTION="${ACTION:-run}"

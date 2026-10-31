@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 57 HotpotQA dev + 官方 2017 Wikipedia 摘要语料 + 持久化 BM25 + 官方 EM/F1。
-# 修改下方参数或设置同名环境变量，直接运行；详见 docs/43_offline_benchmarks.md。
+# 修改下方参数或设置同名环境变量，直接运行；详见 docs/benchmark/43_offline_benchmarks.md。
 set -euo pipefail
 BENCHMARK="hotpotqa"
 ACTION="${ACTION:-all}"                # download / prepare / index / run / score / all

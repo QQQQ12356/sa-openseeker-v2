@@ -2,7 +2,7 @@
 
 本文按实际实验顺序组织，以 **OpenSeeker Polar + Qwen3.5-4B + Plain + LoRA** 为基线，训练后分别在 OpenSeeker 留出轨迹、在线 BrowseComp、离线 BrowseComp-Plus 和 HotpotQA 上评测。Plain 使用完整上下文，不进行 Beacon 压缩。本文命令需要在项目根目录执行；真实训练和评测需在有相应资源的目标服务器执行。
 
-复读诊断可通过 `DECODING`、`REPETITION_PENALTY` 等变量设置 Plain native 推理策略；默认保持贪心且不惩罚，完整参数和对照见 [23](23_decoding.md)。
+复读诊断可通过 `DECODING`、`REPETITION_PENALTY` 等变量设置 Plain native 推理策略；默认保持贪心且不惩罚，完整参数和对照见 [23](../common/23_decoding.md)。
 
 ## 21.1 流程与数据边界
 
@@ -46,7 +46,7 @@ bash scripts/sh/tools/59_check_agent_alignment.sh
 bash scripts/sh/tools/03_check_environment.sh
 ```
 
-新环境安装和资源条件见 [01](01_environment.md)、[67](67_environment_details.md)。训练需要完整模型权重，数据预处理只加载 tokenizer。默认模型是 `Qwen/Qwen3.5-4B`；如果改成本地路径，prepare 的 `MODEL_NAME` 与 20 脚本 YAML 的 `models.qwen35` 必须使用同一身份字符串。模型支持的上下文、GPU 和主机内存需要在目标机器验证。
+新环境安装和资源条件见 [01](../common/01_environment.md)、[67](../tools/67_environment_details.md)。训练需要完整模型权重，数据预处理只加载 tokenizer。默认模型是 `Qwen/Qwen3.5-4B`；如果改成本地路径，prepare 的 `MODEL_NAME` 与 20 脚本 YAML 的 `models.qwen35` 必须使用同一身份字符串。模型支持的上下文、GPU 和主机内存需要在目标机器验证。
 
 ## 21.3 OpenSeeker 数据准备
 
@@ -88,7 +88,7 @@ TARGET=openseeker ACTION=prepare bash scripts/sh/plain/27_plain_workflow.sh
 | VAL_FRACTION / TEST_FRACTION / SEED | 0.02 / 0.02 / 42 | 按问题分组划分；已有输入文件 split 名优先保留 |
 | WORKERS | 4 | CPU 分词进程数 |
 
-输出 `train.jsonl`、`validation.jsonl`、`test.jsonl`、`normalized.jsonl`、`measurements.jsonl`、`rejected.jsonl`、`manifest.json`。`normalized.jsonl` 可包含未入训练划分的超长或错误样本。需要观察筛选可运行 `13_filter_observations.sh 输入目录 新输出目录`；长度筛选需先编辑 `11_select.sh` 的参数，默认示例为约 32K，并非 16K 基线。使用 `40_dataset_html.sh` 抽查 system、问题、调用、观察与回答，见 [10](10_data.md)、[11](11_lengths.md)。Plain/Beacon 比较应选择同一数据目录与划分。
+输出 `train.jsonl`、`validation.jsonl`、`test.jsonl`、`normalized.jsonl`、`measurements.jsonl`、`rejected.jsonl`、`manifest.json`。`normalized.jsonl` 可包含未入训练划分的超长或错误样本。需要观察筛选可运行 `13_filter_observations.sh 输入目录 新输出目录`；长度筛选需先编辑 `11_select.sh` 的参数，默认示例为约 32K，并非 16K 基线。使用 `40_dataset_html.sh` 抽查 system、问题、调用、观察与回答，见 [10](../data/10_data.md)、[11](../data/11_lengths.md)。Plain/Beacon 比较应选择同一数据目录与划分。
 
 ## 21.4 配置并审查训练计划
 
@@ -117,9 +117,9 @@ CUDA_VISIBLE_DEVICES=0 TARGET=openseeker ACTION=plan bash scripts/sh/plain/27_pl
 CUDA_VISIBLE_DEVICES=0,1,2,3 NPROC_PER_NODE=4 ACTION=plan bash scripts/sh/plain/28_plain_4xa800.sh
 ```
 
-屏幕输出中记录绝对 `RUN_DIR` 和 `next`。检查 `source_config.yaml`、`train.yaml`、`experiment.json` 的数据、模型、长度、训练步数和指纹。`DISTRIBUTED_BACKEND` 可选 ddp、zero2、zero3，后者仅 Plain 支持，见 [50](50_multigpu.md)；显式 `NPROC_PER_NODE` 应与可见 GPU 数匹配。修改代码或数据后重新生成 plan。
+屏幕输出中记录绝对 `RUN_DIR` 和 `next`。检查 `source_config.yaml`、`train.yaml`、`experiment.json` 的数据、模型、长度、训练步数和指纹。`DISTRIBUTED_BACKEND` 可选 ddp、zero2、zero3，后者仅 Plain 支持，见 [50](../tools/50_multigpu.md)；显式 `NPROC_PER_NODE` 应与可见 GPU 数匹配。修改代码或数据后重新生成 plan。
 
-可选显存试验用 `12_select_memory_probe.sh` 和 `26_plain_memory_probe.sh`；它们默认约 64K / 5 步，并不比 16K 基线轻。先按 [51](51_memory_probe.md) 调整样本区间、数据路径和长度。实际试验会加载权重并反向，独立保存，不是 dry-run。
+可选显存试验用 `12_select_memory_probe.sh` 和 `26_plain_memory_probe.sh`；它们默认约 64K / 5 步，并不比 16K 基线轻。先按 [51](../tools/51_memory_probe.md) 调整样本区间、数据路径和长度。实际试验会加载权重并反向，独立保存，不是 dry-run。
 
 ## 21.5 训练及产物
 
@@ -158,7 +158,7 @@ DEVICE_MAP=cpu bash scripts/sh/plain/29_plain_merge_adapter.sh "$RUN_DIR/models/
 #   --output_path "$RUN_DIR/models/model/merged_step200"
 ```
 
-脚本从模型产物目录的 `resolved_config.json` 读取基座；缺失时额外提供 `--base_model_path`。需要足够 CPU 内存，目标目录非空时拒绝覆盖。手动合并不会更新旧 summary；测试显式设置 `MODEL_PATH="$RUN_DIR/models/model/final_recovered" KIND=plain`，并保留 `RUN_DIR` 以确定原训练数据和提示词。21 可直接挂载 Plain adapter 进行 OpenSeeker 评测；47/56/57 仍要求完整合并模型，详见 [22](22_qwen35_baseline_and_adapter.md)。
+脚本从模型产物目录的 `resolved_config.json` 读取基座；缺失时额外提供 `--base_model_path`。需要足够 CPU 内存，目标目录非空时拒绝覆盖。手动合并不会更新旧 summary；测试显式设置 `MODEL_PATH="$RUN_DIR/models/model/final_recovered" KIND=plain`，并保留 `RUN_DIR` 以确定原训练数据和提示词。21 可直接挂载 Plain adapter 进行 OpenSeeker 评测；47/56/57 仍要求完整合并模型，详见 [22](../baseline/22_qwen35_baseline_and_adapter.md)。
 
 ## 21.6 OpenSeeker 留出轨迹测试和打分
 
@@ -172,7 +172,7 @@ RUN_DIR="$RUN_DIR" SPLIT=test LIMIT=2 BACKEND=replay \
 TARGET=openseeker ACTION=run bash scripts/sh/plain/27_plain_workflow.sh
 ```
 
-21 的 `LIMIT` 为正整数，默认 100；`DATA` 可指定其他 JSONL，`SPLIT=train/validation/test` 默认 test。`MAX_CONTEXT=16384`、`MAX_NEW_TOKENS=8192`、`MAX_TOOL_TOKENS=16384`、`MAX_TURNS=32`；比较模型时保持一致。replay 只在动作精确匹配历史记录时返回观察，新查询出现 `replay_miss` 不能解释成真实搜索失败。自由查询可选 `BACKEND=corpus CORPUS=/path/to/corpus.jsonl` 或 `BACKEND=http ENDPOINT=...`，详见 [40](40_evaluation.md)。
+21 的 `LIMIT` 为正整数，默认 100；`DATA` 可指定其他 JSONL，`SPLIT=train/validation/test` 默认 test。`MAX_CONTEXT=16384`、`MAX_NEW_TOKENS=8192`、`MAX_TOOL_TOKENS=16384`、`MAX_TURNS=32`；比较模型时保持一致。replay 只在动作精确匹配历史记录时返回观察，新查询出现 `replay_miss` 不能解释成真实搜索失败。自由查询可选 `BACKEND=corpus CORPUS=/path/to/corpus.jsonl` 或 `BACKEND=http ENDPOINT=...`，详见 [40](../benchmark/40_evaluation.md)。
 
 21 打印 `predictions_*.jsonl` 和同名 `.metrics.json`。需要对已生成文件重新汇总时：
 
@@ -187,7 +187,7 @@ TARGET=openseeker ACTION=score bash scripts/sh/plain/27_plain_workflow.sh
 
 ## 21.7 HotpotQA 离线数据、生成与打分
 
-默认目录 `outputs/data/benchmarks/hotpotqa`。检查磁盘及 SQLite FTS5（见 [43](43_offline_benchmarks.md)）；下载需联网，后续阶段严格离线。原始数据或索引已存在时可复用，不重复 prepare：
+默认目录 `outputs/data/benchmarks/hotpotqa`。检查磁盘及 SQLite FTS5（见 [43](../benchmark/43_offline_benchmarks.md)）；下载需联网，后续阶段严格离线。原始数据或索引已存在时可复用，不重复 prepare：
 
 ```bash
 TARGET=hotpotqa ACTION=download bash scripts/sh/plain/27_plain_workflow.sh
@@ -213,7 +213,7 @@ TARGET=hotpotqa ACTION=score PREDICTIONS="$GEN_DIR/predictions.jsonl" LIMIT=8 \
 
 ## 21.8 BrowseComp-Plus 离线数据、生成与打分
 
-默认目录 `outputs/data/benchmarks/browsecomp-plus`，full corpus 需要较大磁盘，来源和准备细节见 [43](43_offline_benchmarks.md)、[44](44_offline_sources.md)。
+默认目录 `outputs/data/benchmarks/browsecomp-plus`，full corpus 需要较大磁盘，来源和准备细节见 [43](../benchmark/43_offline_benchmarks.md)、[44](../benchmark/44_offline_sources.md)。
 
 ```bash
 TARGET=browsecomp-plus ACTION=download bash scripts/sh/plain/27_plain_workflow.sh
@@ -260,7 +260,7 @@ mkdir -p "$HOME/.config/searchagent"
 cp scripts/sh/benchmark/49_benchmark_env.example.sh "$HOME/.config/searchagent/benchmark.env.sh"
 ```
 
-按 [42](42_openseeker_benchmark.md) 安装在线依赖并编辑私有文件，配置搜索 provider/key、Jina、摘要与裁判地址/key/model。native 不要求 OPENSEEKER 模型服务或 E2B；服务地址须从运行节点可达，真实 key 不写入仓库。
+按 [42](../benchmark/42_openseeker_benchmark.md) 安装在线依赖并编辑私有文件，配置搜索 provider/key、Jina、摘要与裁判地址/key/model。native 不要求 OPENSEEKER 模型服务或 E2B；服务地址须从运行节点可达，真实 key 不写入仓库。
 
 ```bash
 TARGET=browsecomp ACTION=run RUN_DIR="$RUN_DIR" LIMIT=2 DRY_RUN=1 \

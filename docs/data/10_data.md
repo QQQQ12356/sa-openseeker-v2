@@ -1,6 +1,6 @@
 # 10 Polar 数据处理与细粒度筛选
 
-当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
 
 原始数据位于 `outputs/data/raw/polar/`，包括原始快照目录和 `openseeker_v1_data.jsonl`。只从 `../sa-qwen-openseeker/outputs/data/raw/polar/` 复制这一份数据；不依赖源项目的派生数据。重新下载入口保留为 16，默认只下载 Polar，当前迁移无需运行下载。
 
@@ -53,4 +53,4 @@
 
 ## 独立离线 Benchmark 数据
 
-新增 BrowseComp-Plus 与 HotpotQA 的数据适配独立于 Polar 训练准备。56 使用官方 BCP 加密问题、独立 corpus 和 qrels；57 使用有标注 dev 与官方 2017 Wikipedia 摘要库，丢弃 dev 候选 context。结果、明文问题、规范化 corpus 与持久化索引都放在 outputs，不混入训练 split。首次下载与离线导入、字段映射和版本校验见 [43](43_offline_benchmarks.md)，来源和许可证见 [44](44_offline_sources.md)。
+新增 BrowseComp-Plus 与 HotpotQA 的数据适配独立于 Polar 训练准备。56 使用官方 BCP 加密问题、独立 corpus 和 qrels；57 使用有标注 dev 与官方 2017 Wikipedia 摘要库，丢弃 dev 候选 context。结果、明文问题、规范化 corpus 与持久化索引都放在 outputs，不混入训练 split。首次下载与离线导入、字段映射和版本校验见 [43](../benchmark/43_offline_benchmarks.md)，来源和许可证见 [44](../benchmark/44_offline_sources.md)。

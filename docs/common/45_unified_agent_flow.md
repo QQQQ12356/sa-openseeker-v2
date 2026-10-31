@@ -1,6 +1,6 @@
 # 45 保留原始 system 的 Plain / Beacon 统一训练与测试
 
-需要按顺序完成 Beacon 实验时，从 [32 完整实验指南](32_beacon_experiment_guide.md) 开始；本文解释提示词与协议实现。
+需要按顺序完成 Beacon 实验时，从 [32 完整实验指南](../beacon/32_beacon_experiment_guide.md) 开始；本文解释提示词与协议实现。
 
 ## 45.1 当前规则与适用范围
 

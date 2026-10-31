@@ -46,7 +46,7 @@ TEMPERATURE=0.8 TOP_P=0.95 GENERATION_SEED=42 \
   bash scripts/sh/plain/21_plain_eval.sh
 ```
 
-`RUN_DIR`/`MODEL_PATH`/`BASE_MODEL_PATH`/`TOKENIZER_PATH` 的完整规则见 [22](22_qwen35_baseline_and_adapter.md)。replay 只有生成动作与记录完全相同才返回工具观察，不适合作为自由搜索成绩；若研究后续工具循环，统一设置 `BACKEND=corpus CORPUS=/path/to/corpus.jsonl` 或 `BACKEND=http ENDPOINT=...`。建议先比较第一轮 assistant：若基座与 adapter 均在第一次工具调用前复读，工具返回不是该轮的直接触发因素。
+`RUN_DIR`/`MODEL_PATH`/`BASE_MODEL_PATH`/`TOKENIZER_PATH` 的完整规则见 [22](../baseline/22_qwen35_baseline_and_adapter.md)。replay 只有生成动作与记录完全相同才返回工具观察，不适合作为自由搜索成绩；若研究后续工具循环，统一设置 `BACKEND=corpus CORPUS=/path/to/corpus.jsonl` 或 `BACKEND=http ENDPOINT=...`。建议先比较第一轮 assistant：若基座与 adapter 均在第一次工具调用前复读，工具返回不是该轮的直接触发因素。
 
 ## 23.3 在线 BrowseComp 与离线 benchmark
 
@@ -73,7 +73,7 @@ BACKEND=replay DECODING=greedy REPETITION_PENALTY=1.1 \
   bash scripts/sh/beacon/31_beacon_eval.sh
 ```
 
-上述 benchmark 在生成前需准备数据、索引、已合并模型和对应服务，步骤见 [21](21_plain_experiment_guide.md)、[42](42_openseeker_benchmark.md)、[43](43_offline_benchmarks.md)。47 的 MODE=official-v1/v2 不接受非默认覆盖；47/56/57 不支持直接加载 adapter。21 的 LIMIT 为正数，47/56/57 用 -1 表示全量。评分阶段读取已有预测，不能用新解码参数改变已经生成的回答。
+上述 benchmark 在生成前需准备数据、索引、已合并模型和对应服务，步骤见 [21](../plain/21_plain_experiment_guide.md)、[42](../benchmark/42_openseeker_benchmark.md)、[43](../benchmark/43_offline_benchmarks.md)。47 的 MODE=official-v1/v2 不接受非默认覆盖；47/56/57 不支持直接加载 adapter。21 的 LIMIT 为正数，47/56/57 用 -1 表示全量。评分阶段读取已有预测，不能用新解码参数改变已经生成的回答。
 
 使用原始模型时，将相同的参数添加到 `TARGET=... ACTION=run BASE_CHECKPOINT=... bash scripts/sh/baseline/70_qwen35_base_eval.sh`；70 不使用训练后模型。跨模型对比时确保数据、模型 tokenizer、提示、工具、预算和解码一致。
 

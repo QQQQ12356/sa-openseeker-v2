@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 56 BrowseComp-Plus：修改下方参数或设置同名环境变量，直接运行。
-# ACTION=download 联网准备；其余阶段严格离线。完整说明见 docs/43_offline_benchmarks.md。
+# ACTION=download 联网准备；其余阶段严格离线。完整说明见 docs/benchmark/43_offline_benchmarks.md。
 set -euo pipefail
 BENCHMARK="browsecomp-plus"
 ACTION="${ACTION:-all}"                # download / prepare / index / run / score / all

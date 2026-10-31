@@ -1,6 +1,6 @@
 # 42 OpenSeeker 官方 Benchmark 对齐评测
 
-当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
 
 `PROMPT_DATA` / `--prompt-data` 指定原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 的 train_data_path，无两者时用内置原始 Polar profile。在线保留原文，离线仅适配必要能力和答案格式；多 system 必须显式选择单 profile，详情见 45。
 本入口在现有训练、EM/F1、replay/corpus/http 和 Search-R1 流程之外增量添加。原有代码和编号入口继续可用。默认选择论文报告的英文 **BrowseComp**，它需要真实在线搜索和网页访问，适合评估训练后的复杂检索能力。它与从 Polar 训练轨迹切出的 test 集不同，不能互相代替。
@@ -280,7 +280,7 @@ native 的 max_tokens 是每轮生成上限，max_turns 是轮数，不等于官
 
 已有输出目录一律拒绝覆盖，避免上游按 item_index 恢复评分时串用旧文件。修复 API 后用新目录重跑，或用原始预测文件走仅评分模式。官方 checkout 的源码修改或版本变化也会拒绝；升级时应修改固定提交、对齐测试和说明，再建立新实验。
 
-同一个 Benchmark、同一个模型也可能因搜索时间、供应商、摘要模型、裁判模型、解码默认值和上下文预算产生差异。Plain 的采样、Plain/Beacon 的重复惩罚范围见 [23](23_decoding.md)，官方模式不接受这些非默认覆盖。报告分数时同时报告这些配置、样本数量、覆盖率、MODE 和固定版本。不能只因接上官方脚本，就把本地结果称为已复现论文成绩。
+同一个 Benchmark、同一个模型也可能因搜索时间、供应商、摘要模型、裁判模型、解码默认值和上下文预算产生差异。Plain 的采样、Plain/Beacon 的重复惩罚范围见 [23](../common/23_decoding.md)，官方模式不接受这些非默认覆盖。报告分数时同时报告这些配置、样本数量、覆盖率、MODE 和固定版本。不能只因接上官方脚本，就把本地结果称为已复现论文成绩。
 
 ## 42.6 不依赖联网 API 的独立固定语料流程
 

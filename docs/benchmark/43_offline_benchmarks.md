@@ -1,9 +1,9 @@
 # 43 固定语料离线评测：BrowseComp-Plus 与 HotpotQA
 
-当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
 
 `PROMPT_DATA` / `--prompt-data` 指定原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 的 train_data_path，无两者时用内置原始 Polar profile。在线保留原文，离线仅适配必要能力和答案格式；多 system 必须显式选择单 profile，详情见 45。
-56/57 的 Plain 待测模型可配置贪心、采样与重复惩罚，Beacon 可配置贪心及压缩后可见历史上的重复惩罚；默认仍为贪心无惩罚，与本地裁判采样参数独立，详见 [23](23_decoding.md)。
+56/57 的 Plain 待测模型可配置贪心、采样与重复惩罚，Beacon 可配置贪心及压缩后可见历史上的重复惩罚；默认仍为贪心无惩罚，与本地裁判采样参数独立，详见 [23](../common/23_decoding.md)。
 本文是新增离线流程的操作手册。所有修改均为增量：原来的 21/31 EM/F1、47 在线 OpenSeeker、48 SGLang、Search-R1 和训练器继续保留。新增实现位于 `search_comp/offline/`，统一 Python 入口为 `scripts/py/52_offline_benchmark.py`，一键入口是 **56 BrowseComp-Plus** 和 **57 HotpotQA**。
 
 ## 43.1 两套基准的用途与边界
@@ -559,4 +559,4 @@ bash scripts/sh/tools/02_workflow.sh offline-benchmark score --benchmark hotpotq
   --root /scratch/hotpot_v1 --predictions /scratch/predictions.jsonl --limit 2
 ```
 
-本次验证范围及日志见 [99 验证记录](99_validation.md)。这里没有宣称已获得真实 checkpoint 的完整基准成绩；部署后的真实生成质量、GPU 显存和全量索引时间需要在目标机器测量。
+本次验证范围及日志见 [99 验证记录](../project/99_validation.md)。这里没有宣称已获得真实 checkpoint 的完整基准成绩；部署后的真实生成质量、GPU 显存和全量索引时间需要在目标机器测量。

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline fixed-corpus benchmark entry point; see docs/43_offline_benchmarks.md."""
+"""Offline fixed-corpus benchmark entry point; see docs/benchmark/43_offline_benchmarks.md."""
 import sys
 from pathlib import Path
 

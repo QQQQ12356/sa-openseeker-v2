@@ -21,15 +21,15 @@
 
 | 阶段 | 先读 | 何时再读补充文档 |
 |---|---|---|
-| 环境 | [01 环境](01_environment.md) | 多卡/CPUAdam 问题看 [67 环境细节](67_environment_details.md) |
-| 原始数据与预处理 | [10 数据](10_data.md) | 长度统计口径看 [11 长度](11_lengths.md) |
-| 提示词与协议 | [45 统一流程](45_unified_agent_flow.md) | 此文说明训练原 system 如何用于在线/离线测试 |
-| Beacon 训练 | [30 Beacon](30_beacon.md) | 随机比例看 [31](31_random_compression.md)，模型结构看 [60](60_architecture.md) |
-| 四卡/显存 | [50 多卡](50_multigpu.md) | 资源紧张时读 [51 显存探针](51_memory_probe.md)、[52 OOM](52_beacon_oom.md) |
-| 小样本工具诊断 | [40 评测](40_evaluation.md) | HTML 浏览看 [41](41_html.md) |
-| 固定语料离线测试 | [43 离线基准](43_offline_benchmarks.md) | 来源、版本与许可看 [44](44_offline_sources.md) |
-| 在线 BrowseComp | [42 在线 Benchmark](42_openseeker_benchmark.md) | API 与部署参数均在该文 |
-| 输出核对 | [99 验证记录](99_validation.md) | 这里的 CPU 回归结果不等于真实模型成绩 |
+| 环境 | [01 环境](../common/01_environment.md) | 多卡/CPUAdam 问题看 [67 环境细节](../tools/67_environment_details.md) |
+| 原始数据与预处理 | [10 数据](../data/10_data.md) | 长度统计口径看 [11 长度](../data/11_lengths.md) |
+| 提示词与协议 | [45 统一流程](../common/45_unified_agent_flow.md) | 此文说明训练原 system 如何用于在线/离线测试 |
+| Beacon 训练 | [30 Beacon](30_beacon.md) | 随机比例看 [31](31_random_compression.md)，模型结构看 [60](../architecture/60_architecture.md) |
+| 四卡/显存 | [50 多卡](../tools/50_multigpu.md) | 资源紧张时读 [51 显存探针](../tools/51_memory_probe.md)、[52 OOM](52_beacon_oom.md) |
+| 小样本工具诊断 | [40 评测](../benchmark/40_evaluation.md) | HTML 浏览看 [41](../report/41_html.md) |
+| 固定语料离线测试 | [43 离线基准](../benchmark/43_offline_benchmarks.md) | 来源、版本与许可看 [44](../benchmark/44_offline_sources.md) |
+| 在线 BrowseComp | [42 在线 Benchmark](../benchmark/42_openseeker_benchmark.md) | API 与部署参数均在该文 |
+| 输出核对 | [99 验证记录](../project/99_validation.md) | 这里的 CPU 回归结果不等于真实模型成绩 |
 
 首次实验只需沿正文主线走。62/63 蒸馏、64 线性状态消融、65 压缩分析是后续研究选项；22—25、32—34 等 Search-R1 **脚本**是另一条数据路线，不能混用本文的 OpenSeeker 数据协议。本文编号 32 是文档编号。
 

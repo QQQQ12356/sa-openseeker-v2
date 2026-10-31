@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Plain 分阶段入口；完整参数和执行顺序见 docs/21_plain_experiment_guide.md。
+# Plain 分阶段入口；完整参数和执行顺序见 docs/plain/21_plain_experiment_guide.md。
 # TARGET=openseeker ACTION=plan bash scripts/sh/plain/27_plain_workflow.sh
 # TARGET=hotpotqa ACTION=run RUN_DIR=/path/to/run LIMIT=8 bash scripts/sh/plain/27_plain_workflow.sh
 # browsecomp 是在线 BrowseComp；browsecomp-plus 是固定语料离线基准。

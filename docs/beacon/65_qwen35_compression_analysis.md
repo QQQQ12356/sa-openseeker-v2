@@ -18,7 +18,7 @@ Qwen3.5 的记录如下。EM/F1/格式列均为百分比；表中“训练集”
 两种压缩模型都备注为 LoRA-FT teacher、stage2 KL、保留 CE；文档压缩比均约 15.6–15.7，压缩载体数量的差异很小。
 
 - 从已训练模型初始化，train EM 提高 27 个百分点，test EM 提高 5 个百分点；test F1 提高约 5.05 个百分点。不能把训练集的巨大提升直接解释成泛化提升。
-- 测试格式正确率下降 21 个百分点，平均检索轮数增加 0.58。当前评测的“格式正确”主要指能够解析到闭合的 `<answer>...</answer>`，不是对所有搜索协议步骤的完整校验，见 [statistics.py](../search_comp/evaluation/statistics.py#L42)。必须查看逐题 stop reason，才能区分重复检索、用尽生成预算、未闭合标签或其他原因。
+- 测试格式正确率下降 21 个百分点，平均检索轮数增加 0.58。当前评测的“格式正确”主要指能够解析到闭合的 `<answer>...</answer>`，不是对所有搜索协议步骤的完整校验，见 [statistics.py](../../search_comp/evaluation/statistics.py#L42)。必须查看逐题 stop reason，才能区分重复检索、用尽生成预算、未闭合标签或其他原因。
 - 两行数据满足 `0.23 = 0.91 × 0.252747…`、`0.28 = 0.70 × 0.40`。按新模型的条件准确率作纯算术分解，条件准确率变化贡献约 +13.4 个百分点，格式覆盖下降贡献 −8.4 个百分点，净增 +5。两个条件子集不是同一批题，不能把这个分解解释为因果效应。
 - Qwen3.5 plain 测试是 1000 题，压缩测试是 100 题；未确认 sample IDs 之前，不能用 43%→28% 作为配对压缩损失。两种压缩实验是否使用完全相同的 100 题也需要核对。
 - `qwen3` sheet 第 4–7 行的所有结果、路径和备注，与 `qwen3.5` sheet 对应行相同，路径也写着 `qwen35`。因此它们不能作为独立 Qwen3 压缩实验的证据。Qwen3 plain 的 train/test EM 为 84%/47%，目前无法可靠比较两种架构对初始化的敏感程度。
@@ -28,11 +28,11 @@ Qwen3.5 的记录如下。EM/F1/格式列均为百分比；表中“训练集”
 
 **2. 当前实际执行的压缩流程。**
 
-[beacon_trainer.py](../search_comp/trainer/beacon_trainer.py#L154) 在读取配置后强制设置 `whole`、关闭 window、关闭子文档拆分、`keep_window=0`。一条轨迹仍按 keep / information / keep 依次计算，只是每个 information 完整处理。单纯覆盖旧 window 参数不会产生分窗实验。
+[beacon_trainer.py](../../search_comp/trainer/beacon_trainer.py#L154) 在读取配置后强制设置 `whole`、关闭 window、关闭子文档拆分、`keep_window=0`。一条轨迹仍按 keep / information / keep 依次计算，只是每个 information 完整处理。单纯覆盖旧 window 参数不会产生分窗实验。
 
 正文长 N 时生成 `ceil(N / beacon_ratio)` 个 Beacon，默认 ratio=16、append。全注意力层让 Beacon 读取整个正文，然后只提交 Beacon KV，已有 keep 和 Beacon KV 继续保留。位置按压缩后缓存重新编号；并非始终保留原始 token 位置。
 
-线性层的路径位于 [beacon_qwen35.py](../search_comp/models/beacon_qwen35.py#L354)：
+线性层的路径位于 [beacon_qwen35.py](../../search_comp/models/beacon_qwen35.py#L354)：
 
 ```text
 上轮持久状态 (S_old, C_old)
@@ -80,7 +80,7 @@ Q/K/V 经过短卷积和 SiLU，Q/K 还做 L2 归一化；读出再经过 gated 
 
 **4.1 独立 writer 需要重新学习原生状态的坐标系。**
 
-[BeaconLinearStateWriter](../search_comp/models/beacon_qwen35.py#L39) 使用 `LayerNorm → down(2560→128) → SiLU → up`，为全部 heads 产生 key、value、decay、beta。writer 接收的是本层 MLP 之后的 Beacon hidden；原生 recurrence 使用的是本层 input norm 后的投影和卷积结果，两者不是同一种表示。
+[BeaconLinearStateWriter](../../search_comp/models/beacon_qwen35.py#L39) 使用 `LayerNorm → down(2560→128) → SiLU → up`，为全部 heads 产生 key、value、decay、beta。writer 接收的是本层 MLP 之后的 Beacon hidden；原生 recurrence 使用的是本层 input norm 后的投影和卷积结果，两者不是同一种表示。
 
 full-attention 的 Beacon Q/K/V 会从已加载的基础模型复制初始化，但 writer 的 down/up 没有对应预训练权重。后续原生 query 必须能读懂 writer 写入的矩阵，这种匹配当前主要靠远端 CE/KL 间接学习。`rank=128` 是各 heads 共享的投影瓶颈宽度，不是把持久矩阵分解为秩 128，也不是每个 head 有独立的 128 维编码器。
 
@@ -123,7 +123,7 @@ S_j=A S_{j-1}+U,\qquad A=\alpha(I-\beta kk^\top).
 
 **4.5 默认 LoRA 没有适配线性层的读写投影。**
 
-[训练配置](../configs/train/beacon_qwen35_whole_searchr1.yaml) 只选了 `q_proj/k_proj/v_proj/o_proj` 和 MLP 的 `gate/up/down_proj`。因此 linear attention 的 `in_proj_qkv/in_proj_a/in_proj_b/in_proj_z/out_proj` 没有 LoRA；`out_proj` 与 `o_proj` 不同。MLP 和前层变化仍能间接影响线性输入，不能说线性输出完全不可适配。
+[训练配置](../../configs/train/beacon_qwen35_whole_searchr1.yaml) 只选了 `q_proj/k_proj/v_proj/o_proj` 和 MLP 的 `gate/up/down_proj`。因此 linear attention 的 `in_proj_qkv/in_proj_a/in_proj_b/in_proj_z/out_proj` 没有 LoRA；`out_proj` 与 `o_proj` 不同。MLP 和前层变化仍能间接影响线性输入，不能说线性输出完全不可适配。
 
 可在现有列表基础上添加 `in_proj_qkv/in_proj_z/out_proj`，再独立消融 `in_proj_a/in_proj_b`；后者控制遗忘和写入，建议较小学习率并监测状态范数。A_log、dt_bias、conv1d 并不会因这份 LoRA 列表自动训练。为了公平区分“适配位置”与“更多参数”，应报告或匹配额外 LoRA 参数量。
 
@@ -131,7 +131,7 @@ S_j=A S_{j-1}+U,\qquad A=\alpha(I-\beta kk^\top).
 
 **4.6 当前信息续写损失不等于压缩重建。**
 
-[beacon_common.py](../search_comp/models/beacon_common.py#L215) 的 whole 模式用原文行预测下一原文 token。append 时这些原文行位于 Beacon 之前，所以同一段的损失无法监督当前尾部 Beacon 或其 writer。它能训练普通 backbone/LoRA，也可能在多轮情形监督之前已经提交的压缩记忆，但不能被当作当前正文的压缩后重建监督。
+[beacon_common.py](../../search_comp/models/beacon_common.py#L215) 的 whole 模式用原文行预测下一原文 token。append 时这些原文行位于 Beacon 之前，所以同一段的损失无法监督当前尾部 Beacon 或其 writer。它能训练普通 backbone/LoRA，也可能在多轮情形监督之前已经提交的压缩记忆，但不能被当作当前正文的压缩后重建监督。
 
 当前 Qwen3.5 Beacon 基础配置为 `beacon_qwen35_whole_searchr1.yaml`，显式设 `beacon_information_loss=false`，因此不计算此项。实际实验应检查 resolved config 中的覆盖值。
 
@@ -141,7 +141,7 @@ S_j=A S_{j-1}+U,\qquad A=\alpha(I-\beta kk^\top).
 
 输出 KL 已正确使用提交压缩后的 keep 段，但 `all` 包括首次检索前的 token，长 thinking 占据大量 token。stage2 删除最近 information 的 JS 加权改善了位置选择，却不等同于全历史证据归因：较早文档、重复证据，以及已在真实 thinking 中复述的事实，可能让删除对照不敏感。teacher forcing 下，真实推理文本也可能替压缩记忆补回事实，导致 teacher-forced loss 好而自由生成仍差。
 
-[question readout](../search_comp/models/beacon_question_memory.py#L48) 默认未启用，且仅在 question writer 分支计算。其 probes 来源于 writer 对问题 token embedding 的投影，不是后续 native GDN 实际使用的 query；target 是当前 student 的临时 reader，且已处理插入的 Beacon，不是独立 full-context SFT teacher。可以作为局部辅助约束，但不能宣称已有完备的原生状态蒸馏。
+[question readout](../../search_comp/models/beacon_question_memory.py#L48) 默认未启用，且仅在 question writer 分支计算。其 probes 来源于 writer 对问题 token embedding 的投影，不是后续 native GDN 实际使用的 query；target 是当前 student 的临时 reader，且已处理插入的 Beacon，不是独立 full-context SFT teacher。可以作为局部辅助约束，但不能宣称已有完备的原生状态蒸馏。
 
 **5. 两条优化路线及优先级。**
 
@@ -160,7 +160,7 @@ M_{plain}=48+32\mathrm{KiB}\times10240=368\mathrm{MiB},
 \quad M_{compressed}=48+32\mathrm{KiB}\times2560=128\mathrm{MiB}.
 \]
 
-持久缓存约节省 65.2%，而不是整机内存缩小 16 倍。保留 native S 的路线也基本保留这一收益。表中的 15.6–15.7 是正文 token / Beacon token，见 [statistics.py](../search_comp/evaluation/statistics.py#L115)，不包含 keep、固定状态、权重、训练激活或 teacher。
+持久缓存约节省 65.2%，而不是整机内存缩小 16 倍。保留 native S 的路线也基本保留这一收益。表中的 15.6–15.7 是正文 token / Beacon token，见 [statistics.py](../../search_comp/evaluation/statistics.py#L115)，不包含 keep、固定状态、权重、训练激活或 teacher。
 
 **路线 B：保留严格 Beacon-only 约束，改造状态编码与重建。**
 

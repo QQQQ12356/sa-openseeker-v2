@@ -13,7 +13,7 @@
 
 21 直接挂载 adapter 不改变磁盘权重，也不执行 merge_and_unload。47/56/57 仍要求完整本地模型；不要以为 21 的能力自动扩展到其他入口。原始模型基线是未经本项目 SFT 的 Qwen3.5-4B；实际语义取决于 `BASE_CHECKPOINT` 指向的权重，用户需要确认它不是之前训练/合并的模型。
 
-比较时固定问题及顺序、训练提示来源、工具服务或语料和索引、模型 tokenizer、预算、解码及评测版本。21 默认贪心、无重复惩罚；可显式调整采样和惩罚，见 [23](23_decoding.md)，不会因观察到复读自动调整。先对相同少量题目检查第一轮与工具调用，再评测全量；子集指标不能标成全量成绩。
+比较时固定问题及顺序、训练提示来源、工具服务或语料和索引、模型 tokenizer、预算、解码及评测版本。21 默认贪心、无重复惩罚；可显式调整采样和惩罚，见 [23](../common/23_decoding.md)，不会因观察到复读自动调整。先对相同少量题目检查第一轮与工具调用，再评测全量；子集指标不能标成全量成绩。
 
 ## 22.2 环境与模型
 
@@ -127,7 +127,7 @@ RUN_DIR="$RUN_DIR" LIMIT=2 ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh"
   bash scripts/sh/baseline/70_qwen35_base_eval.sh
 ```
 
-此入口固定 native，不要求待测模型服务；search/visit 使用官方 v1 工具。`ENV_FILE` 为私有配置文件；使用训练提示时 RUN_DIR 的原训练文件必须可访问，否则显式 `PROMPT_DATA=/path/to/train.jsonl`。仅评分已有生成用 `ACTION=score PREDICTIONS=/path/to/result_tool200.jsonl`，也需要裁判服务。在线预算和网络依赖详见 [42](42_openseeker_benchmark.md)。
+此入口固定 native，不要求待测模型服务；search/visit 使用官方 v1 工具。`ENV_FILE` 为私有配置文件；使用训练提示时 RUN_DIR 的原训练文件必须可访问，否则显式 `PROMPT_DATA=/path/to/train.jsonl`。仅评分已有生成用 `ACTION=score PREDICTIONS=/path/to/result_tool200.jsonl`，也需要裁判服务。在线预算和网络依赖详见 [42](../benchmark/42_openseeker_benchmark.md)。
 
 ### 离线 BrowseComp-Plus 基线
 
@@ -160,7 +160,7 @@ TARGET=hotpotqa ACTION=score LIMIT=8 PREDICTIONS="$GEN_DIR/predictions.jsonl" \
   bash scripts/sh/baseline/70_qwen35_base_eval.sh
 ```
 
-Hotpot 默认可 search+visit，使用官方答案 EM/F1、支持事实与 Joint 指标，无本地裁判模型。离线其他参数（ROOT_DIR、TOPK、ALLOW_VISIT、SNIPPET_TOKENS、READ_TOKENS、NUM_WORKERS 等）和准备来源见 [43](43_offline_benchmarks.md)。两个离线 benchmark 的 `LIMIT=-1` 表示全量；21 不接受 -1。
+Hotpot 默认可 search+visit，使用官方答案 EM/F1、支持事实与 Joint 指标，无本地裁判模型。离线其他参数（ROOT_DIR、TOPK、ALLOW_VISIT、SNIPPET_TOKENS、READ_TOKENS、NUM_WORKERS 等）和准备来源见 [43](../benchmark/43_offline_benchmarks.md)。两个离线 benchmark 的 `LIMIT=-1` 表示全量；21 不接受 -1。
 
 ### 22.4.1 基线入口变量
 

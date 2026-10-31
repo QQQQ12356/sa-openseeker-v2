@@ -1,6 +1,6 @@
 # 52 四卡 A800 长轨迹 OOM：原因、修复与参数指南
 
-当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
 
 ## 1. 结论与证据边界
 
@@ -102,12 +102,12 @@ ZeRO-2 的 `reduce_bucket_size` / `allgather_bucket_size` 当前各为10000000�
 
 先保留异常栈最早出现 OOM 的 rank、请求分配字节数、allocated/reserved/free、GPU型号和占用、版本信息，以及实验目录 train.yaml/source_config.yaml/训练日志。NCCL 后续退出经常是某 rank OOM 的结果，不是根因。
 
-按 [51 显存探测](51_memory_probe.md) 选相同长度区间和相同数据；固定随机种子、顺序、压缩比和 loss 目标，比较 blocks=false/true。先在6000附近选窄区间，再逐级增大。确认样本实际参与训练；`max_length=16384` 不意味着已经跑过16k样本。记录最大检索段长度、keep段长度和压缩段数，避免仅比较总token数。
+按 [51 显存探测](../tools/51_memory_probe.md) 选相同长度区间和相同数据；固定随机种子、顺序、压缩比和 loss 目标，比较 blocks=false/true。先在6000附近选窄区间，再逐级增大。确认样本实际参与训练；`max_length=16384` 不意味着已经跑过16k样本。记录最大检索段长度、keep段长度和压缩段数，避免仅比较总token数。
 
 记录每 rank 的 `cuda_memory_rank<N>.jsonl` 中 allocated/reserved峰值、耗时、loss，以及主机RSS和系统内存。allocator统计不包含全部驱动/NCCL；模型加载峰值不属于训练回调重置后的峰值。第一步前 OOM可能没有step记录，必须保留完整stderr。验收应同时满足：指定最长样本能完成前向/反向/更新、所有rank退出正常、loss有限、保存可加载；短测不代表全量数据稳定。
 
 ## 7. 本地验证与限制
 
-本次仅执行 CPU 小模型回归和静态检查，不下载生产模型、不启动真实GPU训练。新回归覆盖 Qwen3/Qwen3.5、whole/window、多压缩区与keep分块、冻结embedding，以及CPU activation offload开/关；对比前向loss、所有参数梯度和反向后的记忆状态。现有多卡测试覆盖launcher、SDPA与保存行为。测试命令及结果见 [99 验证](99_validation.md)。
+本次仅执行 CPU 小模型回归和静态检查，不下载生产模型、不启动真实GPU训练。新回归覆盖 Qwen3/Qwen3.5、whole/window、多压缩区与keep分块、冻结embedding，以及CPU activation offload开/关；对比前向loss、所有参数梯度和反向后的记忆状态。现有多卡测试覆盖launcher、SDPA与保存行为。测试命令及结果见 [99 验证](../project/99_validation.md)。
 
-这些验证证明小模型数值行为，没有测量四卡A800的吞吐或显存，也没有验证目标服务器的DeepSpeed、FLA、causal-conv1d和CUDA组合。环境安装与排查见 [01 环境](01_environment.md)、[67 环境细节](67_environment_details.md)。
+这些验证证明小模型数值行为，没有测量四卡A800的吞吐或显存，也没有验证目标服务器的DeepSpeed、FLA、causal-conv1d和CUDA组合。环境安装与排查见 [01 环境](../common/01_environment.md)、[67 环境细节](../tools/67_environment_details.md)。

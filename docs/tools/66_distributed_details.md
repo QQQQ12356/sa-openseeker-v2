@@ -40,7 +40,7 @@ CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.run \
 
 ## 显存边界
 
-OpenSeeker 的30/37入口已显式启用 `beacon_checkpoint_blocks=true`，并选择SDPA、1024-token keep分块。新增38四卡入口复用30；Search-R1基础配置不自动开启blocks，需要显式覆盖。该开关只重算无状态模块，不重放跨窗状态更新；顶层 `gradient_checkpointing` 仍不启用Beacon重计算。完整原因分析、参数和修改位置见 [52 长轨迹 OOM](52_beacon_oom.md)。
+OpenSeeker 的30/37入口已显式启用 `beacon_checkpoint_blocks=true`，并选择SDPA、1024-token keep分块。新增38四卡入口复用30；Search-R1基础配置不自动开启blocks，需要显式覆盖。该开关只重算无状态模块，不重放跨窗状态更新；顶层 `gradient_checkpointing` 仍不启用Beacon重计算。完整原因分析、参数和修改位置见 [52 长轨迹 OOM](../beacon/52_beacon_oom.md)。
 
 
 - DDP 每卡保留完整模型、梯度和优化器状态，主要增加吞吐，不降低单条样本的激活峰值。

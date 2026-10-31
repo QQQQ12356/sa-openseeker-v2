@@ -1,6 +1,6 @@
 # 50 多卡训练与测试
 
-原始提示词复用与数据格式说明见 [45 统一流程](45_unified_agent_flow.md)；多卡不会改变提示词或工具协议。
+原始提示词复用与数据格式说明见 [45 统一流程](../common/45_unified_agent_flow.md)；多卡不会改变提示词或工具协议。
 
 四卡 A800 OpenSeeker Beacon 可直接执行（模型与数据先在30中修改）：
 
@@ -9,7 +9,7 @@ ACTION=plan bash scripts/sh/beacon/38_beacon_4xa800.sh  # 只归档，不训练
 bash scripts/sh/beacon/38_beacon_4xa800.sh              # 在目标服务器执行训练
 ```
 
-38默认四卡ZeRO-2，复用30的配置，不维护第二份参数。30/37启用无状态模块重计算 `beacon_checkpoint_blocks`，同时显式启用SDPA、keep_window=1024；完整OOM分析及参数说明见 [52 长轨迹OOM](52_beacon_oom.md)。不能把四卡80 GB当成单条样本可用320 GB。
+38默认四卡ZeRO-2，复用30的配置，不维护第二份参数。30/37启用无状态模块重计算 `beacon_checkpoint_blocks`，同时显式启用SDPA、keep_window=1024；完整OOM分析及参数说明见 [52 长轨迹OOM](../beacon/52_beacon_oom.md)。不能把四卡80 GB当成单条样本可用320 GB。
 
 多卡机制保留在 `search_comp/trainer/launch.py`、`utils/distributed.py` 和训练器中。修改主训练 shell 脚本顶部变量后直接执行：
 
@@ -61,7 +61,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python scripts/py/50_evaluate.py \
   --output outputs/results/beacon_4gpu_test_001.jsonl
 ```
 
-replay 只在生成动作与历史记录匹配时返回观测，用于动作复现诊断。要允许新查询，可选择 `--backend corpus --corpus /path/to/corpus.jsonl`，或 `--backend http --endpoint http://127.0.0.1:8080/tool`，其余多卡参数不变；语料来源和工具服务须与实验目的相符。各后端与指标解释见 [40 评测](40_evaluation.md)。
+replay 只在生成动作与历史记录匹配时返回观测，用于动作复现诊断。要允许新查询，可选择 `--backend corpus --corpus /path/to/corpus.jsonl`，或 `--backend http --endpoint http://127.0.0.1:8080/tool`，其余多卡参数不变；语料来源和工具服务须与实验目的相符。各后端与指标解释见 [40 评测](../benchmark/40_evaluation.md)。
 
 最终预测旁生成 `.metrics.json`；`<预测文件名去掉.jsonl>.workers/` 保存 `shard_<rank>.jsonl` 和 `worker_<rank>.log`，可定位各卡进度或失败原因。某个 worker 失败时整体报错，不把部分成功的分片当成完整结果。
 
@@ -74,4 +74,4 @@ OUTPUT_DIR=outputs/results/bcp_beacon_4gpu_001 \
   bash scripts/sh/benchmark/56_browsecomp_plus.sh
 ```
 
-该命令要求已完成固定语料准备与索引构建。每个 worker 绑定一张 GPU，独立加载完整模型；生成完毕后，父进程按原顺序合并并校验题目和来源，失败则停止其他 workers，不继续评分。`LIMIT=8` 是总题数；全量设 `LIMIT=-1`。裁判仍逐题评分，使用父进程可见卡自动分配权重。完整 all/run/score 示例、worker 日志和显存边界见 [43.7.4](43_offline_benchmarks.md#4374-beacon-多卡测试56-与-31-的能力不同)。本次通过真实子进程与替代生成器验证调度，尚未运行真实 GPU 模型测试。
+该命令要求已完成固定语料准备与索引构建。每个 worker 绑定一张 GPU，独立加载完整模型；生成完毕后，父进程按原顺序合并并校验题目和来源，失败则停止其他 workers，不继续评分。`LIMIT=8` 是总题数；全量设 `LIMIT=-1`。裁判仍逐题评分，使用父进程可见卡自动分配权重。完整 all/run/score 示例、worker 日志和显存边界见 [43.7.4](../benchmark/43_offline_benchmarks.md#4374-beacon-多卡测试56-与-31-的能力不同)。本次通过真实子进程与替代生成器验证调度，尚未运行真实 GPU 模型测试。

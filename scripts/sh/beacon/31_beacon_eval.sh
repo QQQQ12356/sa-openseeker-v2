@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # ===== Plain/Beacon 共用入口；所有顶部标量支持同名环境变量覆盖 =====
-# 21_plain_eval.sh 仅设置 KIND=plain 后转入本脚本。提示与协议见 docs/45_unified_agent_flow.md。
+# 21_plain_eval.sh 仅设置 KIND=plain 后转入本脚本。提示与协议见 docs/common/45_unified_agent_flow.md。
 # ===== 运行环境 =====
 # 留空时按 common.sh 的规则选择 Python；也可填 Python 绝对路径。
 PYTHON="${PYTHON:-}"

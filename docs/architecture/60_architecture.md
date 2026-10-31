@@ -1,6 +1,6 @@
 # 60 核心架构与损失
 
-当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
 
 `search_comp/models/` 保留 Plain/Beacon 的 Qwen3、Qwen3.5 实现、共享压缩配置、Qwen3.5 线性状态、question memory 与模型加载；`trainer/` 保留普通 SFT、Beacon、native、continuation、输出/读出/信息蒸馏、适配器合并和多卡 launcher。`data/` 保留 Search-R1、文档规范化、BM25、语料构建、OpenSeeker 编码与数据工厂。`evaluation/` 保留原交互式、native、直接回答和统一指标实现。
 
@@ -14,8 +14,8 @@ continuation、information、output KL、readout 蒸馏仍各有独立总权重�
 
 ## 新增官方 Benchmark 适配层
 
-`search_comp/evaluation/benchmark_data.py` 负责 BrowseComp 解密与严格 query/answer 适配；`workflows/benchmark_openseeker.py` 负责固定官方 checkout、官方子进程、native 模型桥接、预测对齐与评分覆盖审计；`workflows/serve_openseeker.py` 负责 Plain 训练结果解析和 SGLang 服务启动。它们通过 47/48 Python 薄入口和 46—49 shell 入口使用，不修改原训练器或旧 EM/F1 流程。细节见 [42](42_openseeker_benchmark.md)。
+`search_comp/evaluation/benchmark_data.py` 负责 BrowseComp 解密与严格 query/answer 适配；`workflows/benchmark_openseeker.py` 负责固定官方 checkout、官方子进程、native 模型桥接、预测对齐与评分覆盖审计；`workflows/serve_openseeker.py` 负责 Plain 训练结果解析和 SGLang 服务启动。它们通过 47/48 Python 薄入口和 46—49 shell 入口使用，不修改原训练器或旧 EM/F1 流程。细节见 [42](../benchmark/42_openseeker_benchmark.md)。
 
 ## 固定语料离线适配层
 
-新增 search_comp/offline 包：assets 管理固定官方来源和离线网络约束；data 流式规范化官方源；index 构建只读 SQLite FTS5 BM25 与正文存储；tools 提供预算明确的本地 search/visit；scoring 复用官方 Hotpot 指标与 BCP 裁判纯函数。workflows/offline_benchmark.py 调度各阶段，通过既有 ModelGenerator/run_agent 保留 Beacon observation 压缩。原模型、训练器和在线工具后端未改写。操作手册见 [43](43_offline_benchmarks.md)。
+新增 search_comp/offline 包：assets 管理固定官方来源和离线网络约束；data 流式规范化官方源；index 构建只读 SQLite FTS5 BM25 与正文存储；tools 提供预算明确的本地 search/visit；scoring 复用官方 Hotpot 指标与 BCP 裁判纯函数。workflows/offline_benchmark.py 调度各阶段，通过既有 ModelGenerator/run_agent 保留 Beacon observation 压缩。原模型、训练器和在线工具后端未改写。操作手册见 [43](../benchmark/43_offline_benchmarks.md)。

@@ -1,6 +1,6 @@
 # 40 答案提取与 EM/F1
 
-当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
+当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
 
 参考 [OpenSeeker 官方实现](https://github.com/PolarSeeker/OpenSeeker/blob/e3dec1f727d87c5eaa93506e4882c67237647098/src/llm_tool_openseeker.py)：模型生成出现 `</answer>` 时结束作答；`_get_last_assistant_answer_from_messages()` 取最后一条 assistant 消息、移除工具内容，并截取 `</think>` 后的回复。`eval/generate_answer.py` 将其保存为 `final_response`；`eval/eval.py` 把 final_response、query、参考 answer 交给 LLM 裁判判断语义正确性。因此原项目的裁判 accuracy 与本项目的 EM/F1 是不同指标，不能直接互换。
 
@@ -12,7 +12,7 @@
 
 主入口 `21_plain_eval.sh` 是 Plain 薄包装，转入共用的 `31_beacon_eval.sh`；参数在 31 顶部修改，或通过同名环境变量覆盖：RUN_DIR 或 MODEL_PATH、DATA/SPLIT、LIMIT、MAX_CONTEXT、MAX_NEW_TOKENS、MAX_TOOL_TOKENS、MAX_TURNS、GPU 与 NUM_WORKERS。预测与 `.metrics.json` 写到同一结果目录，汇总包含 exact_match、f1、失败状态和配置。NUM_WORKERS 是模型副本数，不是训练分布式进程数。
 
-21 的 MODEL_PATH 可直接指向 Plain LoRA adapter，BASE_MODEL_PATH 可指定训练基座、TOKENIZER_PATH 可指定训练 tokenizer；具体回退规则和原始模型对照见 [22](22_qwen35_baseline_and_adapter.md)。此能力不扩展到 47/56/57 或 Beacon adapter。Plain native 可使用 [23](23_decoding.md) 调整贪心、采样和重复惩罚。
+21 的 MODEL_PATH 可直接指向 Plain LoRA adapter，BASE_MODEL_PATH 可指定训练基座、TOKENIZER_PATH 可指定训练 tokenizer；具体回退规则和原始模型对照见 [22](../baseline/22_qwen35_baseline_and_adapter.md)。此能力不扩展到 47/56/57 或 Beacon adapter。Plain native 可使用 [23](../common/23_decoding.md) 调整贪心、采样和重复惩罚。
 
 | BACKEND | 行为与解释 |
 |---|---|
