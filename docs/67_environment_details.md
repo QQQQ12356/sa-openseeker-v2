@@ -78,13 +78,12 @@ python -m scripts.check_train_environment
 ## 启动两卡训练
 
 ```bash
-PYTHON="$CONDA_PREFIX/bin/python" CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/32_beacon_searchr1_train.sh \
+PYTHON="$CONDA_PREFIX/bin/python" CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/beacon/32_beacon_searchr1_train.sh \
   configs/train/beacon_qwen35_whole_searchr1.yaml
 ```
 
-模型和数据路径仍需按目标服务器设置。`scripts/sh/00_00_common.sh` 会优先查找默认旧环境
-`search-comp-qwen3.5`，所以必须像上面一样指定 `PYTHON`，或设置
-`CONDA_ENV=search-comp-qwen35-cu126`，避免激活新环境后启动脚本仍选择旧环境。具体多卡参数见
+模型和数据路径仍需按目标服务器设置。`scripts/sh/common/00_common.sh` 默认查找
+`search-comp-qwen35-cu126`；显式设置 `PYTHON` 或 `CONDA_ENV` 可选择其他环境。若默认环境不存在，脚本会退回当前 Python，应确认依赖正确。具体多卡参数见
 [66_distributed_details.md](66_distributed_details.md)。
 
 ## 原环境的最小修复

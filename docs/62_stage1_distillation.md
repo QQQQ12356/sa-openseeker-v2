@@ -29,19 +29,19 @@ Teacher 不注册到 student，不进入优化器或 checkpoint；推理无需 t
 
 ```bash
 # 先运行 Qwen3 的全参数 plain 基线。
-bash scripts/sh/22_plain_searchr1_train.sh configs/train/qwen3_plain_full_sft.yaml
+bash scripts/sh/plain/22_plain_searchr1_train.sh configs/train/qwen3_plain_full_sft.yaml
 
 # 从训练后的完整 plain 模型初始化 Beacon；teacher 默认使用同一个路径。
 MODEL_NAME_OR_PATH=/abs/path/to/outputs/models/qwen3_plain_full_sft/final \
-  bash scripts/sh/34_beacon_searchr1_train_impl.sh configs/train/beacon_qwen3_searchr1.yaml
+  bash scripts/sh/beacon/34_beacon_searchr1_train_impl.sh configs/train/beacon_qwen3_searchr1.yaml
 
 # Qwen3.5 同样流程。
-bash scripts/sh/22_plain_searchr1_train.sh configs/train/qwen35_plain_full_sft.yaml
+bash scripts/sh/plain/22_plain_searchr1_train.sh configs/train/qwen35_plain_full_sft.yaml
 MODEL_NAME_OR_PATH=/abs/path/to/outputs/models/qwen35_plain_full_sft/final \
-  bash scripts/sh/34_beacon_searchr1_train_impl.sh configs/train/beacon_qwen35_whole_searchr1.yaml
+  bash scripts/sh/beacon/34_beacon_searchr1_train_impl.sh configs/train/beacon_qwen35_whole_searchr1.yaml
 
 # 可单独指定冻结 teacher，或用 CLI 覆盖；两种架构都支持。
-bash scripts/sh/34_beacon_searchr1_train_impl.sh configs/train/beacon_qwen3_searchr1.yaml \
+bash scripts/sh/beacon/34_beacon_searchr1_train_impl.sh configs/train/beacon_qwen3_searchr1.yaml \
   --set model_name_or_path=/abs/path/to/plain/final \
   --set distill_teacher_model_name_or_path=/abs/path/to/teacher/final
 ```

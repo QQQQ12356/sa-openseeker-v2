@@ -93,7 +93,7 @@
 # 已有原始 v3 数据时，无需再运行 prepare。
 # 需要重新准备时，选择尚不存在的输出目录；只加载 tokenizer，不训练。
 INPUT_FILE=/data/original_polar.jsonl OUTPUT_DIR=/data/polar_original_system \
-  MODEL_NAME=/models/Qwen3.5-4B bash scripts/sh/10_prepare.sh
+  MODEL_NAME=/models/Qwen3.5-4B bash scripts/sh/data/10_prepare.sh
 ```
 
 从原始源文件重新准备时，输出应使用新目录。只保留旧 train 无法恢复原 validation/test；多文件时编辑 INPUTS，保留原问题划分规则。
@@ -113,28 +113,28 @@ INPUT_FILE=/data/original_polar.jsonl OUTPUT_DIR=/data/polar_original_system \
 
 ```bash
 # 只核对代码，不运行真实模型。
-bash scripts/sh/59_check_agent_alignment.sh
+bash scripts/sh/tools/59_check_agent_alignment.sh
 
 # 在线：由 RUN_DIR 自动选择实际训练提示。
 RUN_DIR=/path/to/run ENV_FILE=/private/api.env LIMIT=8 \
-  bash scripts/sh/47_openseeker_benchmark.sh
+  bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 
 # 模型和训练文件搬迁后：显式给对应训练数据。
 MODEL_PATH=/models/merged KIND=beacon PROMPT_DATA=/data/original_train.jsonl \
-  ENV_FILE=/private/api.env bash scripts/sh/47_openseeker_benchmark.sh
+  ENV_FILE=/private/api.env bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 
 # 离线：先按 43 完成数据与索引准备；PROMPT_DATA 对两种模型使用同一来源。
 ACTION=run RUN_DIR=/path/to/run PROMPT_DATA=/data/original_train.jsonl LIMIT=8 \
-  bash scripts/sh/56_browsecomp_plus.sh
+  bash scripts/sh/benchmark/56_browsecomp_plus.sh
 ACTION=run RUN_DIR=/path/to/run PROMPT_DATA=/data/original_train.jsonl LIMIT=8 \
-  bash scripts/sh/57_hotpotqa_offline.sh
+  bash scripts/sh/benchmark/57_hotpotqa_offline.sh
 
 # 原样官方模式继续保留，不设置 PROMPT_DATA。
-MODE=official-v1 ENV_FILE=/private/api.env bash scripts/sh/47_openseeker_benchmark.sh
-MODE=official-v2 ENV_FILE=/private/api.env bash scripts/sh/47_openseeker_benchmark.sh
+MODE=official-v1 ENV_FILE=/private/api.env bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+MODE=official-v2 ENV_FILE=/private/api.env bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 
 # 只检查参数计划，不加载模型、不调用 API。
-DRY_RUN=1 PROMPT_DATA=/data/original_train.jsonl bash scripts/sh/47_openseeker_benchmark.sh
+DRY_RUN=1 PROMPT_DATA=/data/original_train.jsonl bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 ```
 
 Dry-run 只展示参数/命令，不宣称训练提示文件、模型或 API 已完成真实联调。native 在线和离线生成前会读取并校验 prompt profile。离线多卡 worker 同样接收 PROMPT_DATA 和 RUN_DIR，不会在子进程意外退回默认 profile。
@@ -145,7 +145,7 @@ Dry-run 只展示参数/命令，不宣称训练提示文件、模型或 API 已
 |---|---|---|
 | `PROMPT_DATA` / `--prompt-data` | 47/56/57，空 | 原训练 JSONL，优先级最高；单 profile；不会读取其问题作为评测输入 |
 | `RUN_DIR` / `--run-dir` | 空 | 从 experiment.json 解析模型与训练提示来源；搬迁后路径失效请指定 PROMPT_DATA |
-| `MODEL_PATH` / `--model` | 空 | 本地合并 checkpoint，优先于模型自动定位；不能只传未合并 adapter |
+| `MODEL_PATH` / `--model` | 空 | 47/56/57 使用本地完整 checkpoint，优先于模型自动定位；21 另支持 Plain adapter，见 22 |
 | `KIND` | 自动 | plain/beacon，仅选择模型，不改变 system |
 | `MODE` | 47=native | official-v1/v2 使用原样 upstream；显式给它们 --prompt-data 会报错 |
 | `ENV_FILE` | 47，空 | 私有在线 API 配置；不影响离线工具 |
@@ -177,7 +177,7 @@ Dry-run 只展示参数/命令，不宣称训练提示文件、模型或 API 已
 
 训练仍是整条真实轨迹的 teacher forcing。Plain/Beacon 使用相同 input_ids 和 labels，Beacon 额外按 observation 正文 regions 压缩。SFT 的工具 schema 渲染与 native 初始 system 渲染共用 render_system；每个生成前缀与训练 token 前缀对齐。
 
-native Plain 使用显式贪心 GenerationConfig；Beacon 为相同 argmax 策略，统一停止文本与多 EOS 处理。每轮完整历史重新 prefill（reuse_cache=false），轮内缓存解码。Qwen3.5 tiny 的 forward/prefill/decode 数值一致性测试保留；这些不等于所有真实 GPU kernel/checkpoint 均已数值验证。
+native 默认使用贪心生成；Plain 可配置采样和重复惩罚，Beacon 可在贪心时对压缩后可见普通 token 设置重复惩罚，具体参数及对照边界见 [23](23_decoding.md)。统一停止文本与多 EOS 处理。每轮完整历史重新 prefill（reuse_cache=false），轮内缓存解码。Qwen3.5 tiny 的 forward/prefill/decode 数值一致性测试保留；这些不等于所有真实 GPU kernel/checkpoint 均已数值验证。
 
 Beacon whole SFT 布局仍在归档和加载前统一解析；随机压缩训练时采样、推理固定的既有选项保持不变。参数与算法细节见 30/31/60。本次不因保留 system 改变压缩算法或训练损失。
 

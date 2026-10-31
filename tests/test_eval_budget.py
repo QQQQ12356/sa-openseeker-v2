@@ -23,10 +23,10 @@ from search_comp.milestones.searchagent_probe import decode_until, run_searchage
 
 _SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "scripts", "sh")
 _BUDGET_SCRIPTS = (
-    "60_searchagent_probe.sh",
-    "23_plain_searchr1_eval.sh",
-    "33_beacon_searchr1_eval.sh",
-    "25_plain_untrained_eval.sh",
+    "tools/60_searchagent_probe.sh",
+    "plain/23_plain_searchr1_eval.sh",
+    "beacon/33_beacon_searchr1_eval.sh",
+    "plain/25_plain_untrained_eval.sh",
 )
 
 

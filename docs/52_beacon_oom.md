@@ -32,22 +32,22 @@
 
 ```bash
 # 仅生成实验目录、source_config.yaml 和 train.yaml，不加载训练模型
-ACTION=plan bash scripts/sh/38_beacon_4xa800.sh
+ACTION=plan bash scripts/sh/beacon/38_beacon_4xa800.sh
 
 # 用户在目标服务器自行执行真实训练
-bash scripts/sh/38_beacon_4xa800.sh
+bash scripts/sh/beacon/38_beacon_4xa800.sh
 
 # Python、GPU 和后端都可外部覆盖
 PYTHON=/path/to/env/bin/python CUDA_VISIBLE_DEVICES=4,5,6,7 \
-  ACTION=plan bash scripts/sh/38_beacon_4xa800.sh
+  ACTION=plan bash scripts/sh/beacon/38_beacon_4xa800.sh
 ```
 
-38 只设置四卡、zero2 和 action 的默认值，委托 30；不复制另一份训练 YAML。**模型、数据、长度和全部实验参数只改 `scripts/sh/30_beacon_train.sh`。** 显存探测使用 37，参数独立，不会自动继承你对 30 的修改。30/37 现在保留外部 `PYTHON`、`CONDA_ENV` 和 `ACTION`。每次 plan/train 各建新实验；plan 后再次运行 train 会建另一目录，并非继续之前的 plan。
+38 只设置四卡、zero2 和 action 的默认值，委托 30；不复制另一份训练 YAML。**模型、数据、长度和全部实验参数只改 `scripts/sh/beacon/30_beacon_train.sh`。** 显存探测使用 37，参数独立，不会自动继承你对 30 的修改。30/37 现在保留外部 `PYTHON`、`CONDA_ENV` 和 `ACTION`。每次 plan/train 各建新实验；plan 后再次运行 train 会建另一目录，并非继续之前的 plan。
 
 Search-R1 的 32/34 不读取 30 的嵌入配置。需要同样的重计算可显式传：
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1,2,3 bash scripts/sh/32_beacon_searchr1_train.sh \
+CUDA_VISIBLE_DEVICES=0,1,2,3 bash scripts/sh/beacon/32_beacon_searchr1_train.sh \
   --set beacon.beacon_checkpoint_blocks=true \
   --set beacon.beacon_attention_backend=sdpa \
   --set beacon.beacon_keep_window=0
@@ -60,7 +60,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 bash scripts/sh/32_beacon_searchr1_train.sh \
 | `CUDA_VISIBLE_DEVICES` | 38 默认 `0,1,2,3` | 物理卡列表；每 rank 绑定列表中的相对 local rank |
 | `NPROC_PER_NODE` | 不设置，自动推断 | 手动设置须匹配可见卡数；旧 shell 中遗留的值会覆盖自动推断 |
 | `DISTRIBUTED_BACKEND` | `zero2` | `ddp` 用于对照；Beacon 不支持 zero3，不能靠改 JSON 绕过限制 |
-| `PYTHON` / `CONDA_ENV` | 自动解析 / `search-comp-qwen3.5` | 优先可执行的 PYTHON 路径；检查实际日志输出 |
+| `PYTHON` / `CONDA_ENV` | 自动解析 / `search-comp-qwen35-cu126` | 优先可执行的 PYTHON 路径；检查实际日志输出 |
 | `ACTION` | `train`，审查用 `plan` | plan 仍需可读取的数据 manifest；不是 GPU 兼容性检测 |
 | `model_family` / `models` | qwen35 / Qwen3.5-4B | 与 prepared 数据 tokenizer 一致；切换模型须重做或匹配数据准备 |
 | `dataset` | 30 内的数据目录 | 含 train/validation/test 及 manifest；不应只修改文件名假装改变筛选上限 |

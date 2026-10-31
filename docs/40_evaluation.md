@@ -12,6 +12,8 @@
 
 主入口 `21_plain_eval.sh` 是 Plain 薄包装，转入共用的 `31_beacon_eval.sh`；参数在 31 顶部修改，或通过同名环境变量覆盖：RUN_DIR 或 MODEL_PATH、DATA/SPLIT、LIMIT、MAX_CONTEXT、MAX_NEW_TOKENS、MAX_TOOL_TOKENS、MAX_TURNS、GPU 与 NUM_WORKERS。预测与 `.metrics.json` 写到同一结果目录，汇总包含 exact_match、f1、失败状态和配置。NUM_WORKERS 是模型副本数，不是训练分布式进程数。
 
+21 的 MODEL_PATH 可直接指向 Plain LoRA adapter，BASE_MODEL_PATH 可指定训练基座、TOKENIZER_PATH 可指定训练 tokenizer；具体回退规则和原始模型对照见 [22](22_qwen35_baseline_and_adapter.md)。此能力不扩展到 47/56/57 或 Beacon adapter。Plain native 可使用 [23](23_decoding.md) 调整贪心、采样和重复惩罚。
+
 | BACKEND | 行为与解释 |
 |---|---|
 | replay | 严格核对生成动作和记录动作，匹配才返回对应观测；用于离线动作复现诊断 |

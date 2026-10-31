@@ -1,5 +1,7 @@
 """Qwen3 原生纯文本模型加载（无 Beacon）。"""
 import torch
+import json
+from pathlib import Path
 
 DEFAULT_MODEL = "Qwen/Qwen3-4B-Thinking-2507"
 PLAIN_SFT_ARCH = "Qwen3ForCausalLM"
@@ -36,3 +38,44 @@ def load_sft_model(model_name_or_path=DEFAULT_MODEL, torch_dtype=torch.bfloat16,
 def load_sft_tokenizer(model_name_or_path=DEFAULT_MODEL):
     from .model_loader import load_tokenizer
     return load_tokenizer(model_name_or_path)
+
+
+def resolve_plain_evaluation(model_path, base_model_path=None, tokenizer_path=None):
+    """Resolve a full checkpoint or a Plain PEFT adapter without loading weights.
+
+    Explicit base > sibling training config > adapter config. A tokenizer saved
+    alongside the adapter takes precedence over the base tokenizer.
+    """
+    path = Path(model_path).expanduser()
+    adapter_config = path / "adapter_config.json"
+    if not adapter_config.is_file():
+        if base_model_path:
+            raise ValueError("BASE_MODEL_PATH only applies to a Plain adapter directory")
+        return dict(model=str(model_path), base=None, tokenizer=tokenizer_path or str(model_path), adapter=False)
+    if (path / "beacon_state.pt").exists():
+        raise ValueError("Beacon adapter is not a Plain adapter; merge with 35_beacon_merge_adapter.sh")
+    if not any((path / name).is_file() for name in ("adapter_model.safetensors", "adapter_model.bin")):
+        raise ValueError(f"adapter weights missing: {path}")
+    with adapter_config.open(encoding="utf-8") as source:
+        config = json.load(source)
+    if config.get("peft_type", "LORA") != "LORA":
+        raise ValueError("only Plain LoRA adapters are supported")
+    resolved_path = path.parent / "resolved_config.json"
+    resolved = json.loads(resolved_path.read_text(encoding="utf-8")) if resolved_path.is_file() else {}
+    base = base_model_path or resolved.get("model_name_or_path") or config.get("base_model_name_or_path")
+    if not base:
+        raise ValueError("adapter base model missing; set BASE_MODEL_PATH to the exact training base")
+    # Checkpoint-N usually includes tokenizer files. If it does not, use the
+    # base; TOKENIZER_PATH permits an explicitly preserved training tokenizer.
+    saved_tokenizer = (path / "tokenizer_config.json").is_file() or (path / "tokenizer.json").is_file()
+    tokenizer = tokenizer_path or (str(path) if saved_tokenizer else str(base))
+    return dict(model=str(path), base=str(base), tokenizer=str(tokenizer), adapter=True)
+
+
+def load_plain_evaluation_model(plan, **kwargs):
+    """Load the base text model and attach the LoRA adapter without merging."""
+    model = load_sft_model(plan["base"] or plan["model"], **kwargs)
+    if plan["adapter"]:
+        from peft import PeftModel
+        model = PeftModel.from_pretrained(model, plan["model"], is_trainable=False)
+    return model.eval()

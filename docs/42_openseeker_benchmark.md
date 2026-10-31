@@ -17,7 +17,7 @@
 |---|---|---|---|
 | `official-v2` | 已部署的 Plain 模型 completion 服务 | 原样执行官方 `generate_answer_v2.py`；search、visit、E2B；保留 boxed 格式指令 | 官方 `eval.py`；用于 v2 工具协议对比 |
 | `official-v1` | 已部署的 Plain 模型 completion 服务 | 原样执行官方 `generate_answer.py`；search、visit | 同一官方裁判；适合只训练了 search/visit 的 checkpoint |
-| `native`（默认） | 本项目直接加载 Plain / Beacon checkpoint | 与训练共享的 system prompt、官方 v1 Search 和 Visit；本项目序列化、贪心生成、停止和预算策略 | 官方裁判；保留 Beacon 压缩，必须注明生成侧差异 |
+| `native`（默认） | 本项目直接加载 Plain / Beacon checkpoint | 与训练共享的 system prompt、官方 v1 Search 和 Visit；本项目序列化、默认贪心生成、停止和预算策略 | 官方裁判；保留 Beacon 压缩，必须注明生成侧差异 |
 
 模型训练中出现的工具决定适用协议；不要因为目录名含 v2 就把仅训练 search/visit 的模型默认解释为掌握 E2B 工具。v2 需要单独配置 E2B。若对比压缩方法，建议 Plain 和 Beacon 均使用 native、相同预算与工具供应商，再用官方模式的 Plain 单独作为参考。
 
@@ -27,7 +27,7 @@
 
 ```bash
 # 仅下载固定版本官方代码、下载解密 BrowseComp；不会加载模型或请求付费 API。
-bash scripts/sh/46_prepare_benchmark.sh
+bash scripts/sh/benchmark/46_prepare_benchmark.sh
 
 # 官方 API 评测建议在独立 Python 环境中安装；不修改训练依赖。
 python -m pip install -r requirements.eval-openseeker.txt
@@ -35,7 +35,7 @@ python -m pip install -r requirements.eval-openseeker.txt
 # python -m pip install -r outputs/vendor/OpenSeeker/requirements.txt
 ```
 
-`46` 和 `47` 通过现有 `00_common.sh` 选择 Python：显式 `PYTHON` → `CONDA_ENV`（默认 search-comp-qwen3.5）→ 系统 Python。独立环境请设置 `PYTHON=/absolute/path/to/python`。native 需要本项目训练依赖和新增评测依赖；建议复制训练环境后安装评测依赖，避免官方工具依赖影响原训练环境。SGLang 另装到与目标模型、GPU/CUDA 匹配的服务环境，它不在新增依赖中强制安装。
+`46` 和 `47` 通过现有 `00_common.sh` 选择 Python：显式 `PYTHON` → `CONDA_ENV`（默认 search-comp-qwen35-cu126）→ 系统 Python。独立环境请设置 `PYTHON=/absolute/path/to/python`。native 需要本项目训练依赖和新增评测依赖；建议复制训练环境后安装评测依赖，避免官方工具依赖影响原训练环境。SGLang 另装到与目标模型、GPU/CUDA 匹配的服务环境，它不在新增依赖中强制安装。
 
 默认产物：
 
@@ -46,7 +46,7 @@ python -m pip install -r requirements.eval-openseeker.txt
 已有数据复用，首次运行 `47` 也可自动准备。已有 preparation manifest 的 JSONL 若指纹改变会拒绝评测。本次实际下载为 **1,266 题**。无网络环境可在联网机器先运行 46，再拷贝代码目录、JSONL 与 manifest；也可使用：
 
 ```bash
-bash scripts/sh/46_prepare_benchmark.sh --csv /data/browse_comp_test_set.csv
+bash scripts/sh/benchmark/46_prepare_benchmark.sh --csv /data/browse_comp_test_set.csv
 # --official-dir 可指定另一个处于固定提交且未修改的官方 checkout
 ```
 
@@ -56,11 +56,11 @@ bash scripts/sh/46_prepare_benchmark.sh --csv /data/browse_comp_test_set.csv
 
 这些变量配置四类独立服务：**待测模型**生成回答，**搜索与网页读取**提供外部信息，**摘要模型**整理 visit 的网页内容，**裁判模型**判断最终回答是否正确。环境变量名中的 MODEL 是 API 的模型标识，KEY 是对应服务的认证凭据，URL 是请求地址；它们不是从 Benchmark 数据集中获取的。
 
-把 `scripts/sh/49_benchmark_env.example.sh` 复制到仓库外的私有路径，填写后设置 `ENV_FILE`；也可先 source 私有文件，再运行 47。49 使用 `${VAR:-默认值}`：已有非空环境变量优先，只有未设置或空值才采用脚本默认值；不要以为改了默认值就一定覆盖终端里已有的配置。私有文件也可改用普通 `export VAR='实际值'` 直接赋值。
+把 `scripts/sh/benchmark/49_benchmark_env.example.sh` 复制到仓库外的私有路径，填写后设置 `ENV_FILE`；也可先 source 私有文件，再运行 47。49 使用 `${VAR:-默认值}`：已有非空环境变量优先，只有未设置或空值才采用脚本默认值；不要以为改了默认值就一定覆盖终端里已有的配置。私有文件也可改用普通 `export VAR='实际值'` 直接赋值。
 
 ```bash
 mkdir -p "$HOME/.config/openseeker"
-cp scripts/sh/49_benchmark_env.example.sh "$HOME/.config/openseeker/benchmark_env.sh"
+cp scripts/sh/benchmark/49_benchmark_env.example.sh "$HOME/.config/openseeker/benchmark_env.sh"
 chmod 600 "$HOME/.config/openseeker/benchmark_env.sh"
 # 编辑这个副本，替换实际需要的 YOUR_... 占位符。
 # 后文运行：ENV_FILE="$HOME/.config/openseeker/benchmark_env.sh" ...
@@ -126,7 +126,7 @@ export SCORER_API_KEY="$SUMMARY_API_KEY"
 ```bash
 ENV_FILE="$HOME/.config/openseeker/benchmark_env.sh" \
 MODE=native RUN_DIR=outputs/experiments/<beacon-run> LIMIT=2 \
-JUDGE_WORKERS=1 bash scripts/sh/47_openseeker_benchmark.sh
+JUDGE_WORKERS=1 bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 ```
 
 这个案例仍然需要通过 Serper/Jina 访问外网，并不是完全离线评测。
@@ -146,7 +146,7 @@ export E2B_API_KEY='YOUR_REAL_E2B_KEY'
 ```bash
 ENV_FILE="$HOME/.config/openseeker/benchmark_env.sh" \
 MODE=official-v1 LIMIT=2 WORKERS=1 JUDGE_WORKERS=1 \
-  bash scripts/sh/47_openseeker_benchmark.sh
+  bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 # 已配置 E2B 且模型适合 v2 工具时，将 MODE 改成 official-v2。
 ```
 
@@ -204,24 +204,24 @@ curl --fail --connect-timeout 10 --max-time 30 \
 Plain：训练完成后，在服务环境的终端 A 启动模型；RUN_DIR 与现有 20 训练产物相连，自动读取 `models/model/train_summary.json` 的 `final_model_path`。
 
 ```bash
-RUN_DIR=outputs/experiments/<plain-run> bash scripts/sh/48_serve_checkpoint.sh
-# 或 MODEL_PATH=/absolute/path/to/merged-model bash scripts/sh/48_serve_checkpoint.sh
+RUN_DIR=outputs/experiments/<plain-run> bash scripts/sh/benchmark/48_serve_checkpoint.sh
+# 或 MODEL_PATH=/absolute/path/to/merged-model bash scripts/sh/benchmark/48_serve_checkpoint.sh
 ```
 
 48 使用参数数组启动 `python -m sglang.launch_server`，不执行 eval 字符串。默认 GPU=0、TP=1、context=131072、port=30018；用同名环境变量或编辑脚本顶部修改。先等服务就绪，再在终端 B 运行：
 
 ```bash
 # 先审查配置，不创建目录、不下载数据、不调用 API：
-DRY_RUN=1 bash scripts/sh/47_openseeker_benchmark.sh
+DRY_RUN=1 bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 
 # 用私有环境文件配置模型服务和工具；正式运行默认全量、官方 v2：
-ENV_FILE=/private/path/env.sh bash scripts/sh/47_openseeker_benchmark.sh
+ENV_FILE=/private/path/env.sh bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 
 # 仅 search/visit 训练模型可改为官方 v1；先做 2 题在线 smoke：
-MODE=official-v1 LIMIT=2 ENV_FILE=/private/path/env.sh bash scripts/sh/47_openseeker_benchmark.sh
+MODE=official-v1 LIMIT=2 ENV_FILE=/private/path/env.sh bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 ```
 
-自动化也可用 `bash scripts/sh/02_workflow.sh benchmark [47 的命令行参数]`，它复用同一 Python 入口。
+自动化也可用 `bash scripts/sh/tools/02_workflow.sh benchmark [47 的命令行参数]`，它复用同一 Python 入口。
 
 `OPENSEEKER_MODEL` 应与服务中的模型名称相符（48 会打印模型路径），并指向本次训练后的模型，而非原基座。官方模式从 API 推理，不接收 RUN_DIR/MODEL_PATH；这两个变量用于 48，或 47 的 native 模式。
 
@@ -229,7 +229,7 @@ Beacon：完成 30 的训练及必要的 LoRA 合并后，直接运行，不需�
 
 ```bash
 MODE=native RUN_DIR=outputs/experiments/<beacon-run> \
-  ENV_FILE=/private/path/env.sh bash scripts/sh/47_openseeker_benchmark.sh
+  ENV_FILE=/private/path/env.sh bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 # 没有 RUN_DIR 时：MODE=native MODEL_PATH=/path/to/checkpoint KIND=beacon ...
 ```
 
@@ -240,7 +240,7 @@ MODE=native RUN_DIR=outputs/experiments/<beacon-run> \
 ```bash
 MODE=native DATA=/data/benchmark.jsonl BENCHMARK=BrowseComp \
   PREDICTIONS=/data/predictions.jsonl ENV_FILE=/private/path/judge-env.sh \
-  bash scripts/sh/47_openseeker_benchmark.sh
+  bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 ```
 
 预测必须含 `query/answer/final_response`，问题和参考答案必须匹配 DATA；仅有现有 21/31 输出的 prediction 字段还不够，需根据原始 Benchmark 显式导出 query，不能直接把 Polar test 的预测冒充 BrowseComp。若输入来自官方 v2，选择 `MODE=official-v2`，保留官方添加的 boxed 问题后缀。manifest 会记录导入预测的指纹，但其生成来源仍由使用者负责说明。
@@ -280,7 +280,7 @@ native 的 max_tokens 是每轮生成上限，max_turns 是轮数，不等于官
 
 已有输出目录一律拒绝覆盖，避免上游按 item_index 恢复评分时串用旧文件。修复 API 后用新目录重跑，或用原始预测文件走仅评分模式。官方 checkout 的源码修改或版本变化也会拒绝；升级时应修改固定提交、对齐测试和说明，再建立新实验。
 
-同一个 Benchmark、同一个模型也可能因搜索时间、供应商、摘要模型、裁判模型、解码默认值和上下文预算产生差异。报告分数时同时报告这些配置、样本数量、覆盖率、MODE 和固定版本。不能只因接上官方脚本，就把本地结果称为已复现论文成绩。
+同一个 Benchmark、同一个模型也可能因搜索时间、供应商、摘要模型、裁判模型、解码默认值和上下文预算产生差异。Plain 的采样、Plain/Beacon 的重复惩罚范围见 [23](23_decoding.md)，官方模式不接受这些非默认覆盖。报告分数时同时报告这些配置、样本数量、覆盖率、MODE 和固定版本。不能只因接上官方脚本，就把本地结果称为已复现论文成绩。
 
 ## 42.6 不依赖联网 API 的独立固定语料流程
 

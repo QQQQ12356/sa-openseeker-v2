@@ -4,7 +4,7 @@
 
 原始数据位于 `outputs/data/raw/polar/`，包括原始快照目录和 `openseeker_v1_data.jsonl`。只从 `../sa-qwen-openseeker/outputs/data/raw/polar/` 复制这一份数据；不依赖源项目的派生数据。重新下载入口保留为 16，默认只下载 Polar，当前迁移无需运行下载。
 
-首次准备运行 `bash scripts/sh/10_prepare.sh`。已生成同名输出时拒绝覆盖，修改 `OUTPUT_DIR` 可创建另一版本。主要变量：
+首次准备运行 `bash scripts/sh/data/10_prepare.sh`。已生成同名输出时拒绝覆盖，修改 `OUTPUT_DIR` 可创建另一版本。主要变量：
 
 | 变量 | 含义 |
 |---|---|

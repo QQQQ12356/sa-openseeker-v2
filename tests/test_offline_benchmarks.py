@@ -409,7 +409,7 @@ def test_native_real_agent_search_visit_answer_and_regions(tmp_path, monkeypatch
 
 def test_shell_dry_run_has_no_writes_and_preserves_space_paths(tmp_path):
     for script in ('56_browsecomp_plus.sh', '57_hotpotqa_offline.sh'):
-        command = ['bash', str(ROOT / 'scripts/sh' / script)]
+        command = ['bash', str(ROOT / 'scripts/sh/benchmark' / script)]
         import os
         env = dict(os.environ, ACTION='run', DRY_RUN='1', ROOT_DIR=str(tmp_path / 'root with spaces'),
                    MODEL_PATH=str(tmp_path / 'model with spaces'), PYTHON=sys.executable,
@@ -644,3 +644,22 @@ def test_parallel_cli_rejects_bad_gpu_config_before_writes(tmp_path, visible, wo
         env=dict(os.environ, CUDA_VISIBLE_DEVICES=visible), capture_output=True, text=True)
     assert result.returncode != 0
     assert not (tmp_path / 'absent').exists()
+
+
+def test_plain_workflow_hotpot_prepare_index_and_score(tmp_path):
+    """The public Plain shell entry preserves a complete offline scoring path."""
+    import os
+    data, corpus = hotpot_sources(tmp_path)
+    root = tmp_path / 'plain_hotpot'
+    predictions = write_jsonl(tmp_path / 'plain_predictions.jsonl', [
+        dict(id='h1', status='completed', prediction='red blue')])
+    output = tmp_path / 'plain_scores'
+    env = {**os.environ, 'PYTHON': sys.executable, 'TARGET': 'hotpotqa',
+           'ROOT_DIR': str(root), 'DATA': str(data), 'CORPUS': str(corpus),
+           'PREDICTIONS': str(predictions), 'OUTPUT_DIR': str(output)}
+    for action in ('prepare', 'index', 'score'):
+        result = subprocess.run(['bash', 'scripts/sh/plain/27_plain_workflow.sh'], cwd=ROOT,
+                                env={**env, 'ACTION': action}, text=True, capture_output=True)
+        assert result.returncode == 0, result.stderr
+    metrics = json.loads((output / 'summary.metrics.json').read_text())
+    assert metrics['f1'] == 0.5 and metrics['missing_predictions'] == 1

@@ -266,5 +266,5 @@ def test_refilter_rejects_old_length_measurements_before_writing(tmp_path):
     result=subprocess.run([sys.executable,str(script),'--prepared',str(parent),
         '--output',str(output),'--max-length','16384'],capture_output=True,text=True)
     assert result.returncode!=0
-    assert 'rerun scripts/sh/10_prepare.sh' in result.stderr
+    assert 'rerun scripts/sh/data/10_prepare.sh' in result.stderr
     assert not output.exists()

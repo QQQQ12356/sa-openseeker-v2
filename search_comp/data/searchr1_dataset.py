@@ -61,7 +61,7 @@ SEARCH_R1_DATA_HINT = (
     "  huggingface-cli download --repo-type dataset PeterJinGo/nq_hotpotqa_train \\\n"
     "      --include '*instruct-sft.jsonl' --local-dir outputs/data/searchr1\n"
     "或把配置里的 train_data_path 指向已有文件的绝对路径：\n"
-    "  bash scripts/sh/34_beacon_searchr1_train_impl.sh configs/train/beacon_qwen35_whole_searchr1.yaml \\\n"
+    "  bash scripts/sh/beacon/34_beacon_searchr1_train_impl.sh configs/train/beacon_qwen35_whole_searchr1.yaml \\\n"
     "      --set train_data_path=/path/to/qwen3-4b-instruct-sft.jsonl"
 )
 
@@ -118,7 +118,7 @@ LEGACY_DOC_FORMAT_HINT = (
     "检测到旧格式检索文档（[Document N] (ID: ..., Score: ...)）：评测侧的 "
     "<information> 块现在是统一格式（Doc N + 标题行 + 去重正文，无 ID/Score），"
     "继续用旧文件训练会让模型看到的文档与评测不一致。请先规范化数据：\n"
-    "  bash scripts/sh/17_normalize_docs.sh\n"
+    "  bash scripts/sh/data/17_normalize_docs.sh\n"
     "  --set train_data_path=outputs/data/searchr1/qwen3-4b-instruct-sft-normalized.jsonl"
 )
 

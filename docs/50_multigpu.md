@@ -5,8 +5,8 @@
 四卡 A800 OpenSeeker Beacon 可直接执行（模型与数据先在30中修改）：
 
 ```bash
-ACTION=plan bash scripts/sh/38_beacon_4xa800.sh  # 只归档，不训练
-bash scripts/sh/38_beacon_4xa800.sh              # 在目标服务器执行训练
+ACTION=plan bash scripts/sh/beacon/38_beacon_4xa800.sh  # 只归档，不训练
+bash scripts/sh/beacon/38_beacon_4xa800.sh              # 在目标服务器执行训练
 ```
 
 38默认四卡ZeRO-2，复用30的配置，不维护第二份参数。30/37启用无状态模块重计算 `beacon_checkpoint_blocks`，同时显式启用SDPA、keep_window=1024；完整OOM分析及参数说明见 [52 长轨迹OOM](52_beacon_oom.md)。不能把四卡80 GB当成单条样本可用320 GB。
@@ -37,7 +37,7 @@ ZeRO 配置保留在 `configs/train/ds_zero2.json`、`ds_zero3.json`。训练器
 
 `31_beacon_eval.sh` 支持每张 GPU 一个完整模型副本，按样本索引分片并在结束后恢复原始顺序、汇总 EM/F1。这里增加的是题目吞吐，每张卡仍需放下完整 Beacon 模型及单条题目的推理状态；不使用训练的 DDP/ZeRO 或 torchrun。
 
-使用 shell 入口时，修改 `scripts/sh/31_beacon_eval.sh` 顶部：
+使用 shell 入口时，修改 `scripts/sh/beacon/31_beacon_eval.sh` 顶部：
 
 ```bash
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
@@ -47,7 +47,7 @@ LIMIT=100
 DRY_RUN=1
 ```
 
-然后执行 `bash scripts/sh/31_beacon_eval.sh` 审查解析出的模型、数据与命令，确认后将 `DRY_RUN=0` 再执行。脚本顶部直接赋值，**31 不能通过命令前的同名环境变量覆盖这些设置**；这与使用 `${变量:-默认值}` 的 56 不同。`NUM_WORKERS` 须为正整数，且不超过显式列出的互异 GPU 数；例如可见卡 `2,3,6,7`、workers=4 时，各子进程分别只看到其中一张卡。`LIMIT` 是总测试题数，先取前 N 题，再按索引分给 workers，不是每卡各取 N 题。
+设置 `DRY_RUN=1` 执行 `bash scripts/sh/beacon/31_beacon_eval.sh` 审查解析出的模型、数据与命令，确认后设置 `DRY_RUN=0` 再执行。31 的顶部标量支持通过命令前的同名环境变量覆盖。`NUM_WORKERS` 须为正整数，且不超过显式列出的互异 GPU 数；例如可见卡 `2,3,6,7`、workers=4 时，各子进程分别只看到其中一张卡。`LIMIT` 是总测试题数，先取前 N 题，再按索引分给 workers，不是每卡各取 N 题。
 
 需要从命令行传参时，也可直接调用其 Python 入口；以下示例沿用默认 replay 诊断后端，替换模型和数据路径，使用尚不存在的输出文件：
 
@@ -71,7 +71,7 @@ replay 只在生成动作与历史记录匹配时返回观测，用于动作复�
 ACTION=run CUDA_VISIBLE_DEVICES=0,1,2,3 NUM_WORKERS=4 \
 MODEL_PATH=/models/beacon-merged KIND=beacon LIMIT=8 \
 OUTPUT_DIR=outputs/results/bcp_beacon_4gpu_001 \
-  bash scripts/sh/56_browsecomp_plus.sh
+  bash scripts/sh/benchmark/56_browsecomp_plus.sh
 ```
 
 该命令要求已完成固定语料准备与索引构建。每个 worker 绑定一张 GPU，独立加载完整模型；生成完毕后，父进程按原顺序合并并校验题目和来源，失败则停止其他 workers，不继续评分。`LIMIT=8` 是总题数；全量设 `LIMIT=-1`。裁判仍逐题评分，使用父进程可见卡自动分配权重。完整 all/run/score 示例、worker 日志和显存边界见 [43.7.4](43_offline_benchmarks.md#4374-beacon-多卡测试56-与-31-的能力不同)。本次通过真实子进程与替代生成器验证调度，尚未运行真实 GPU 模型测试。

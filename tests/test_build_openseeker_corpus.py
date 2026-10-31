@@ -142,11 +142,11 @@ def test_shell_from_other_directory_and_corpus_backend(tmp_path):
     root = Path(__file__).resolve().parents[1]
     source = write_rows(tmp_path / "test.jsonl", [trajectory()])
     output = tmp_path / "corpus output"
-    script = (root / "scripts/sh/15_build_corpus.sh").read_text()
+    script = (root / "scripts/sh/data/15_build_corpus.sh").read_text()
     script = script.replace('PYTHON=""', f'PYTHON="{sys.executable}"', 1)
     script = re.sub(r"INPUTS=\(.*?\n\)", f'INPUTS=(\n  "{source}"\n)', script, flags=re.S)
     script = re.sub(r'^OUTPUT_DIR=".*"$', f'OUTPUT_DIR="{output}"', script, flags=re.M)
-    script = script.replace('source "$(dirname "${BASH_SOURCE[0]}")/00_common.sh"', f'source "{root}/scripts/sh/00_common.sh"')
+    script = script.replace('source "$(dirname "${BASH_SOURCE[0]}")/../common/00_common.sh"', f'source "{root}/scripts/sh/common/00_common.sh"')
     result = subprocess.run(["bash", "-c", script], cwd=tmp_path, text=True, capture_output=True)
     assert result.returncode == 0, result.stderr
     assert str(output / "corpus.jsonl") in result.stdout

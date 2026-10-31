@@ -72,7 +72,7 @@ def resolve_checkpoint(run_dir, model, kind):
     if not path.is_dir():
         raise ValueError(f"checkpoint directory does not exist: {path}")
     if (path / "adapter_config.json").exists():
-        raise ValueError("merge the LoRA adapter first (35_beacon_merge_adapter.sh / merge_adapter)")
+        raise ValueError("merge the LoRA adapter first (scripts/sh/plain/29_plain_merge_adapter.sh or scripts/sh/beacon/35_beacon_merge_adapter.sh)")
     config_path = path / "config.json"
     config = json.loads(config_path.read_text()) if config_path.is_file() else {}
     text_config = config.get("text_config") or {}
@@ -185,17 +185,18 @@ def native_generate(args, rows, output):
     sys.path.insert(0, str(args.official_dir / "src"))
     from llm_tool_openseeker import Search, Visit
     from search_comp.data.agent_prompt import initial_messages, resolve_system_prompt
-    from search_comp.evaluation.tool_agent import ModelGenerator, Registry, run_agent
+    from search_comp.evaluation.tool_agent import ModelGenerator, Registry, run_agent, decoding_options
     from search_comp.models.model_loader import load_beacon_model, load_tokenizer
     from search_comp.models.plain_qwen3 import load_sft_model
 
     print(f"[benchmark native generation] done=0/{len(rows)}", flush=True)
     system, prompt_source = resolve_system_prompt(getattr(args, 'prompt_data', None), args.run_dir)
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
+    generation_options = decoding_options(args, kind == 'beacon')
     tokenizer = load_tokenizer(model_path)
     model = (load_beacon_model if kind == "beacon" else load_sft_model)(model_path)
     model.eval()
-    generate = ModelGenerator(model, tokenizer, kind == "beacon")
+    generate = ModelGenerator(model, tokenizer, kind == "beacon", **generation_options)
     search, visit = Search(), Visit()
     tools = Registry({"search": lambda **kw: search.call(kw), "visit": lambda **kw: visit.call(kw)})
     with output.open("x", encoding="utf-8") as target:
@@ -235,8 +236,16 @@ def main():
     parser.add_argument("--max-context", type=int, default=131072)
     parser.add_argument("--max-turns", type=int, default=200)
     parser.add_argument("--max-tool-tokens", type=int, default=32768)
+    from search_comp.evaluation.tool_agent import add_decoding_arguments, decoding_options
+    add_decoding_arguments(parser)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    try:
+        generation_options = decoding_options(args, args.kind == 'beacon')
+    except ValueError as error:
+        parser.error(str(error))
+    if args.mode != 'native' and generation_options:
+        parser.error('decoding overrides are supported in native mode only')
     for name in ("workers", "judge_workers", "max_tokens", "tool_count", "max_context", "max_turns", "max_tool_tokens"):
         if getattr(args, name) < 1:
             parser.error(f"--{name.replace('_', '-')} must be positive")
@@ -260,7 +269,10 @@ def main():
             command = ["import_predictions", str(args.predictions)]
         print(json.dumps(dict(revision=OFFICIAL_REVISION, mode=args.mode, data=str(args.data),
                               output=str(output), prompt_data=str(args.prompt_data) if args.prompt_data else None,
-                              generation=command), indent=2))
+                              generation=command,
+                              decoding=dict(mode=args.decoding, repetition_penalty=args.repetition_penalty,
+                                            temperature=args.temperature, top_p=args.top_p,
+                                            generation_seed=args.generation_seed)), indent=2))
         return
     if output.exists() and not args.prepare_only:
         parser.error("output directory exists; use a new --output-dir (no overwriting or stale judge cache)")

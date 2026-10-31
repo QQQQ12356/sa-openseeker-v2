@@ -138,3 +138,71 @@ def test_native_decoding_uses_same_greedy_policy_and_multiple_eos(beacon):
     text, ended, count = ModelGenerator(Model(), TextTokenizer(), beacon)(
         {'input_ids': [3, 4], 'regions': []}, 8)
     assert text == 'A<eos>' and ended and count == 2
+
+
+def test_plain_repetition_penalty_changes_greedy_choice():
+    import torch
+    from transformers import Qwen3Config, RepetitionPenaltyLogitsProcessor
+    from search_comp.evaluation.tool_agent import ModelGenerator
+
+    class Tokenizer:
+        pad_token_id = 0
+        def decode(self, tokens, **kwargs):
+            return ''.join(str(token) for token in tokens)
+    class Model(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.zeros(1))
+            self.config = Qwen3Config(eos_token_id=9)
+        def generate(self, input_ids, generation_config, **kwargs):
+            logits = torch.tensor([[0., 3., 2.5, 0., 0., 0., 0., 0., 0., 0.]])
+            logits = RepetitionPenaltyLogitsProcessor(generation_config.repetition_penalty)(input_ids, logits)
+            return torch.cat([input_ids, logits.argmax(dim=-1, keepdim=True)], dim=1)
+    base = ModelGenerator(Model(), Tokenizer())
+    penalized = ModelGenerator(Model(), Tokenizer(), repetition_penalty=2.0)
+    assert base({'input_ids': [1], 'regions': []}, 1)[0] == '1'
+    assert penalized({'input_ids': [1], 'regions': []}, 1)[0] == '2'
+    assert penalized.metadata['repetition_penalty'] == 2.0
+
+
+def test_sampling_configuration_and_question_seed_are_reproducible():
+    import torch
+    from transformers import Qwen3Config
+    from search_comp.evaluation.tool_agent import ModelGenerator
+
+    class Tokenizer:
+        pad_token_id = 0
+        def decode(self, tokens, **kwargs):
+            return str(tokens)
+    class Model(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.zeros(1))
+            self.config = Qwen3Config(eos_token_id=9)
+        def generate(self, input_ids, generation_config, **kwargs):
+            assert generation_config.do_sample and generation_config.temperature == 0.7
+            assert generation_config.top_p == 0.9 and generation_config.top_k == 0
+            sample = torch.randint(1, 9, (1, 8))
+            return torch.cat([input_ids, sample], dim=1)
+    gen = ModelGenerator(Model(), Tokenizer(), decoding='sample', temperature=0.7, top_p=0.9, seed=7)
+    gen.start_question('same question')
+    first = gen({'input_ids': [1], 'regions': []}, 8)
+    gen.start_question('same question')
+    assert gen({'input_ids': [1], 'regions': []}, 8) == first
+    assert gen.metadata['generation_seed'] == 7
+
+
+@pytest.mark.parametrize('kwargs', [dict(repetition_penalty=0), dict(temperature=float('nan')),
+                                   dict(top_p=0), dict(seed=-1)])
+def test_invalid_native_decoding_options_fail(kwargs):
+    from types import SimpleNamespace
+    from search_comp.evaluation.tool_agent import ModelGenerator
+    with pytest.raises(ValueError):
+        ModelGenerator(SimpleNamespace(), None, **kwargs)
+
+
+def test_beacon_rejects_sampling_override():
+    from types import SimpleNamespace
+    from search_comp.evaluation.tool_agent import ModelGenerator
+    with pytest.raises(ValueError, match='Plain only'):
+        ModelGenerator(SimpleNamespace(), None, beacon=True, decoding='sample')

@@ -149,7 +149,7 @@ def test_worker_failure_stops_other_workers_without_final_metrics(tmp_path, monk
 @pytest.mark.parametrize("split,key", [
     ("train", "train_data_path"), ("validation", "val_data_path"), ("test", "test_data_path"),
 ])
-@pytest.mark.parametrize("entry", ["21_plain_eval.sh", "31_beacon_eval.sh"])
+@pytest.mark.parametrize("entry", ["plain/21_plain_eval.sh", "beacon/31_beacon_eval.sh"])
 def test_shell_selects_experiment_split(tmp_path, split, key, entry):
     import os
     root = Path(__file__).resolve().parents[1]
@@ -248,3 +248,30 @@ def test_forward_progress_retains_partial_lines(tmp_path, capsys):
         evaluation.forward_progress([reader], buffers)
     assert capsys.readouterr().out.splitlines() == [
         "[eval worker=0] done=1/2", "[eval worker=0] done=2/2"]
+
+
+def test_plain_adapter_evaluation_records_resolved_sources(tmp_path, monkeypatch):
+    args = arguments(tmp_path, dataset(tmp_path, 1))
+    adapter = tmp_path / 'adapter'
+    adapter.mkdir()
+    (adapter / 'adapter_config.json').write_text('{}')
+    args.model, args.kind, args.base_model, args.tokenizer = str(adapter), 'plain', '/training/base', '/training/tokenizer'
+    plan = dict(model=str(adapter), base=args.base_model, tokenizer=args.tokenizer, adapter=True)
+    seen = {}
+    monkeypatch.setitem(sys.modules, 'search_comp.models.model_loader', SimpleNamespace(
+        load_tokenizer=lambda name: seen.setdefault('tokenizer', name), load_beacon_model=None))
+    monkeypatch.setitem(sys.modules, 'search_comp.models.plain_qwen3', SimpleNamespace(
+        load_sft_model=None, resolve_plain_evaluation=lambda *values: plan,
+        load_plain_evaluation_model=lambda value: SimpleNamespace(eval=lambda: None)))
+    class Generator:
+        def __init__(self, *unused):
+            self.metadata = {}
+    monkeypatch.setattr(evaluation, 'ModelGenerator', Generator)
+    def run_agent(messages, tokenizer, generate, *unused):
+        seen['metadata'] = generate.metadata
+        return dict(status='completed', prediction='red blue')
+    monkeypatch.setattr(evaluation, 'run_agent', run_agent)
+    evaluation.evaluate(args)
+    assert seen['tokenizer'] == '/training/tokenizer'
+    assert seen['metadata']['base_model_path'] == '/training/base'
+    assert seen['metadata']['adapter_path'] == str(adapter)

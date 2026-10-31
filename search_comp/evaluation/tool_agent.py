@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import urllib.request
+from types import SimpleNamespace
 from ..data.openseeker import (encode, parse_calls, json_text, CALL_END, RESPONSE_RE)
 from ..data.agent_prompt import prompt_metadata, render_system
 
@@ -83,17 +85,62 @@ class ReplayTools:
         return [dict(m) for m in replies]
 
 
+def add_decoding_arguments(parser):
+    parser.add_argument('--decoding', choices=['greedy', 'sample'], default='greedy')
+    parser.add_argument('--repetition-penalty', type=float, default=1.0)
+    parser.add_argument('--temperature', type=float, default=1.0)
+    parser.add_argument('--top-p', type=float, default=1.0)
+    parser.add_argument('--generation-seed', type=int, default=42)
+
+
+def decoding_options(args, beacon=False):
+    """Validate shared native options; omit defaults for existing integrations."""
+    values = dict(decoding=getattr(args, 'decoding', 'greedy'),
+                  repetition_penalty=getattr(args, 'repetition_penalty', 1.0),
+                  temperature=getattr(args, 'temperature', 1.0),
+                  top_p=getattr(args, 'top_p', 1.0),
+                  seed=getattr(args, 'generation_seed', 42))
+    if values['decoding'] not in ('greedy', 'sample'):
+        raise ValueError('decoding must be greedy or sample')
+    if not math.isfinite(values['repetition_penalty']) or values['repetition_penalty'] <= 0:
+        raise ValueError('repetition-penalty must be finite and positive')
+    if not math.isfinite(values['temperature']) or values['temperature'] <= 0:
+        raise ValueError('temperature must be finite and positive')
+    if not math.isfinite(values['top_p']) or not 0 < values['top_p'] <= 1:
+        raise ValueError('top-p must be in (0, 1]')
+    if values['seed'] < 0 or values['seed'] > 2**31 - 1:
+        raise ValueError('generation-seed must be between 0 and 2147483647')
+    if beacon and values['decoding'] != 'greedy':
+        raise ValueError('native sampling currently supports Plain only; Beacon requires greedy')
+    defaults = dict(decoding='greedy', repetition_penalty=1.0, temperature=1.0, top_p=1.0, seed=42)
+    return {} if values == defaults else values
+
+
 class ModelGenerator:
-    def __init__(self, model, tokenizer, beacon=False):
+    def __init__(self, model, tokenizer, beacon=False, decoding='greedy', repetition_penalty=1.0,
+                 temperature=1.0, top_p=1.0, seed=42):
         self.model, self.tokenizer, self.beacon = model, tokenizer, beacon
+        self.decoding, self.repetition_penalty = decoding, repetition_penalty
+        self.temperature, self.top_p, self.seed = temperature, top_p, seed
+        decoding_options(SimpleNamespace(decoding=decoding, repetition_penalty=repetition_penalty,
+                                        temperature=temperature, top_p=top_p, generation_seed=seed), beacon)
         config = model.config.to_dict()
-        self.metadata = dict(kind='beacon' if beacon else 'plain', do_sample=False,
-                             decoding='greedy',
+        self.metadata = dict(kind='beacon' if beacon else 'plain', do_sample=decoding == 'sample',
+                             decoding=decoding, repetition_penalty=repetition_penalty,
+                             temperature=temperature, top_p=top_p, generation_seed=seed,
                              checkpoint=getattr(model.config, '_name_or_path', ''),
                              model_config_sha256=hashlib.sha256(
                                  json_text(config).encode()).hexdigest())
         if beacon:
             self.metadata['beacon_config'] = model.beacon_config.to_dict()
+        self.metadata['repetition_scope'] = ('beacon_visible_tokens' if beacon else 'full_input_and_generated')
+
+    def start_question(self, question):
+        if self.decoding == 'sample':
+            import torch
+            # Same question/seed receives the same RNG sequence across shards.
+            offset = int.from_bytes(hashlib.sha256(question.encode('utf-8')).digest()[:4], 'big')
+            torch.manual_seed((self.seed + offset) % (2**32))
 
     def __call__(self, encoded, max_new_tokens):
         import torch
@@ -105,9 +152,11 @@ class ModelGenerator:
         eos_ids = [] if eos is None else list(eos) if isinstance(eos, (list, tuple)) else [eos]
         with torch.inference_mode():
             if self.beacon:
+                penalty = ({'repetition_penalty': self.repetition_penalty}
+                           if self.repetition_penalty != 1.0 else {})
                 out = self.model.beacon_generate(input_ids=ids, attention_mask=torch.ones_like(ids),
                     regions=encoded['regions'], max_new_tokens=max_new_tokens, tokenizer=tokenizer,
-                    stop_texts=stops, eos_token_ids=eos_ids, reuse_cache=False)
+                    stop_texts=stops, eos_token_ids=eos_ids, reuse_cache=False, **penalty)
                 generated = out[0].tolist()
             else:
                 start = ids.shape[1]
@@ -115,13 +164,14 @@ class ModelGenerator:
                     def __call__(self, input_ids, scores, **kwargs):
                         text = tokenizer.decode(input_ids[0, start:].tolist(), skip_special_tokens=False)
                         return any(s in text for s in stops)
+                sampling = dict(temperature=self.temperature, top_p=self.top_p, top_k=0) if self.decoding == 'sample' else {}
                 out = self.model.generate(input_ids=ids, attention_mask=torch.ones_like(ids),
                     # Do not inherit checkpoint-specific sampling, beam or penalty defaults
                     # that the Beacon argmax loop does not implement.
                     generation_config=GenerationConfig(max_new_tokens=max_new_tokens,
-                        do_sample=False, num_beams=1, repetition_penalty=1.0,
+                        do_sample=self.decoding == 'sample', num_beams=1, repetition_penalty=self.repetition_penalty,
                         bos_token_id=self.model.config.bos_token_id,
-                        eos_token_id=eos_ids or None, pad_token_id=tokenizer.pad_token_id),
+                        eos_token_id=eos_ids or None, pad_token_id=tokenizer.pad_token_id, **sampling),
                     stopping_criteria=StoppingCriteriaList([Stop()]))
                 generated = out[0, start:].tolist()
         text = tokenizer.decode(generated, skip_special_tokens=False)
@@ -158,6 +208,8 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
     # Only the original system/question enter inference; no reference is injected.
     history = [dict(message) for message in messages[:2]]
     history[0]['content'] = render_system(history[0]['content'], tool_schemas)
+    if hasattr(generate, 'start_question'):
+        generate.start_question(history[1]['content'])
     events = []; status = 'turn_limit'; prediction = ''; generated_tokens = 0
     for turn in range(max_turns):
         encoded = encode(history, tokenizer, generation_prompt=True)

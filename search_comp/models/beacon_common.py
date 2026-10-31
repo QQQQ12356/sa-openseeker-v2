@@ -1,6 +1,7 @@
 """架构无关的 Beacon KV 管理、损失和生成逻辑。"""
 from __future__ import annotations
 from typing import List, Optional, Tuple
+import math
 import torch
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
@@ -8,6 +9,17 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from .beacon_config import BeaconConfig
 from .modeling_utils import beacon_intersect_order, cat_tensor, slice_tensor
 from ..loss_segments import SEGMENT_IGNORE, segment_ids_to_weights
+
+
+def apply_visible_repetition_penalty(logits, visible_ids, penalty):
+    """Apply the HF sign-aware rule to unique visible vocabulary IDs."""
+    if penalty == 1.0 or not visible_ids:
+        return logits
+    ids = torch.tensor(sorted(visible_ids), device=logits.device, dtype=torch.long)
+    score = logits.index_select(-1, ids)
+    adjusted = torch.where(score < 0, score * penalty, score / penalty)
+    return logits.scatter(-1, ids.expand(logits.shape[0], -1), adjusted)
+
 
 class BeaconMemory:
     """仅管理全注意力 KV 与窗口计划；Qwen3.5 子类额外维护线性状态。"""
@@ -31,6 +43,9 @@ class BeaconMemory:
         self._seg_idx = 0
 
         self._segments: List[Tuple[int, int, str]] = []
+        # Vocabulary IDs that remain as ordinary tokens in persistent memory.
+        # Compressed observation text is replaced by non-vocabulary Beacon states.
+        self._visible_token_ids: set[int] = set()
         self._cache = [(None, None) for _ in range(self.num_layers)]
         self._batch_loss = None
         self._valid_num = None
@@ -713,6 +728,12 @@ class BeaconCausalLMMixin:
             # 每个窗口末位 logits = 对下一 token 的预测；prefill 结束即首个新 token 的预测
             last_logits = logits[:, -1, :]
 
+        # Preserve the actual keep tokens across incremental prefill. Updating
+        # once per segment avoids synchronizing once for every prompt token.
+        for start, end, mode in self._mem._segments:
+            if mode == "keep":
+                self._mem._visible_token_ids.update(input_ids[0, start:end].tolist())
+
         if return_last_logits:
             return self._mem, last_logits
         return self._mem
@@ -736,13 +757,14 @@ class BeaconCausalLMMixin:
             last_logits_only=True,
         )
         self._mem.update_memory(new_past)
+        self._mem._visible_token_ids.update(last_token_ids.reshape(-1).tolist())
         return logits[:, -1, :]
 
     def beacon_generate(self, input_ids, attention_mask=None, regions=None,
                         compress_start=None, compress_end=None, max_new_tokens=256,
                         do_sample=False, temperature=1.0, top_p=1.0,
                         eos_token_ids=None, stop_texts=None, tokenizer=None,
-                        reuse_cache=False, question_input_ids=None):
+                        reuse_cache=False, question_input_ids=None, repetition_penalty=1.0):
         """Beacon 模式生成：先编码上下文为 beacon K/V，再自回归生成答案。
 
         ``regions`` 指定
@@ -753,6 +775,8 @@ class BeaconCausalLMMixin:
             regions = [(int(compress_start), int(compress_end))]
         if regions is None:
             raise ValueError("必须提供 regions 或 compress_start/compress_end")
+        if not math.isfinite(repetition_penalty) or repetition_penalty <= 0:
+            raise ValueError("repetition_penalty 必须为有限正数")
 
         was_training = self.training
         self.eval()
@@ -761,13 +785,14 @@ class BeaconCausalLMMixin:
                 return self._beacon_generate_loop(
                     input_ids, regions, max_new_tokens, do_sample, temperature, top_p,
                     eos_token_ids, stop_texts, tokenizer, reuse_cache, question_input_ids,
+                    repetition_penalty,
                 )
         finally:
             self.train(was_training)
 
     def _beacon_generate_loop(self, input_ids, regions, max_new_tokens, do_sample,
                               temperature, top_p, eos_token_ids, stop_texts, tokenizer,
-                              reuse_cache=False, question_input_ids=None):
+                              reuse_cache=False, question_input_ids=None, repetition_penalty=1.0):
         _mem, logits = self.prefill_and_get_cache(
             input_ids, regions, return_last_logits=True, reuse_cache=reuse_cache,
             question_input_ids=question_input_ids,
@@ -776,6 +801,7 @@ class BeaconCausalLMMixin:
         generated = []
 
         for _ in range(max_new_tokens):
+            logits = apply_visible_repetition_penalty(logits, _mem._visible_token_ids, repetition_penalty)
             if do_sample:
                 logits = logits / temperature
                 if top_p < 1.0:

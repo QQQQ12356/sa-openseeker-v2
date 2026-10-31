@@ -6,7 +6,7 @@ Beacon 支持固定压缩比与随机压缩比，Qwen3/Qwen3.5、OpenSeeker/Sear
 
 ## 一键脚本
 
-修改 `scripts/sh/30_beacon_train.sh` 顶部变量后直接运行：
+修改 `scripts/sh/beacon/30_beacon_train.sh` 顶部变量后直接运行：
 
 ```bash
 COMPRESSION_MODE="random"          # fixed / random

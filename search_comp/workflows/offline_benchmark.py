@@ -69,6 +69,8 @@ def run_phase(args, output, rows, manifest):
         return run_parallel(args, output, rows, manifest)
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     from search_comp.data.agent_prompt import build_system_prompt, resolve_system_prompt
+    from search_comp.evaluation.tool_agent import decoding_options
+    generation_options = decoding_options(args, kind == 'beacon')
     original_system, prompt_source = resolve_system_prompt(getattr(args, 'prompt_data', None), args.run_dir)
     system = build_system_prompt(system=original_system, local=True, allow_visit=args.allow_visit,
         answer_instruction=HOTPOT_INSTRUCTION if args.benchmark == "hotpotqa" else BCP_INSTRUCTION)
@@ -81,7 +83,7 @@ def run_phase(args, output, rows, manifest):
     tokenizer = load_tokenizer(model_path)
     model = (load_beacon_model if kind == "beacon" else load_sft_model)(model_path)
     model.eval()
-    generate = ModelGenerator(model, tokenizer, kind == "beacon")
+    generate = ModelGenerator(model, tokenizer, kind == "beacon", **generation_options)
     statuses = Counter()
     start = time.monotonic()
     print(f"[offline {args.benchmark}] done=0/{len(rows)}", flush=True)
@@ -324,6 +326,8 @@ def make_parser():
     parser.add_argument("--retrieval-only", action="store_true")
     parser.add_argument("--judge-max-tokens", type=int, default=4096)
     parser.add_argument("--judge-max-context", type=int, default=32768)
+    from search_comp.evaluation.tool_agent import add_decoding_arguments
+    add_decoding_arguments(parser)
     parser.add_argument("--judge-temperature", type=float, default=0.7)
     parser.add_argument("--judge-top-p", type=float, default=0.8)
     parser.add_argument("--judge-top-k", type=int, default=20)
@@ -335,6 +339,11 @@ def make_parser():
 def main():
     parser = make_parser()
     args = parser.parse_args()
+    from search_comp.evaluation.tool_agent import decoding_options
+    try:
+        decoding_options(args, args.kind == 'beacon')
+    except ValueError as error:
+        parser.error(str(error))
     args.root = args.root or ROOT / "outputs/data/benchmarks" / args.benchmark
     for key, value in vars(args).items():
         if isinstance(value, Path):
@@ -366,7 +375,11 @@ def main():
         print(json.dumps({key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()}, indent=2))
         return
     if args.action in {"run", "all"}:
-        resolve_checkpoint(args.run_dir, args.model, args.kind)
+        _, resolved_kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
+        try:
+            decoding_options(args, resolved_kind == 'beacon')
+        except ValueError as error:
+            parser.error(str(error))
     if args.action in {"all", "score"} and args.judge_model and not args.judge_model.is_dir():
         parser.error("judge-model must be an existing local model directory")
     if args.action == "download":

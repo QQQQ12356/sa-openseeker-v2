@@ -1,5 +1,29 @@
 # 99 本次验证记录
 
+## Beacon 压缩后可见历史重复惩罚验证
+
+Beacon native 支持 `REPETITION_PENALTY`，按未压缩的输入 token 和生成 token 计算，不把压缩正文或 Beacon 虚拟状态作为普通词表 token。CPU 回归 105 项通过，覆盖 Qwen3/Qwen3.5、append/intersect、可见与压缩 token、生成及增量缓存、缓存重置、默认系数输出一致和与 HF 正负 logits 规则的对照；tiny PEFT 有两条既有保存提示。另对问题记忆、随机压缩和续写执行 79 项通过、2 项跳过。31/47/57 的参数传递或 dry-run、shell 语法和 diff 检查通过。没有运行真实 GPU 训练、4B 推理或在线 benchmark，实际性能与质量尚待目标服务器测试。
+
+## Plain native 解码参数增量验证
+
+21、47 native、56、57 和原始基座 70 支持可配置 greedy/sample、重复惩罚及采样参数；默认仍为贪心且重复惩罚为 1。测试覆盖重复惩罚改变贪心 token 选择、采样参数与同题种子复现、参数非法和 Beacon/官方模式不支持参数的报错、adapter/脚本参数透传；相关回归 67 项通过、tiny PEFT 有两条预期保存提示。随后解码与 Beacon 防错单测 16 项通过，离线 benchmark 回归 43 项通过、6 条上游模板转义警告。shell 语法、Python 编译和 diff 检查通过。以上均为 CPU 测试与 dry-run，未运行真实 4B 模型或训练。
+
+## Plain adapter 与原始基座入口增量验证
+
+21 支持解析 Plain LoRA adapter、训练基座和 tokenizer，并直接挂载 adapter；70 提供原始 Qwen3.5-4B 基线的 OpenSeeker、在线 BrowseComp、离线 BCP/Hotpot 入口。CPU 回归中，真实 PEFT tiny Qwen3 和 Qwen3.5 adapter 与合并后模型的 logits 对齐；同时检查基座缺失、Beacon adapter 拒绝、21 参数路径、生成元数据、评测分片和原有 benchmark 加载边界。组合回归 52 项通过；随后增加入口元数据检查，相关回归 32 项通过，tiny PEFT 有两条缺少基座 config 的保存提示。四种基线路由已分别做 dry-run；shell 语法、Python 编译和 diff 空白检查通过。
+
+这些测试使用 CPU tiny 模型和合成数据，未启动真实模型训练、4B checkpoint 推理、真实在线服务、全量基准评测或实际多卡 GPU 推理。测试使用当前机器已有的旧 `search-comp-qwen3.5` 环境；默认 `search-comp-qwen35-cu126` 需要在目标机器准备。
+
+## Shell 分类整理验证
+
+Shell 按 common、tools、data、plain、beacon、report、benchmark 分类，保留全局编号。已检查全部 shell 语法、文档和代码中明确写出的 shell 路径；从项目外目录执行 Plain 单卡 plan 与 Hotpot dry-run，并验证 Beacon 四卡 plan 和 BrowseComp dry-run。相关数据、评测、预算与 Plain 流程回归 125 项通过、6 个上游评分模板转义警告。检查未启动实际模型训练或在线服务。
+
+## Plain 完整流程增量验证
+
+新增 Plain 实验指南、分阶段入口、LoRA 合并恢复入口和 OpenSeeker 结果汇总参数。针对性 CPU 回归 `pytest tests/test_plain_workflow.py tests/test_offline_benchmarks.py tests/test_merge_adapter.py -q`：54 passed、6 个上游评分模板转义警告。覆盖 Plain 入口下合成 Hotpot 数据的 prepare/index/官方评分、OpenSeeker 预测汇总及防覆盖、Plain 合并路径推导和防覆盖，以及现有离线、Beacon 合并回归。单卡 Plain 计划实际生成；在线 BrowseComp 和离线 BCP 的入口 dry-run 通过。shell 语法、Python 编译和 diff 空白检查通过。
+
+以上为 CPU 合成/计划验证，没有执行真实 GPU 训练、完整基准数据下载建库、真实模型生成或在线裁判；真实资源消耗与成绩仍需在目标服务器验证。
+
 本次在现有 `search-comp-qwen3.5` 环境下完成代码迁移与离线验证，没有启动真实模型训练、真实多卡 GPU 训练或真实模型生成。
 
 | 项目 | 结果 | 证据 |

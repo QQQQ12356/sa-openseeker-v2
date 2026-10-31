@@ -16,7 +16,8 @@ import threading
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from search_comp.data.openseeker import normalize, VERSION
 from search_comp.evaluation.em_f1 import compute_f1
-from search_comp.evaluation.tool_agent import HTTPTools, ReplayTools, CorpusTools, ModelGenerator, run_agent
+from search_comp.evaluation.tool_agent import (HTTPTools, ReplayTools, CorpusTools, ModelGenerator, run_agent,
+                                                add_decoding_arguments, decoding_options)
 from search_comp.utils.progress import CompletionProgress
 
 
@@ -147,12 +148,31 @@ def evaluate(args):
         from search_comp.models.model_loader import load_beacon_model, load_tokenizer
         from search_comp.models.plain_qwen3 import load_sft_model
 
+        # Keep the ordinary full-checkpoint path unchanged. Adapter loading is
+        # Plain-only and can resolve its original base from training metadata.
+        from pathlib import Path as ModelPath
+        is_adapter = (ModelPath(args.model) / 'adapter_config.json').is_file()
+        if is_adapter:
+            if args.kind != 'plain':
+                raise ValueError('adapter evaluation supports Plain only; merge Beacon first')
+            from search_comp.models.plain_qwen3 import resolve_plain_evaluation, load_plain_evaluation_model
+            plan = resolve_plain_evaluation(args.model, getattr(args, 'base_model', None),
+                                            getattr(args, 'tokenizer', None))
+        else:
+            if getattr(args, 'base_model', None):
+                raise ValueError('--base-model requires a Plain adapter directory')
+            plan = None
+
         progress.phase(f"loading tokenizer: {args.model}")
-        tok = load_tokenizer(args.model)
+        tok = load_tokenizer(plan['tokenizer'] if plan else (getattr(args, 'tokenizer', None) or args.model))
         progress.phase(f"loading model and moving to device: {args.model}")
-        model = (load_beacon_model if args.kind == "beacon" else load_sft_model)(args.model)
+        model = (load_plain_evaluation_model(plan) if plan else
+                 (load_beacon_model if args.kind == "beacon" else load_sft_model)(args.model))
         model.eval()
-        generate = ModelGenerator(model, tok, args.kind == "beacon")
+        generate = ModelGenerator(model, tok, args.kind == "beacon", **decoding_options(args, args.kind == "beacon"))
+        if plan:
+            generate.metadata.update(adapter_path=plan['model'], base_model_path=plan['base'],
+                                     tokenizer_path=plan['tokenizer'])
         progress.phase(f"initializing backend={args.backend}" +
                        (f"; loading corpus and building BM25: {args.corpus}" if args.backend == "corpus" else ""))
         shared_backend = (HTTPTools(args.endpoint) if args.backend == "http" else
@@ -267,6 +287,8 @@ def evaluate_parallel(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", required=True)
+    p.add_argument("--base-model", help="exact training base for a Plain LoRA adapter; overrides saved metadata")
+    p.add_argument("--tokenizer", help="training tokenizer path; defaults to adapter tokenizer or model/base")
     p.add_argument("--data", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--kind", choices=["plain", "beacon"], default="beacon")
@@ -278,6 +300,7 @@ def main():
     p.add_argument("--max-new-tokens", type=int, default=8192)
     p.add_argument("--max-tool-tokens", type=int, default=16384)
     p.add_argument("--max-turns", type=int, default=32)
+    add_decoding_arguments(p)
     p.add_argument("--data-split", choices=["train", "validation", "test", "custom"], default="test")
     p.add_argument("--num-workers", type=int, default=1,
                    help="one model replica per GPU; explicitly set CUDA_VISIBLE_DEVICES for multiple workers")
@@ -286,6 +309,10 @@ def main():
     p.add_argument("--shard-index", type=int, default=0, help=argparse.SUPPRESS)
     p.add_argument("--shard-count", type=int, default=1, help=argparse.SUPPRESS)
     args = p.parse_args()
+    try:
+        decoding_options(args, args.kind == 'beacon')
+    except ValueError as error:
+        p.error(str(error))
     if args.backend == "http" and not args.endpoint:
         p.error("--endpoint required for http")
     if args.backend == "corpus" and not args.corpus:

@@ -4,7 +4,7 @@
 
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
 
-主入口为 `scripts/sh/30_beacon_train.sh`，使用方式与 Plain 相同。模型支持 Qwen3 和 Qwen3.5，默认 whole observation 压缩。OpenSeeker 中只有 `tool_response` 的正文进入压缩区域：工具调用 JSON、system、问题、推理和原始回答都保留。训练和 agent 评测共用序列化与 observation 区域定义。
+主入口为 `scripts/sh/beacon/30_beacon_train.sh`，使用方式与 Plain 相同。模型支持 Qwen3 和 Qwen3.5，默认 whole observation 压缩。OpenSeeker 中只有 `tool_response` 的正文进入压缩区域：工具调用 JSON、system、问题、推理和原始回答都保留。训练和 agent 评测共用序列化与 observation 区域定义。
 
 可修改 `beacon_ratio`、LoRA、分段损失、续写损失、information/readout/output 蒸馏等。默认关闭需要完整 teacher 的额外输出蒸馏。模型结构、Qwen3.5 线性状态处理、continuation、问题记忆等已有实现和测试均保留，详见 60—65 文档。默认各主 CE 片段权重均为 1，可设置 `{}` 恢复默认。
 
@@ -14,7 +14,7 @@
 
 随机压缩比通过顶部 `COMPRESSION_MODE="random"` 与 `COMPRESSION_RATIOS=(8 16 32 64)` 开启；默认 fixed。每条训练轨迹采样一次，验证/生成仍使用 `BEACON_RATIO`。配置、日志与多卡规则见 [31 随机压缩](31_random_compression.md)。
 
-训练后可用 `MODE=native RUN_DIR=... bash scripts/sh/47_openseeker_benchmark.sh` 增加独立 BrowseComp 在线评测，保留 Beacon 压缩并使用官方 search/visit 与 LLM 裁判。不能用普通 SGLang 替代 Beacon 推理。
+训练后可用 `MODE=native RUN_DIR=... bash scripts/sh/benchmark/47_openseeker_benchmark.sh` 增加独立 BrowseComp 在线评测，保留 Beacon 压缩并使用官方 search/visit 与 LLM 裁判。不能用普通 SGLang 替代 Beacon 推理。
 原有测试入口继续保留，准备依赖、完整示例与比较边界见 [42 官方 Benchmark](42_openseeker_benchmark.md)。
 
 无需外部 API 的固定语料测试使用 56（BrowseComp-Plus）或 57（HotpotQA），参数顶部填 RUN_DIR 即可连接训练产物；先离线建库和持久化索引，原 21/31/47 入口保留。两套基准的运行、评分与预算差异见 [43 离线手册](43_offline_benchmarks.md)。56/57 也支持设置 `NUM_WORKERS` 和 `CUDA_VISIBLE_DEVICES` 按题多卡并行；每卡保留完整模型，多卡行为与分阶段命令见 [43.7.4](43_offline_benchmarks.md#4374-beacon-多卡测试56-与-31-的能力不同)。

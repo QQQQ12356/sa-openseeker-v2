@@ -39,10 +39,10 @@
 
 ```bash
 cd /home/huangzj/proj/searchagent/sa-openseeker-v2
-conda activate search-comp-qwen3.5
+conda activate search-comp-qwen35-cu126
 
 # 新终端可重新设置。PYTHON 用于支持它的 shell 入口，避免误用系统 Python。
-export CONDA_ENV=search-comp-qwen3.5
+export CONDA_ENV=search-comp-qwen35-cu126
 export PYTHON="$(command -v python)"
 
 python -c 'import torch, transformers, peft; print(torch.__version__, transformers.__version__, peft.__version__)'
@@ -55,13 +55,13 @@ python -c 'import torch, transformers, peft; print(torch.__version__, transforme
 目标 GPU 服务器可运行以下环境探针；它会做小张量反向与 CPUAdam 检查，不是纯静态检查：
 
 ```bash
-bash scripts/sh/03_check_environment.sh
+bash scripts/sh/tools/03_check_environment.sh
 ```
 
 03 的 PYTHON/CONDA_ENV 在该脚本顶部修改。只检查本项目协议与 tiny 模型一致性、不加载真实权重时运行：
 
 ```bash
-bash scripts/sh/59_check_agent_alignment.sh
+bash scripts/sh/tools/59_check_agent_alignment.sh
 ```
 
 GPU 驱动、BF16、融合算子和多卡资源是否适合正式训练，需要在目标服务器确认。CPU 回归通过不能证明 4B 模型一定能在目标显存内训练。
@@ -105,13 +105,13 @@ PY
 
 ```bash
 # 默认目录尚不存在时：
-bash scripts/sh/10_prepare.sh
+bash scripts/sh/data/10_prepare.sh
 
 # 自己指定源、输出、tokenizer；不加载基座模型，不训练：
 INPUT_FILE=/data/polar/openseeker_v1_data.jsonl \
 OUTPUT_DIR=/data/prepared/polar_qwen35_16k_run1 \
 MODEL_NAME=/models/Qwen3.5-4B OFFLINE=1 \
-  bash scripts/sh/10_prepare.sh
+  bash scripts/sh/data/10_prepare.sh
 ```
 
 | 10_prepare.sh 参数 | 默认 | 含义与修改提示 |
@@ -150,7 +150,7 @@ MODEL_NAME=/models/Qwen3.5-4B OFFLINE=1 \
 
 ```bash
 # 后一个路径必须不存在；运行后将训练脚本 dataset 改成该输出目录。
-bash scripts/sh/13_filter_observations.sh \
+bash scripts/sh/data/13_filter_observations.sh \
   outputs/data/openseeker/polar_correct_qwen35_16k \
   outputs/data/openseeker/polar_correct_qwen35_16k_obs_run1
 ```
@@ -159,10 +159,10 @@ bash scripts/sh/13_filter_observations.sh \
 
 ### 32.4.2 可选：筛选其他长度或质量区间
 
-编辑 `scripts/sh/11_select.sh` 顶部的 PREPARED、OUTPUT、TOKENIZER、MIN_LENGTH、MAX_LENGTH、CORRECTNESS、OBSERVATIONS，再运行：
+编辑 `scripts/sh/data/11_select.sh` 顶部的 PREPARED、OUTPUT、TOKENIZER、MIN_LENGTH、MAX_LENGTH、CORRECTNESS、OBSERVATIONS，再运行：
 
 ```bash
-bash scripts/sh/11_select.sh
+bash scripts/sh/data/11_select.sh
 ```
 
 注意 11 的当前示例默认是 **32768—33792、有 observation**，不是默认 16K 训练集，不能不看参数直接运行再接到 16K 训练。需要正常划分时使用 `SPLIT_MODE=grouped`；`train` 将全部样本写入训练集，只用于显存等诊断。新数据长度上限不能大于训练 max_length。
@@ -172,7 +172,7 @@ bash scripts/sh/11_select.sh
 ```bash
 DATASET_PATH=outputs/data/openseeker/polar_correct_qwen35_16k \
 LIMIT=20 OUTPUT_HTML=outputs/reports/beacon_train_samples.html \
-  bash scripts/sh/40_dataset_html.sh
+  bash scripts/sh/report/40_dataset_html.sh
 ```
 
 查看原 system、问题、search/visit 调用、完整工具观察、最终 answer，以及 train/validation/test 数量。只有 `<tool_response>` 正文被标记为可压缩区；工具调用、问题和 assistant 推理不压缩。answer 参考字段不会被追加到测试提示中。
@@ -181,7 +181,7 @@ LIMIT=20 OUTPUT_HTML=outputs/reports/beacon_train_samples.html \
 
 ## 32.5 第四步：修改 Beacon 配置，先建立固定比例基线
 
-日常训练参数改 `scripts/sh/30_beacon_train.sh`，四卡入口 38 也读取它。该脚本在临时文件中写完整 YAML，再归档；改 `configs/openseeker.yaml` 不会自动覆盖 30 内嵌的 YAML。
+日常训练参数改 `scripts/sh/beacon/30_beacon_train.sh`，四卡入口 38 也读取它。该脚本在临时文件中写完整 YAML，再归档；改 `configs/openseeker.yaml` 不会自动覆盖 30 内嵌的 YAML。
 
 修改顺序：
 
@@ -226,14 +226,14 @@ LIMIT=20 OUTPUT_HTML=outputs/reports/beacon_train_samples.html \
 **单卡：**
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 ACTION=plan bash scripts/sh/30_beacon_train.sh
+CUDA_VISIBLE_DEVICES=0 ACTION=plan bash scripts/sh/beacon/30_beacon_train.sh
 ```
 
 **四卡 A800：**
 
 ```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3 NPROC_PER_NODE=4 ACTION=plan \
-  bash scripts/sh/38_beacon_4xa800.sh
+  bash scripts/sh/beacon/38_beacon_4xa800.sh
 ```
 
 两者都只生成新实验目录、配置与启动命令，不加载训练模型。每次调用 30/38 都创建一个新 run。屏幕 JSON 中的 run_dir 和 next 必须记录下来。
@@ -269,13 +269,13 @@ outputs/experiments/<本次 run>/
 
 ```bash
 # 完成上述配置修改、输出目录不存在时，筛选显存样本：
-bash scripts/sh/12_select_memory_probe.sh
+bash scripts/sh/data/12_select_memory_probe.sh
 
 # 先审查独立试验配置：
-CUDA_VISIBLE_DEVICES=0 ACTION=plan bash scripts/sh/37_beacon_memory_probe.sh
+CUDA_VISIBLE_DEVICES=0 ACTION=plan bash scripts/sh/beacon/37_beacon_memory_probe.sh
 
 # 再由使用者在目标 GPU 上执行实际短训练：
-CUDA_VISIBLE_DEVICES=0 bash scripts/sh/37_beacon_memory_probe.sh
+CUDA_VISIBLE_DEVICES=0 bash scripts/sh/beacon/37_beacon_memory_probe.sh
 ```
 
 37 与 30 的 YAML 独立，修改 30 不会自动修改 37。显存试验会新建独立 run，不应把它的最终模型当作正式训练结果。出错看对应模型目录 failure.json、训练日志和 GPU/CPU 内存；不要通过静默截断输入来“解决”。
@@ -299,7 +299,7 @@ CUDA_VISIBLE_DEVICES=0 \
 #   "$PYTHON" scripts/py/51_experiment.py train --run-dir "$RUN_DIR"
 ```
 
-也可以直接 `bash scripts/sh/30_beacon_train.sh` 或 `bash scripts/sh/38_beacon_4xa800.sh` 自动新建 run 并训练，但这不是继续第五步的同一目录。两种启动方式选一种。
+也可以直接 `bash scripts/sh/beacon/30_beacon_train.sh` 或 `bash scripts/sh/beacon/38_beacon_4xa800.sh` 自动新建 run 并训练，但这不是继续第五步的同一目录。两种启动方式选一种。
 
 `train --run-dir` 是从审查好的 plan 开始，不是支持任意中断 checkpoint 的 optimizer 恢复入口。已有 models/model 的训练目录会拒绝再次启动，避免覆盖；失败后先判断问题，改配置时建立新实验。
 
@@ -325,12 +325,12 @@ RUN_DIR/models/model/
 
 ```bash
 # 传模型产物目录，不是最外层 RUN_DIR；输出使用新目录。
-DEVICE_MAP=cpu bash scripts/sh/35_beacon_merge_adapter.sh \
+DEVICE_MAP=cpu bash scripts/sh/beacon/35_beacon_merge_adapter.sh \
   "$RUN_DIR/models/model" \
   --output_path "$RUN_DIR/models/model/final_recovered"
 
 # 评估中间训练步时：
-# DEVICE_MAP=cpu bash scripts/sh/35_beacon_merge_adapter.sh \
+# DEVICE_MAP=cpu bash scripts/sh/beacon/35_beacon_merge_adapter.sh \
 #   "$RUN_DIR/models/model/checkpoint-200" \
 #   --output_path "$RUN_DIR/models/model/merged_step200"
 ```
@@ -345,7 +345,7 @@ DEVICE_MAP=cpu bash scripts/sh/35_beacon_merge_adapter.sh \
 
 ```bash
 RUN_DIR="$RUN_DIR" SPLIT=test LIMIT=2 DRY_RUN=1 \
-  bash scripts/sh/31_beacon_eval.sh
+  bash scripts/sh/beacon/31_beacon_eval.sh
 ```
 
 31 默认 BACKEND=replay。它只有在生成的动作与历史记录精确一致时才返回记录中的 observation；新查询会 replay_miss。因此 replay 可查格式、动作匹配与拟合，不是真实搜索准确率，不能因为 replay_miss 就断言模型不会研究问题。
@@ -353,7 +353,7 @@ RUN_DIR="$RUN_DIR" SPLIT=test LIMIT=2 DRY_RUN=1 \
 ```bash
 # 只做历史动作匹配诊断；输出新 predictions 文件。
 RUN_DIR="$RUN_DIR" SPLIT=test LIMIT=2 BACKEND=replay \
-  bash scripts/sh/31_beacon_eval.sh
+  bash scripts/sh/beacon/31_beacon_eval.sh
 ```
 
 要允许模型自由生成查询，选择下列之一：
@@ -375,18 +375,18 @@ RUN_DIR="$RUN_DIR" SPLIT=test LIMIT=2 BACKEND=replay \
 
 ```bash
 # 联网准备机执行；后续阶段不联网。
-ACTION=download bash scripts/sh/57_hotpotqa_offline.sh
+ACTION=download bash scripts/sh/benchmark/57_hotpotqa_offline.sh
 
 # 目标机，原始数据已就位后：
-ACTION=prepare bash scripts/sh/57_hotpotqa_offline.sh
-ACTION=index bash scripts/sh/57_hotpotqa_offline.sh
+ACTION=prepare bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+ACTION=index bash scripts/sh/benchmark/57_hotpotqa_offline.sh
 
 # 先检查少量题的完整生成与评分；不用另部署 API 或摘要模型。
 ACTION=all RUN_DIR="$RUN_DIR" LIMIT=8 \
-  bash scripts/sh/57_hotpotqa_offline.sh
+  bash scripts/sh/benchmark/57_hotpotqa_offline.sh
 
 # 小样本流程和输出确认后，全量重新建结果目录：
-# ACTION=all RUN_DIR="$RUN_DIR" LIMIT=-1 bash scripts/sh/57_hotpotqa_offline.sh
+# ACTION=all RUN_DIR="$RUN_DIR" LIMIT=-1 bash scripts/sh/benchmark/57_hotpotqa_offline.sh
 ```
 
 Hotpot 使用官方有标签 dev、独立 2017 Wikipedia 摘要库，不能把题目附带 context 当作全库。索引不是网页全文，也不是实时 Wikipedia。其 EM/F1、支持事实和 Joint 指标与在线 BrowseComp 裁判准确率不可互换。
@@ -395,13 +395,13 @@ Hotpot 使用官方有标签 dev、独立 2017 Wikipedia 摘要库，不能把�
 
 ```bash
 # 联网下载；全量 corpus 可能较大，提前按 43/44 准备空间。
-ACTION=download bash scripts/sh/56_browsecomp_plus.sh
-ACTION=prepare bash scripts/sh/56_browsecomp_plus.sh
-ACTION=index bash scripts/sh/56_browsecomp_plus.sh
+ACTION=download bash scripts/sh/benchmark/56_browsecomp_plus.sh
+ACTION=prepare bash scripts/sh/benchmark/56_browsecomp_plus.sh
+ACTION=index bash scripts/sh/benchmark/56_browsecomp_plus.sh
 
 # 只生成，暂不加载本地裁判：
 ACTION=run RUN_DIR="$RUN_DIR" LIMIT=8 \
-  bash scripts/sh/56_browsecomp_plus.sh
+  bash scripts/sh/benchmark/56_browsecomp_plus.sh
 ```
 
 记录屏幕打印的本次输出目录，设置 GEN_DIR 后单独评分，避免待测模型与大裁判同时占用 GPU：
@@ -410,7 +410,7 @@ ACTION=run RUN_DIR="$RUN_DIR" LIMIT=8 \
 GEN_DIR=/absolute/path/to/the/generated/offline_result
 ACTION=score PREDICTIONS="$GEN_DIR/predictions.jsonl" \
 JUDGE_MODEL=/models/Qwen3-32B LIMIT=8 \
-  bash scripts/sh/56_browsecomp_plus.sh
+  bash scripts/sh/benchmark/56_browsecomp_plus.sh
 ```
 
 评分的 ROOT_DIR、题目顺序和 LIMIT 必须与生成一致。score 写新结果目录，不能把 OUTPUT_DIR 指回已存在的 GEN_DIR；评分时不必设置 RUN_DIR。完整答案评分需要本地裁判；RETRIEVAL_ONLY=1 只输出检索诊断，不能报告为答案准确率。
@@ -435,7 +435,7 @@ JUDGE_MODEL=/models/Qwen3-32B LIMIT=8 \
 ```bash
 # 每张卡必须能单独容纳完整 Beacon 模型；训练时用几卡与此独立。
 CUDA_VISIBLE_DEVICES=0,1,2,3 NUM_WORKERS=4 ACTION=run \
-RUN_DIR="$RUN_DIR" LIMIT=8 bash scripts/sh/56_browsecomp_plus.sh
+RUN_DIR="$RUN_DIR" LIMIT=8 bash scripts/sh/benchmark/56_browsecomp_plus.sh
 ```
 
 若 RUN_DIR 的原训练文件迁移后不可访问，增加 `PROMPT_DATA=/new/path/train.jsonl`；不要换成测试集。一个训练文件含多个不同 system 时，用只含目标 system/schema 的单 profile JSONL 显式指定，详见 45。
@@ -448,11 +448,11 @@ RUN_DIR="$RUN_DIR" LIMIT=8 bash scripts/sh/56_browsecomp_plus.sh
 
 ```bash
 # 下载固定版本 upstream 与 BrowseComp，未运行模型/裁判。
-bash scripts/sh/46_prepare_benchmark.sh
+bash scripts/sh/benchmark/46_prepare_benchmark.sh
 
 # 将配置复制到仓库外，再编辑占位符。
 mkdir -p "$HOME/.config/searchagent"
-cp scripts/sh/49_benchmark_env.example.sh "$HOME/.config/searchagent/benchmark.env.sh"
+cp scripts/sh/benchmark/49_benchmark_env.example.sh "$HOME/.config/searchagent/benchmark.env.sh"
 ```
 
 填写私有文件里的 SEARCH_PROVIDER 与搜索 key、JINA_API_KEYS、SUMMARY_API_URL/KEY/MODEL、SCORER_URLS/KEY/MODEL。native 需要真实搜索、网页读取、摘要和裁判服务；不需要 OPENSEEKER 模型服务或 E2B。地址必须从运行 47 的节点可达，127.0.0.1 指当前节点。
@@ -464,17 +464,17 @@ cp scripts/sh/49_benchmark_env.example.sh "$HOME/.config/searchagent/benchmark.e
 ```bash
 RUN_DIR="$RUN_DIR" MODE=native LIMIT=2 DRY_RUN=1 \
 ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
-  bash scripts/sh/47_openseeker_benchmark.sh
+  bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 
 # 实际访问在线服务，可能产生 API 费用：
 RUN_DIR="$RUN_DIR" MODE=native LIMIT=2 \
 ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
-  bash scripts/sh/47_openseeker_benchmark.sh
+  bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 
 # 确认模型轨迹、服务及裁判覆盖后再全量：
 # RUN_DIR="$RUN_DIR" MODE=native LIMIT=-1 \
 # ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
-#   bash scripts/sh/47_openseeker_benchmark.sh
+#   bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 ```
 
 RUN_DIR 自动选择模型和原训练提示。若使用手动合并的模型或迁移了文件：
@@ -483,7 +483,7 @@ RUN_DIR 自动选择模型和原训练提示。若使用手动合并的模型或
 MODEL_PATH="$RUN_DIR/models/model/final_recovered" KIND=beacon MODE=native \
 PROMPT_DATA=/data/original_train.jsonl LIMIT=2 \
 ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
-  bash scripts/sh/47_openseeker_benchmark.sh
+  bash scripts/sh/benchmark/47_openseeker_benchmark.sh
 ```
 
 47 native 的 MAX_TOKENS 默认 32768（每轮）、MAX_CONTEXT=131072、MAX_TURNS=200、MAX_TOOL_TOKENS=32768。WORKERS 是官方服务模式的生成并发，不让 native 自动多卡按题并行；JUDGE_WORKERS 控制在线裁判并发。TOOL_COUNT 在 47 沿用官方模式参数，native 的循环上限由 MAX_TURNS 控制。
@@ -501,7 +501,7 @@ ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
 编辑 41 的 INPUTS 指向本次真实预测路径，再运行：
 
 ```bash
-bash scripts/sh/41_predictions_html.sh
+bash scripts/sh/report/41_predictions_html.sh
 ```
 
 41 的默认文件名不一定存在；先看实际输出路径。42_summarize_results.sh 同样要编辑 RESULT_PATHS/OUTPUT_PATH，适用于既有 EM/F1 预测汇总；BCP/Hotpot 的正式指标以各自官方评分输出为准。

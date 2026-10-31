@@ -12,19 +12,19 @@ python -m pip install 'deepspeed>=0.15.0'
 
 ```bash
 # Beacon：whole 配置，默认 ZeRO-2 + CPU 优化器卸载
-CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/32_beacon_searchr1_train.sh
+CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/beacon/32_beacon_searchr1_train.sh
 
 # plain：默认 ZeRO-2 + CPU 优化器卸载
-CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/22_plain_searchr1_train.sh
+CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/plain/22_plain_searchr1_train.sh
 
 # OpenSeeker：修改脚本内 kind: beacon / plain；复用同一启动逻辑
-CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/30_beacon_train.sh
+CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/beacon/30_beacon_train.sh
 
 # plain 可进一步分片参数：ZeRO-3 + CPU 参数和优化器卸载
-CUDA_VISIBLE_DEVICES=0,1 DISTRIBUTED_BACKEND=zero3 bash scripts/sh/22_plain_searchr1_train.sh
+CUDA_VISIBLE_DEVICES=0,1 DISTRIBUTED_BACKEND=zero3 bash scripts/sh/plain/22_plain_searchr1_train.sh
 
 # 只使用 DDP，无需 DeepSpeed
-CUDA_VISIBLE_DEVICES=0,1 DISTRIBUTED_BACKEND=ddp bash scripts/sh/32_beacon_searchr1_train.sh
+CUDA_VISIBLE_DEVICES=0,1 DISTRIBUTED_BACKEND=ddp bash scripts/sh/beacon/32_beacon_searchr1_train.sh
 ```
 
 也可以直接启动训练器，配置 `deepspeed` 后 Trainer 会接管模型放置；不要使用 `device_map=auto` 将训练模型跨卡派发：

@@ -18,7 +18,7 @@ beacon:
 后续可用以下命令开启（本次未执行）：
 
 ```bash
-bash scripts/sh/34_beacon_searchr1_train_impl.sh configs/train/beacon_qwen3_searchr1.yaml \
+bash scripts/sh/beacon/34_beacon_searchr1_train_impl.sh configs/train/beacon_qwen3_searchr1.yaml \
   --set model_name_or_path=/abs/path/to/plain/final \
   --set beacon.beacon_output_distill_doc_weighting=true
 

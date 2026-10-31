@@ -17,7 +17,7 @@
 
 改写完成后把训练配置指过去即可（语料无需重建：评测侧渲染时使用同一函数）：
 
-    bash scripts/sh/34_beacon_searchr1_train_impl.sh configs/train/beacon_qwen35_whole_searchr1.yaml \\
+    bash scripts/sh/beacon/34_beacon_searchr1_train_impl.sh configs/train/beacon_qwen35_whole_searchr1.yaml \\
         --set train_data_path=outputs/data/searchr1/qwen3-4b-instruct-sft-normalized.jsonl
 
 支持两种样本结构，按字段自动分派：

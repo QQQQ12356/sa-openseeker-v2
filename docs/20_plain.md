@@ -1,8 +1,12 @@
 # 20 Plain 训练与评测
 
+从数据准备到训练、OpenSeeker 测试、BrowseComp 与 Hotpot 测试和评分的完整执行顺序见 [21 Plain 完整实验指南](21_plain_experiment_guide.md)。
+
+21 直接加载 Plain LoRA adapter、基座模型对照和四类基准的命令与参数见 [22 对照评测指南](22_qwen35_baseline_and_adapter.md)。47/56/57 仍需完整合并模型。
+
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](45_unified_agent_flow.md)。
 
-修改 `scripts/sh/20_plain_train.sh` 顶部 Python、GPU 列表和脚本中的 YAML，然后直接执行。默认 Qwen3.5-4B、16k、LoRA、batch=1；`model_family` 支持 qwen3 / qwen35。`ACTION="plan"` 只生成实验目录、配置快照、指纹和启动命令，`train` 才加载模型训练。数据路径与 tokenizer 必须在 manifest 中匹配。
+修改 `scripts/sh/plain/20_plain_train.sh` 顶部 Python、GPU 列表和脚本中的 YAML，然后直接执行。默认 Qwen3.5-4B、16k、LoRA、batch=1；`model_family` 支持 qwen3 / qwen35。`ACTION="plan"` 只生成实验目录、配置快照、指纹和启动命令，`train` 才加载模型训练。数据路径与 tokenizer 必须在 manifest 中匹配。
 
 每次运行创建新的 `outputs/experiments/<name>/`，保留 `experiment.json`、`train.yaml`、`source_config.yaml`、运行日志与模型产物。根据 `train_summary.json` 的 `final_model_path` 定位推理模型；LoRA 合并与原训练器行为保持一致。计划后的代码或数据指纹改变会被拒绝，应重新创建实验计划。
 
@@ -19,8 +23,8 @@
 
 ## Plain 长序列显存控制
 
-四卡入口：`bash scripts/sh/28_plain_4xa800.sh`；先审查配置可运行
-`ACTION=plan bash scripts/sh/28_plain_4xa800.sh`。模型、数据及训练参数集中在
+四卡入口：`bash scripts/sh/plain/28_plain_4xa800.sh`；先审查配置可运行
+`ACTION=plan bash scripts/sh/plain/28_plain_4xa800.sh`。模型、数据及训练参数集中在
 `20_plain_train.sh`，外部 `PYTHON`、`CONDA_ENV`、`ACTION` 可覆盖默认值。
 默认 ZeRO-2 + CPU optimizer offload；Plain 可用 `DISTRIBUTED_BACKEND=zero3`
 启用参数分片及 CPU parameter offload。每卡 batch=1，累积4次时四卡有效 batch=16。
