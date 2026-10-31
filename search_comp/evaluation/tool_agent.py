@@ -9,6 +9,7 @@ import hashlib
 import json
 import math
 import re
+import time
 import urllib.request
 from types import SimpleNamespace
 from ..data.openseeker import (encode, parse_calls, json_text, CALL_END, RESPONSE_RE)
@@ -20,20 +21,31 @@ class ToolError(RuntimeError):
 
 
 class Registry:
-    def __init__(self, handlers):
+    def __init__(self, handlers, log=None):
         self.handlers = handlers
+        self.log = log
 
     def execute(self, calls):
         responses = []
-        for call in calls:
+        for index, call in enumerate(calls, 1):
+            label = f"tool={call['name']} call={index}/{len(calls)}"
+            start = time.monotonic()
+            if self.log:
+                self.log(f"{label} start")
             if call['name'] not in self.handlers:
+                if self.log:
+                    self.log(f"{label} error=unknown_tool elapsed={time.monotonic() - start:.2f}s")
                 raise ToolError('unknown_tool: ' + call['name'])
             try:
                 content = self.handlers[call['name']](**call['arguments'])
             except Exception as error:
+                if self.log:
+                    self.log(f"{label} error={type(error).__name__} elapsed={time.monotonic() - start:.2f}s")
                 raise ToolError(f'tool_execution_error: {error}') from error
             if not isinstance(content, str):
                 content = json_text(content)
+            if self.log:
+                self.log(f"{label} end chars={len(content)} elapsed={time.monotonic() - start:.2f}s")
             responses.append(dict(role='user', content='<tool_response>' + content + '</tool_response>'))
         return responses
 
@@ -204,7 +216,8 @@ def extract_response(text):
 
 
 def run_agent(messages, tokenizer, generate, tools, max_turns=32,
-              max_context=16384, max_new_tokens=8192, max_tool_tokens=8192, tool_schemas=None):
+              max_context=16384, max_new_tokens=8192, max_tool_tokens=8192, tool_schemas=None,
+              log=None):
     # Only the original system/question enter inference; no reference is injected.
     history = [dict(message) for message in messages[:2]]
     history[0]['content'] = render_system(history[0]['content'], tool_schemas)
@@ -216,7 +229,18 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
         available = max_context - len(encoded['input_ids'])
         if available <= 0:
             status = 'context_limit'; break
-        text, ended, n_tokens = generate(encoded, min(max_new_tokens, available))
+        budget = min(max_new_tokens, available)
+        start = time.monotonic()
+        if log:
+            log(f"turn={turn + 1}/{max_turns} generation start input_tokens={len(encoded['input_ids'])} max_new_tokens={budget}")
+        try:
+            text, ended, n_tokens = generate(encoded, budget)
+        except Exception as error:
+            if log:
+                log(f"turn={turn + 1}/{max_turns} generation error={type(error).__name__} elapsed={time.monotonic() - start:.2f}s")
+            raise
+        if log:
+            log(f"turn={turn + 1}/{max_turns} generation end output_tokens={n_tokens} ended={ended} elapsed={time.monotonic() - start:.2f}s")
         generated_tokens += n_tokens
         history.append(dict(role='assistant', content=text))
         if not ended:
@@ -229,9 +253,16 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
             prediction = extract_response(text)
             status = 'completed' if prediction else 'empty_answer'; break
         try:
+            if log:
+                log(f"turn={turn + 1}/{max_turns} tools start calls={len(calls)}")
+            start = time.monotonic()
             replies = tools.execute(calls)
         except ToolError as error:
+            if log:
+                log(f"turn={turn + 1}/{max_turns} tools error elapsed={time.monotonic() - start:.2f}s")
             status = 'tool_error'; events.append(dict(calls=calls, error=str(error))); break
+        if log:
+            log(f"turn={turn + 1}/{max_turns} tools end elapsed={time.monotonic() - start:.2f}s")
         lengths = [len(tokenizer.encode(m['content'], add_special_tokens=False)) for m in replies]
         # Do not silently cut observations: filtering during training also preserves bodies.
         if any(n > max_tool_tokens for n in lengths):

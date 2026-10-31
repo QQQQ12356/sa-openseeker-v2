@@ -196,7 +196,7 @@ def test_native_uses_question_only_and_preserves_compression_path(tmp_path, monk
     monkeypatch.setitem(sys.modules, "search_comp.models.plain_qwen3", SimpleNamespace(load_sft_model=lambda _: model))
     from search_comp.evaluation import tool_agent
     monkeypatch.setattr(tool_agent, "ModelGenerator", lambda m, t, beacon: calls.append(beacon) or "generate")
-    def agent(messages, tokenizer, generate, tools, *budgets):
+    def agent(messages, tokenizer, generate, tools, *budgets, log=None):
         assert "REFERENCE" not in json.dumps(messages)
         from search_comp.data.agent_prompt import initial_messages
         assert messages == initial_messages("question", system=original_system)

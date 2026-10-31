@@ -122,7 +122,7 @@ def test_offline_base_generation_does_not_load_plain_model(tmp_path, monkeypatch
     class Generator:
         def __init__(self, *a, **k): self.metadata = {}
     monkeypatch.setattr(tool_agent, 'ModelGenerator', Generator)
-    monkeypatch.setattr(tool_agent, 'run_agent', lambda messages, tokenizer, generator, *a:
+    monkeypatch.setattr(tool_agent, 'run_agent', lambda messages, tokenizer, generator, *a, **kwargs:
         dict(status='completed', prediction='yes', generation_config=generator.metadata))
     path = workflow.run_phase(args, output, rows, manifest)
     assert json.loads(path.read_text())['generation_config']['model_origin'] == 'base-qwen35'
@@ -145,7 +145,7 @@ def test_online_base_generation_does_not_load_plain_model(tmp_path, monkeypatch)
     class Generator:
         def __init__(self, *a, **k): self.metadata = {}
     monkeypatch.setattr(tool_agent, 'ModelGenerator', Generator)
-    monkeypatch.setattr(tool_agent, 'run_agent', lambda messages, tokenizer, generator, *a:
+    monkeypatch.setattr(tool_agent, 'run_agent', lambda messages, tokenizer, generator, *a, **kwargs:
         dict(status='completed', prediction='answer', events=[], generation_config=generator.metadata))
     args = SimpleNamespace(official_dir=tmp_path, prompt_data=None, run_dir=None,
         model=str(model), kind='plain', model_origin='base-qwen35',

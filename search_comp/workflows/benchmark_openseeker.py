@@ -204,17 +204,22 @@ def native_generate(args, rows, output):
         from search_comp.models.plain_qwen3 import load_sft_model
         model = load_sft_model(model_path)
     model.eval()
+    print("[benchmark native generation] model ready", flush=True)
     generate = ModelGenerator(model, tokenizer, kind == "beacon", **generation_options)
     if getattr(args, 'model_origin', 'checkpoint') == 'base-qwen35':
         generate.metadata.update(model_origin='base-qwen35', base_model_path=model_path)
     search, visit = Search(), Visit()
-    tools = Registry({"search": lambda **kw: search.call(kw), "visit": lambda **kw: visit.call(kw)})
     with output.open("x", encoding="utf-8") as target:
         for index, row in enumerate(rows):
             start = time.monotonic()
+            def log(message):
+                print(f"[benchmark native {index + 1}/{len(rows)}] {message}", flush=True)
+            tools = Registry({"search": lambda **kw: search.call(kw),
+                              "visit": lambda **kw: visit.call(kw)}, log=log)
+            log("question start")
             messages = initial_messages(row["query"], system=system)
             result = run_agent(messages, tokenizer, generate, tools, args.max_turns,
-                               args.max_context, args.max_tokens, args.max_tool_tokens)
+                               args.max_context, args.max_tokens, args.max_tool_tokens, log=log)
             result.update(row, final_response=result["prediction"], prompt_source=prompt_source,
                           elapsed_seconds=time.monotonic() - start,
                           tool_calls=sum(len(e.get("calls", [])) for e in result["events"]))
