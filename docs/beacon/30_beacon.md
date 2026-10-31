@@ -14,7 +14,7 @@
 
 随机压缩比通过 30 内嵌 YAML 的 `beacon_compression_mode: random` 与 `beacon_compression_ratios` 开启；默认 fixed。每条训练轨迹采样一次，验证/生成仍使用 `beacon_ratio`。配置、日志与多卡规则见 [31 随机压缩](31_random_compression.md)。
 
-训练后可用 `MODE=native RUN_DIR=... bash scripts/sh/benchmark/47_openseeker_benchmark.sh` 增加独立 BrowseComp 在线评测，保留 Beacon 压缩并使用官方 search/visit 与 LLM 裁判。不能用普通 SGLang 替代 Beacon 推理。
+训练后可用 `MODE=native RUN_DIR=... bash scripts/sh/beacon/47_beacon_browsecomp.sh` 增加独立 BrowseComp 在线评测，保留 Beacon 压缩并使用官方 search/visit 与 LLM 裁判。不能用普通 SGLang 替代 Beacon 推理。
 原有测试入口继续保留，准备依赖、完整示例与比较边界见 [42 官方 Benchmark](../benchmark/42_openseeker_benchmark.md)。
 
 无需外部 API 的固定语料测试使用 56（BrowseComp-Plus）或 57（HotpotQA），参数顶部填 RUN_DIR 即可连接训练产物；先离线建库和持久化索引，原 21/31/47 入口保留。两套基准的运行、评分与预算差异见 [43 离线手册](../benchmark/43_offline_benchmarks.md)。56/57 也支持设置 `NUM_WORKERS` 和 `CUDA_VISIBLE_DEVICES` 按题多卡并行；每卡保留完整模型，多卡行为与分阶段命令见 [43.7.4](../benchmark/43_offline_benchmarks.md#4374-beacon-多卡测试56-与-31-的能力不同)。
@@ -22,3 +22,5 @@
 ## 四卡长轨迹与重计算
 
 OpenSeeker 30/37 显式启用 `beacon_checkpoint_blocks: true`、SDPA；默认 whole 的 keep_window 为 0（整段 keep），38 提供四卡 A800 入口。默认 `beacon_layout_policy: configured` 使用脚本中的布局字段；`whole` 兼容策略会强制整段布局。blocks 重算 attention、MLP 及 Qwen3.5 reader/writer，不重放跨窗状态更新。旧顶层 `gradient_checkpointing` 仅告警，`beacon_checkpoint_loss` 只作用于 loss，两者都不能代替 blocks。Search-R1 的 34 脚本可自行开启 blocks。详细参数和 OOM 定位见 [52](52_beacon_oom.md)，多卡规则见 [50](../tools/50_multigpu.md)。
+
+各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。

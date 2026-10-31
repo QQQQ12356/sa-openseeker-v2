@@ -14,7 +14,7 @@ continuation、information、output KL、readout 蒸馏仍各有独立总权重�
 
 ## 新增官方 Benchmark 适配层
 
-`search_comp/evaluation/benchmark_data.py` 负责 BrowseComp 解密与严格 query/answer 适配；`workflows/benchmark_openseeker.py` 负责固定官方 checkout、官方子进程、native 模型桥接、预测对齐与评分覆盖审计；`workflows/serve_openseeker.py` 负责 Plain 训练结果解析和 SGLang 服务启动。它们通过 47/48 Python 薄入口和 46—49 shell 入口使用，不修改原训练器或旧 EM/F1 流程。细节见 [42](../benchmark/42_openseeker_benchmark.md)。
+`search_comp/evaluation/benchmark_data.py` 负责 BrowseComp 解密与严格 query/answer 适配；`workflows/benchmark_openseeker.py` 负责固定官方 checkout、官方子进程、native 模型桥接、预测对齐与评分覆盖审计；`workflows/serve_openseeker.py` 负责 Plain 训练结果解析和 SGLang 服务启动。它们通过 47/48 Python 薄入口，以及 benchmark/46 数据准备、plain/47 或 beacon/47 在线测试、plain/48 模型服务和 benchmark/49 API 配置使用，不修改原训练器或旧 EM/F1 流程。细节见 [42](../benchmark/42_openseeker_benchmark.md)。
 
 ## 固定语料离线适配层
 

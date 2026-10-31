@@ -4,7 +4,7 @@
 
 `PROMPT_DATA` / `--prompt-data` 指定原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 的 train_data_path，无两者时用内置原始 Polar profile。在线保留原文，离线仅适配必要能力和答案格式；多 system 必须显式选择单 profile，详情见 45。
 56/57 的 Plain 待测模型可配置贪心、采样与重复惩罚，Beacon 可配置贪心及压缩后可见历史上的重复惩罚；默认仍为贪心无惩罚，与本地裁判采样参数独立，详见 [23](../common/23_decoding.md)。
-本文是新增离线流程的操作手册。所有修改均为增量：原来的 21/31 EM/F1、47 在线 OpenSeeker、48 SGLang、Search-R1 和训练器继续保留。新增实现位于 `search_comp/offline/`，统一 Python 入口为 `scripts/py/52_offline_benchmark.py`，一键入口是 **56 BrowseComp-Plus** 和 **57 HotpotQA**。
+本文是新增离线流程的操作手册。21/31 EM/F1、在线 BrowseComp、SGLang、Search-R1 和训练器功能继续保留；当前 Shell 入口按方案分目录，旧 benchmark 下的执行路径已迁移，见 [46 手册](46_benchmark_scripts.md)。新增实现位于 `search_comp/offline/`，统一 Python 入口为 `scripts/py/52_offline_benchmark.py`，一键入口是 **56 BrowseComp-Plus** 和 **57 HotpotQA**。
 
 ## 43.1 两套基准的用途与边界
 
@@ -78,7 +78,7 @@ PY
 ### 43.4.1 有网络的准备机：一次性下载
 
 ```bash
-ACTION=download bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+ACTION=download bash scripts/sh/plain/57_plain_hotpotqa.sh
 ```
 
 这会在默认 ROOT_DIR 下下载：
@@ -92,7 +92,7 @@ ACTION=download bash scripts/sh/benchmark/57_hotpotqa_offline.sh
 镜像环境可以使用 Python 参数覆盖下载地址；Wikipedia 镜像仍强制核验相同官方 MD5：
 
 ```bash
-ACTION=download bash scripts/sh/benchmark/57_hotpotqa_offline.sh \
+ACTION=download bash scripts/sh/plain/57_plain_hotpotqa.sh \
   --dev-url https://your-mirror.example/hotpot_dev_fullwiki_v1.json \
   --wiki-url https://your-mirror.example/wiki-abstracts.tar.bz2
 ```
@@ -147,7 +147,7 @@ print(f'已生成 {target}，共 {len(rows)} 条')
 PY
 ```
 
-传输后，在服务器项目根目录确认 `md5sum outputs/data/benchmarks/hotpotqa/raw/wiki-abstracts.tar.bz2` 与上述官方值一致，再运行 `ACTION=download bash scripts/sh/benchmark/57_hotpotqa_offline.sh`。两个默认文件均存在时，此步骤复用本地文件、检查摘要包 MD5，并写入 `assets.json`，不重新下载。随后按下一节执行 prepare 和 index。
+传输后，在服务器项目根目录确认 `md5sum outputs/data/benchmarks/hotpotqa/raw/wiki-abstracts.tar.bz2` 与上述官方值一致，再运行 `ACTION=download bash scripts/sh/plain/57_plain_hotpotqa.sh`。两个默认文件均存在时，此步骤复用本地文件、检查摘要包 MD5，并写入 `assets.json`，不重新下载。随后按下一节执行 prepare 和 index。
 
 使用 HF Parquet 转换时，为避免把来源误记成 CMU JSON，可在该 download 命令末尾追加 `--dev-url https://huggingface.co/datasets/hotpotqa/hotpot_qa/resolve/main/fullwiki/validation-00000-of-00001.parquet`；转换时使用的 revision 和文件来源应另行记录。自定义 `ROOT_DIR` 时，将以上 `outputs/data/benchmarks/hotpotqa` 同步替换为所选目录。
 
@@ -175,15 +175,15 @@ hf download LovinYou/enwiki-20171001-pages-meta-current-withlinks-abstracts \
 
 ```bash
 # 仅安装项目随附的官方评测代码，不下载 Stanford 语料。
-ACTION=download OFFICIAL_ONLY=1 bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+ACTION=download OFFICIAL_ONLY=1 bash scripts/sh/plain/57_plain_hotpotqa.sh
 
 # DATA 可指向上一节下载的 validation Parquet 或转换后的 dev JSON。
 ACTION=prepare \
   DATA=/data/hotpot/validation-00000-of-00001.parquet \
   CORPUS=/data/hotpot-wiki/enwiki-20171001-pages-meta-current-withlinks-abstracts.tsv \
-  bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+  bash scripts/sh/plain/57_plain_hotpotqa.sh
 
-ACTION=index bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+ACTION=index bash scripts/sh/plain/57_plain_hotpotqa.sh
 ```
 
 将示例 `DATA`、`CORPUS` 替换为服务器实际绝对路径；保存验证集 Parquet 时不需要转换成 JSON。后续使用 `ACTION=all` 时继续指定同样的 `DATA` 和 `CORPUS` 路径。prepare 会流式读取语料，并在 `prepared/manifest.json` 记录文件 SHA256、文档数和来源路径；文件、规范化语料及 SQLite/FTS 索引需要另外的磁盘空间。
@@ -197,8 +197,8 @@ Wikipedia 语料中可能有只有标题的记录，例如 `text: [title]`。pre
 ### 43.4.2 断网机器：规范化与构建一次，后续复用
 
 ```bash
-ACTION=prepare bash scripts/sh/benchmark/57_hotpotqa_offline.sh
-ACTION=index bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+ACTION=prepare bash scripts/sh/plain/57_plain_hotpotqa.sh
+ACTION=index bash scripts/sh/plain/57_plain_hotpotqa.sh
 ```
 
 支持直接读取 `.tar.bz2` 内部的 `.bz2` JSONL，不解包到任意文件路径。也接受已经解压好的含 bz2 分片目录。对原始 text 的 sentence arrays 去除 HTML 标签，保留正文句子编号；若存在独立标题段则去掉标题段，使正文从 0 编号。
@@ -208,32 +208,32 @@ ACTION=index bash scripts/sh/benchmark/57_hotpotqa_offline.sh
 ```bash
 # 首先审查实际参数；不会创建目录、加载模型、校验网络或执行生成。
 DRY_RUN=1 RUN_DIR=outputs/experiments/<your-run> \
-  bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+  bash scripts/sh/plain/57_plain_hotpotqa.sh
 
 # 先做前 2 题；已有 prepared 和 index 时直接复用。
 RUN_DIR=outputs/experiments/<your-run> LIMIT=2 \
-  bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+  bash scripts/sh/plain/57_plain_hotpotqa.sh
 
 # 全量 dev，使用全部已准备的语料。
 RUN_DIR=outputs/experiments/<your-run> LIMIT=-1 \
-  bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+  bash scripts/sh/plain/57_plain_hotpotqa.sh
 ```
 
 默认 ACTION=all，流程为 prepare（不存在才做）→ index（不存在才做）→ run → score。它不会替你执行 download。无 RUN_DIR 时：
 
 ```bash
 MODEL_PATH=/absolute/path/to/merged-checkpoint KIND=beacon LIMIT=2 \
-  bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+  bash scripts/sh/beacon/57_beacon_hotpotqa.sh
 ```
 
-KIND 支持 plain/beacon，留空时先读实验配置，再读模型配置 enable_beacon。run/all 会先检查模型路径；只有 adapter_config.json 的目录会拒绝。Plain 用 29 合并，Beacon 用 35 合并；21 的 Plain adapter 直接加载功能不适用于本离线入口。
+Shell 独立入口固定 KIND：Plain 为 plain，Beacon 为 beacon，不可通过环境变量跨方案切换。Python CLI 单独调用时仍支持自动识别。run/all 会先检查模型路径；只有 adapter_config.json 的目录会拒绝。Plain 用 29 合并，Beacon 用 35 合并；21 的 Plain adapter 直接加载功能不适用于本离线入口。
 
 ## 43.5 BrowseComp-Plus：下载、解密、建库和评分
 
 ### 43.5.1 一次性下载到本地
 
 ```bash
-ACTION=download bash scripts/sh/benchmark/56_browsecomp_plus.sh
+ACTION=download bash scripts/sh/plain/56_plain_browsecomp_plus.sh
 ```
 
 它使用 Hugging Face snapshot 下载：
@@ -245,8 +245,8 @@ ACTION=download bash scripts/sh/benchmark/56_browsecomp_plus.sh
 官方 corpus 数据卡列出的下载大小约为 1.76 GB，解压文本约 3.26 GB；query 数据因含嵌套文档也达到 GB 量级。实际大小与版本以下载结果为准。不要把题目自带的 gold_docs、evidence_docs 或 negative_docs 拼成全库；本流程只从独立 corpus 数据集建库。
 
 ```bash
-ACTION=prepare bash scripts/sh/benchmark/56_browsecomp_plus.sh
-ACTION=index bash scripts/sh/benchmark/56_browsecomp_plus.sh
+ACTION=prepare bash scripts/sh/plain/56_plain_browsecomp_plus.sh
+ACTION=index bash scripts/sh/plain/56_plain_browsecomp_plus.sh
 ```
 
 默认 DECRYPTED=0，使用随代码附带的官方 canary、derive_key、decrypt_string 解密问题和答案；参考文档正文不进入问题 JSONL，只保留评分用的 qrels 文档 ID。源码实际文件名是 **qrel_golds.txt**（带 s），不是部分 README 示例中的 qrel_gold.txt。
@@ -256,7 +256,7 @@ ACTION=index bash scripts/sh/benchmark/56_browsecomp_plus.sh
 ```bash
 RUN_DIR=outputs/experiments/<your-run> \
 JUDGE_MODEL=/models/Qwen3-32B LIMIT=2 \
-  bash scripts/sh/benchmark/56_browsecomp_plus.sh
+  bash scripts/sh/plain/56_plain_browsecomp_plus.sh
 ```
 
 all 在生成完成后释放待测模型的 Python 引用，回收并清理 CUDA cache，再按需加载裁判。它是顺序执行，不是同时部署两个 GPU 服务。PyTorch allocator 或其他进程占用仍需按实际服务器检查。
@@ -267,14 +267,14 @@ all 在生成完成后释放待测模型的 Python 引用，回收并清理 CUDA
 # 第一阶段只生成，不需要 JUDGE_MODEL；OUTPUT_DIR 必须尚不存在。
 ACTION=run RUN_DIR=outputs/experiments/<your-run> LIMIT=2 \
 OUTPUT_DIR=outputs/results/bcp_generation_001 \
-  bash scripts/sh/benchmark/56_browsecomp_plus.sh
+  bash scripts/sh/plain/56_plain_browsecomp_plus.sh
 
 # 第二阶段使用原始预测，在另一进程/另一组 GPU 上评分。
 ACTION=score LIMIT=2 CUDA_VISIBLE_DEVICES=0,1 \
 PREDICTIONS=outputs/results/bcp_generation_001/predictions.jsonl \
 JUDGE_MODEL=/models/Qwen3-32B \
 OUTPUT_DIR=outputs/results/bcp_score_001 \
-  bash scripts/sh/benchmark/56_browsecomp_plus.sh
+  bash scripts/sh/plain/56_plain_browsecomp_plus.sh
 ```
 
 score 的 LIMIT 必须与生成阶段一致。已有 run manifest 的预测会校验问题集指纹和 selected_ids，防止拿“前 2 题”当作全量结果，或串用旧参考答案。导入没有 manifest 的外部预测会逐项校验 id/query/status，漏题仍计入分母；其生成来源需要使用者另行说明。
@@ -284,7 +284,7 @@ score 的 LIMIT 必须与生成阶段一致。已有 run manifest 的预测会�
 ```bash
 ACTION=score RETRIEVAL_ONLY=1 LIMIT=2 \
 PREDICTIONS=outputs/results/bcp_generation_001/predictions.jsonl \
-  bash scripts/sh/benchmark/56_browsecomp_plus.sh
+  bash scripts/sh/plain/56_plain_browsecomp_plus.sh
 ```
 
 此时输出 evidence/gold recall 和工具统计，不输出答案 accuracy。它不是完整问答评分，不能把检索召回率当作答案正确率。
@@ -298,15 +298,15 @@ ROOT_DIR 是本流程拥有的缓存/索引目录，DATA 和 CORPUS 是输入资
 ACTION=prepare DECRYPTED=1 ROOT_DIR=/scratch/bcp_v1 \
 DATA=/datasets/browsecomp_plus_decrypted.jsonl \
 CORPUS=/datasets/browsecomp-plus-corpus \
-  bash scripts/sh/benchmark/56_browsecomp_plus.sh
-ACTION=index ROOT_DIR=/scratch/bcp_v1 bash scripts/sh/benchmark/56_browsecomp_plus.sh
+  bash scripts/sh/plain/56_plain_browsecomp_plus.sh
+ACTION=index ROOT_DIR=/scratch/bcp_v1 bash scripts/sh/plain/56_plain_browsecomp_plus.sh
 
 # Hotpot 官方 dev JSON + 解压后的独立 wiki abstracts bz2 目录：
 ACTION=prepare ROOT_DIR=/scratch/hotpot_v1 \
 DATA=/datasets/hotpot_dev_fullwiki_v1.json \
 CORPUS=/datasets/enwiki-20171001-abstracts \
-  bash scripts/sh/benchmark/57_hotpotqa_offline.sh
-ACTION=index ROOT_DIR=/scratch/hotpot_v1 bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+  bash scripts/sh/plain/57_plain_hotpotqa.sh
+ACTION=index ROOT_DIR=/scratch/hotpot_v1 bash scripts/sh/plain/57_plain_hotpotqa.sh
 ```
 
 自备路径会明确标注 custom/subset，保留来源指纹，不凭文件名宣称正式全量。默认官方下载布局中，BCP 的 qcount=830、doccount=100195、记录的快照来源以及无 corpus limit 才标为 official fixed corpus；Hotpot 默认摘要包路径需与 assets 中校验过的 SHA256 一致，且 qcount=7405。自备数据即使内容完整，也可保持这种保守标注；报告时附上自己的来源与指纹，不要为了去掉标签修改 manifest。
@@ -327,7 +327,7 @@ ACTION=index ROOT_DIR=/scratch/hotpot_v1 bash scripts/sh/benchmark/57_hotpotqa_o
 
 ## 43.7 参数表与修改提示
 
-参数既可修改 56/57 顶部，也可通过同名环境变量覆盖。58 是共享参数转换层，正常使用无需编辑。额外 Python 参数可放在 shell 命令末尾，例如 `--verify-index`。以下三张参数表覆盖 `56_browsecomp_plus.sh` 顶部全部可配置变量；脚本中的 `BENCHMARK="browsecomp-plus"` 是固定基准标识，不应修改为其他基准。
+参数既可修改 56/57 顶部，也可通过同名环境变量覆盖。58 是共享参数转换层，正常使用无需编辑。额外 Python 参数可放在 shell 命令末尾，例如 `--verify-index`。以下三张参数表覆盖 各方案目录下的 `56_*_browsecomp_plus.sh` 顶部全部可配置变量；脚本中的 `BENCHMARK="browsecomp-plus"` 是固定基准标识，不应修改为其他基准。
 
 56 的 `ACTION` 决定实际执行哪些阶段；表中其他参数只在对应阶段生效：
 
@@ -352,7 +352,7 @@ ACTION=index ROOT_DIR=/scratch/hotpot_v1 bash scripts/sh/benchmark/57_hotpotqa_o
 | CUDA_VISIBLE_DEVICES | 0 | CUDA 环境 | NUM_WORKERS>1 时，每个 worker 绑定其中一张 GPU；单 worker 的 Beacon 放首张可见卡，Plain/裁判可自动分配权重 |
 | NUM_WORKERS | 1 | --num-workers | run/all 生成时的模型副本数，正整数且不超过显式列出的互异可见 GPU 数；按题并行，LIMIT 是总题数，见 43.7.4 |
 | RUN_DIR | 空 | --run-dir | 训练实验目录；从 models/model/train_summary.json 的 final_model_path 定位最终模型，实验配置用于识别 KIND |
-| MODEL_PATH / KIND | 空 / 自动 | --model / --kind | MODEL_PATH 为本地完整且已合并 LoRA 的 checkpoint，覆盖 RUN_DIR 中的模型路径；KIND 为 plain/beacon，留空先查实验配置、再查模型 enable_beacon |
+| MODEL_PATH / KIND | 空 / 入口固定 | --model / --kind | MODEL_PATH 为本地完整且已合并 LoRA 的 checkpoint，覆盖 RUN_DIR 中的模型路径；KIND 固定为该入口的 plain 或 beacon，不能跨方案切换 |
 | DATA / CORPUS | 空，按 root 自动定位 | --data / --corpus | 新数据应换 ROOT_DIR；prepare 不能把 dev context 当 corpus |
 | DECRYPTED（仅 BCP） | 0 | --decrypted | 明文 BCP 问题必须设 1；Hotpot 不使用此参数 |
 | OFFICIAL_ONLY | 0 | --official-only | 仅 ACTION=download 有效；只安装随代码附带的参考文件，不下载数据 |
@@ -420,27 +420,27 @@ Hotpot 不需要这些参数；裁判大模型只影响 BCP。完整 Hotpot EM/F
 # 先检查四卡配置；不加载模型、不创建文件，也不检查 GPU 硬件是否存在。
 ACTION=run DRY_RUN=1 CUDA_VISIBLE_DEVICES=0,1,2,3 NUM_WORKERS=4 \
 MODEL_PATH=/models/beacon-merged KIND=beacon LIMIT=8 \
-  bash scripts/sh/benchmark/56_browsecomp_plus.sh
+  bash scripts/sh/beacon/56_beacon_browsecomp_plus.sh
 
 # 四卡并行生成，总共前 8 题，每卡 2 题。
 ACTION=run CUDA_VISIBLE_DEVICES=0,1,2,3 NUM_WORKERS=4 \
 MODEL_PATH=/models/beacon-merged KIND=beacon LIMIT=8 \
 OUTPUT_DIR=outputs/results/bcp_beacon_4gpu_001 \
-  bash scripts/sh/benchmark/56_browsecomp_plus.sh
+  bash scripts/sh/beacon/56_beacon_browsecomp_plus.sh
 
 # 所有生成 worker 已退出；独立加载裁判，LIMIT 与生成一致。
 ACTION=score CUDA_VISIBLE_DEVICES=0,1,2,3 LIMIT=8 \
 PREDICTIONS=outputs/results/bcp_beacon_4gpu_001/predictions.jsonl \
 JUDGE_MODEL=/models/Qwen3-32B \
 OUTPUT_DIR=outputs/results/bcp_beacon_score_001 \
-  bash scripts/sh/benchmark/56_browsecomp_plus.sh
+  bash scripts/sh/beacon/56_beacon_browsecomp_plus.sh
 
 # 也可一次完成生成和评分；已有 prepared/index 会复用。
 ACTION=all CUDA_VISIBLE_DEVICES=0,1,2,3 NUM_WORKERS=4 \
 RUN_DIR=outputs/experiments/your-beacon-run LIMIT=-1 \
 JUDGE_MODEL=/models/Qwen3-32B \
 OUTPUT_DIR=outputs/results/bcp_beacon_full_001 \
-  bash scripts/sh/benchmark/56_browsecomp_plus.sh
+  bash scripts/sh/beacon/56_beacon_browsecomp_plus.sh
 ```
 
 自备明文问题先前用 `DECRYPTED=1` prepare 时，all 也须传相同的 `DECRYPTED=1` 等准备参数。正式全量运行时，独立 run/score 都设 `LIMIT=-1`。只有 2 题、配置 4 个 workers 时，实际只启动 2 个副本；仍须正确列出所配置 workers 对应的 GPU。四卡不保证四倍加速，耗时还取决于各题轮数、模型加载和共享磁盘检索。
@@ -521,7 +521,7 @@ id 必须属于当前选定问题，且只出现一次；final_response 也接�
 ```bash
 ACTION=score LIMIT=2 ROOT_DIR=/scratch/hotpot_v1 \
 PREDICTIONS=/scratch/results/hotpot_run/predictions.jsonl \
-  bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+  bash scripts/sh/plain/57_plain_hotpotqa.sh
 ```
 
 score 不需要再次加载索引，也不加载待测模型，读取 prepared 问题和官方评分参考即可。结果目录禁止覆盖，避免旧判决混入新配置。all 复用 prepared/index，但总是创建全新结果目录。
@@ -560,3 +560,5 @@ bash scripts/sh/tools/02_workflow.sh offline-benchmark score --benchmark hotpotq
 ```
 
 本次验证范围及日志见 [99 验证记录](../project/99_validation.md)。这里没有宣称已获得真实 checkpoint 的完整基准成绩；部署后的真实生成质量、GPU 显存和全量索引时间需要在目标机器测量。
+
+各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](46_benchmark_scripts.md)。

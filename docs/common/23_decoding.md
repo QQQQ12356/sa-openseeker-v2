@@ -55,17 +55,17 @@ TEMPERATURE=0.8 TOP_P=0.95 GENERATION_SEED=42 \
 RUN_DIR="$RUN_DIR" MODE=native KIND=plain LIMIT=2 \
 DECODING=greedy REPETITION_PENALTY=1.1 \
 ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
-  bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+  bash scripts/sh/plain/47_plain_browsecomp.sh
 
 # 56 的待测模型采样；评分 JUDGE_TEMPERATURE、SEED 与生成参数独立。
 RUN_DIR="$RUN_DIR" KIND=plain ACTION=run LIMIT=8 \
 DECODING=sample TEMPERATURE=0.8 TOP_P=0.95 GENERATION_SEED=42 \
-REPETITION_PENALTY=1.05 bash scripts/sh/benchmark/56_browsecomp_plus.sh
+REPETITION_PENALTY=1.05 bash scripts/sh/plain/56_plain_browsecomp_plus.sh
 
 # 57 贪心并使用重复惩罚。
 RUN_DIR="$RUN_DIR" KIND=plain ACTION=run LIMIT=8 \
 DECODING=greedy REPETITION_PENALTY=1.1 \
-  bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+  bash scripts/sh/plain/57_plain_hotpotqa.sh
 
 # Beacon 同样可在 31/47/56/57 使用惩罚；需使用已合并 Beacon 模型。
 RUN_DIR=/absolute/path/to/beacon_run KIND=beacon SPLIT=test LIMIT=8 \
@@ -89,3 +89,5 @@ BACKEND=replay DECODING=greedy REPETITION_PENALTY=1.1 \
 - `completed`：仍要核验答案质量、工具轨迹和评分；仅结束生成并不代表答对。
 
 比较单一变量：先固定 greedy，比较 penalty 1.0 和 1.05/1.1；再固定其他参数比较 sample。对采样至少记录种子，正式统计需要多个种子和足够题数。先用相同问题的小样本进行诊断，再用独立结果目录扩展到验证/测试集；训练题表现不能代替泛化成绩。
+
+各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。

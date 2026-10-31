@@ -9,6 +9,7 @@ BASELINE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 case "$TARGET" in
   openseeker) exec bash "$BASELINE_DIR/71_qwen35_openseeker.sh" "$@" ;;
   browsecomp) exec bash "$BASELINE_DIR/72_qwen35_browsecomp.sh" "$@" ;;
-  browsecomp-plus|hotpotqa) exec bash "$BASELINE_DIR/73_qwen35_offline.sh" "$@" ;;
+  browsecomp-plus) exec bash "$BASELINE_DIR/74_qwen35_browsecomp_plus.sh" "$@" ;;
+  hotpotqa) exec bash "$BASELINE_DIR/75_qwen35_hotpotqa.sh" "$@" ;;
   *) echo "未知 TARGET=$TARGET；可选 openseeker、browsecomp、browsecomp-plus、hotpotqa" >&2; exit 2 ;;
 esac

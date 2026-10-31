@@ -31,11 +31,11 @@ case "$TARGET:$ACTION" in
     if [[ "$ACTION" == run && -n ${PREDICTIONS:-} ]]; then
       echo 'run 阶段请清除 PREDICTIONS；已有预测评分使用 ACTION=score' >&2; exit 2
     fi
-    ENTRY=../benchmark/47_openseeker_benchmark.sh ;;
+    ENTRY=../plain/47_plain_browsecomp.sh ;;
   browsecomp-plus:download|browsecomp-plus:prepare|browsecomp-plus:index|browsecomp-plus:run|browsecomp-plus:score|browsecomp-plus:all)
-    ENTRY=../benchmark/56_browsecomp_plus.sh ;;
+    ENTRY=../plain/56_plain_browsecomp_plus.sh ;;
   hotpotqa:download|hotpotqa:prepare|hotpotqa:index|hotpotqa:run|hotpotqa:score|hotpotqa:all)
-    ENTRY=../benchmark/57_hotpotqa_offline.sh ;;
+    ENTRY=../plain/57_plain_hotpotqa.sh ;;
   *)
     echo "不支持 TARGET=$TARGET ACTION=$ACTION。OpenSeeker 支持 download/prepare/plan/train/run/score；browsecomp 支持 prepare/run/score；离线基准支持 download/prepare/index/run/score/all。评测集不用于 SFT。" >&2
     exit 2 ;;

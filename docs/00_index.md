@@ -48,26 +48,29 @@
 | [65 压缩分析](beacon/65_qwen35_compression_analysis.md) | Qwen3.5 压缩与内存分析 |
 | [66 多卡实现细节](tools/66_distributed_details.md) | 设备绑定、DeepSpeed、日志和保存约定 |
 | [67 环境细节](tools/67_environment_details.md) | 安装、兼容性及服务器环境 |
+| [46 Benchmark 独立脚本](benchmark/46_benchmark_scripts.md) | 三方案入口、一键运行、全部变量、配置优先级与修改提示 |
 | [90 迁移](project/90_migration.md) | 来源、目录重组、保留范围与入口映射 |
 | [99 验证](project/99_validation.md) | 本次实际检查、结果和未实测范围 |
 
 `61`—`67` 是保留的原算法、多卡和环境细节文档；历史实验的数字和模型配置不代表本项目新实验结果。当前工作流与默认路径以上表为准。
 
-Shell 脚本按功能分目录，保留全局唯一的历史编号，方便文档和 Python 入口对应；编号范围中的空号留作扩展。所有命令以项目根目录为基准：
+Shell 脚本按功能分目录，保留历史编号；各方案相同 benchmark 使用相同编号和不同方案前缀，方便文档和 Python 入口对应；编号范围中的空号留作扩展。所有命令以项目根目录为基准：
 
 | 目录 | 用途 | 常用 shell 入口 |
 |---|---|---|
 | `scripts/sh/common/` | 共享环境及日志函数 | `00_common.sh`（被其他脚本 source） |
 | `scripts/sh/tools/` | 总入口、测试和环境探针 | `01_test.sh`、`02_workflow.sh`、`03_check_environment.sh`、`59_check_agent_alignment.sh`、`60_searchagent_probe.sh` |
 | `scripts/sh/data/` | 数据准备、筛选、证据库和审计 | `10_prepare.sh`、`11_select.sh`、`12_select_memory_probe.sh`、`13_filter_observations.sh`、`15_build_corpus.sh` |
-| `scripts/sh/plain/` | Plain 训练、评测、显存和模型合并 | `20_plain_train.sh`、`21_plain_eval.sh`、`26_plain_memory_probe.sh`、`27_plain_workflow.sh`、`28_plain_4xa800.sh`、`29_plain_merge_adapter.sh` |
-| `scripts/sh/beacon/` | Beacon 训练、评测、合并和显存 | `30_beacon_train.sh`、`31_beacon_eval.sh`、`35_beacon_merge_adapter.sh`、`37_beacon_memory_probe.sh`、`38_beacon_4xa800.sh` |
+| `scripts/sh/plain/` | Plain 训练、评测、显存和模型合并 | `20_plain_train.sh`、`21_plain_eval.sh`、`26_plain_memory_probe.sh`、`27_plain_workflow.sh`、`28_plain_4xa800.sh`、`29_plain_merge_adapter.sh`；47 在线 BrowseComp、48 模型服务、56 BCP、57 HotpotQA |
+| `scripts/sh/beacon/` | Beacon 训练、评测、合并和显存 | `30_beacon_train.sh`、`31_beacon_eval.sh`、`35_beacon_merge_adapter.sh`、`37_beacon_memory_probe.sh`、`38_beacon_4xa800.sh`；47 在线 BrowseComp、56 BCP、57 HotpotQA |
 | `scripts/sh/report/` | HTML、指标汇总和图表 | `40_dataset_html.sh`、`41_predictions_html.sh`、`42_summarize_results.sh`、`43_export_excel.sh`、`44_plot.sh`、`45_report.sh` |
-| `scripts/sh/benchmark/` | 在线与离线基准 | `46_prepare_benchmark.sh`、`47_openseeker_benchmark.sh`、`48_serve_checkpoint.sh`、`49_benchmark_env.example.sh`、`56_browsecomp_plus.sh`、`57_hotpotqa_offline.sh`、共享 `58_offline_common.sh` |
-| `scripts/sh/baseline/` | 原始模型独立评测 | `70_qwen35_base_eval.sh` 总入口；71 OpenSeeker、72 在线 BrowseComp、73 离线基准 |
+| `scripts/sh/benchmark/` | 公共数据准备、API 配置与参数映射 | `46_prepare_benchmark.sh`、`49_benchmark_env.example.sh`、`58_offline_common.sh` |
+| `scripts/sh/baseline/` | 原始模型独立评测 | `70_qwen35_base_eval.sh` 总入口；71 OpenSeeker、72 在线 BrowseComp、74 BrowseComp-Plus、75 HotpotQA；73 保留共享配置及兼容入口 |
 
 Plain 21 和 Beacon 31 分别独立调用通用 Python 评测器，不能通过 `KIND` 切换成另一种入口。默认训练入口在 shell 内包含训练和 DeepSpeed 配置，不读取外部基础配置，详见 [53](tools/53_self_contained_training.md)。同一模型类型内仍有便利用的转发入口：Plain 28 调用 Plain 20，Beacon 38 调用 Beacon 30；Plain 27 是按阶段分发的工作流入口。这些不会跨 Plain / Beacon 调用。
 
-22/23、32—34 为保留的 Search-R1 入口，其数据不随本次迁移，需要另行准备。Plain 旧的 24/25 无训练 shell 入口已移除；原始 Qwen3.5 基线使用 baseline 70–73。`scripts/py/` 保留参数接口便于自动化；日常运行优先修改 shell 顶部变量。
+22/23、32—34 为保留的 Search-R1 入口，其数据不随本次迁移，需要另行准备。Plain 旧的 24/25 无训练 shell 入口已移除；原始 Qwen3.5 基线使用 baseline 70–75。`scripts/py/` 保留参数接口便于自动化；日常运行优先修改 shell 顶部变量。
 
-46—49 为新增官方 Benchmark 流程：46 准备官方代码与 BrowseComp，47 在线生成及官方裁判，48 部署训练后的 Plain checkpoint，49 是私有 API 配置示例。详见 [42 说明](benchmark/42_openseeker_benchmark.md)。
+Benchmark 流程按职责分目录：benchmark/46 准备官方代码与 BrowseComp，plain/47 与 beacon/47 在线生成及官方裁判，plain/48 部署训练后的 Plain checkpoint，benchmark/49 是私有 API 配置示例。详见 [42 说明](benchmark/42_openseeker_benchmark.md)。
+
+各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](benchmark/46_benchmark_scripts.md)。

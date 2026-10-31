@@ -87,7 +87,7 @@ SPLIT=train LIMIT=8 BACKEND=replay bash scripts/sh/plain/21_plain_eval.sh
 
 ## 22.4 原始 Qwen3.5-4B 一键基线入口
 
-统一入口 `scripts/sh/baseline/70_qwen35_base_eval.sh` 调用独立的 71/72/73 脚本和原始 Qwen3.5 基座加载器，不调用 Plain 训练模型加载器或 Plain shell 流程；通用工具循环与评分器用于保持对照口径。完整的独立脚本、变量和修改提示见 [24 独立基线实验指南](24_qwen35_base_benchmark.md)。以 `BASE_CHECKPOINT` 为模型输入；即使同时传 RUN_DIR，也只用该 run 选择数据/训练提示，不会自动选择其训练后模型。`TARGET` 选择数据集，`ACTION` 选择阶段：
+统一入口 `scripts/sh/baseline/70_qwen35_base_eval.sh` 调用独立的 71/72/74/75 脚本（74/75 共用本目录 73 的离线配置）和原始 Qwen3.5 基座加载器，不调用 Plain 训练模型加载器或 Plain shell 流程；通用工具循环与评分器用于保持对照口径。完整的独立脚本、变量和修改提示见 [24 独立基线实验指南](24_qwen35_base_benchmark.md)。以 `BASE_CHECKPOINT` 为模型输入；即使同时传 RUN_DIR，也只用该 run 选择数据/训练提示，不会自动选择其训练后模型。`TARGET` 选择数据集，`ACTION` 选择阶段：
 
 | TARGET | ACTION | 说明 |
 |---|---|---|
@@ -188,3 +188,5 @@ Hotpot 默认可 search+visit，使用官方答案 EM/F1、支持事实与 Joint
 adapter 与合并模型在相同 tokenizer、基座、环境、贪心解码下应高度接近；GPU 算子和浮点舍入可能带来细微误差。若文本不同，先核验 tokenizer、基座及 adapter 身份，必要时在相同硬件对短前缀比较 logits；不以字符串相等作为数值等价的唯一证明。
 
 实际训练 loss、验证、优化步数与生成表现应一起检查；不要只增加 MAX_NEW_TOKENS 掩盖循环，也不要把抽样、惩罚视为训练质量的证明。一次只变更一个条件，记录模型路径/版本、提示来源、语料索引、预算、分母和失败状态。真实效果、GPU 显存及吞吐需要在目标服务器实测。
+
+离线基准现有数据集专属入口：`scripts/sh/baseline/74_qwen35_browsecomp_plus.sh`、`scripts/sh/baseline/75_qwen35_hotpotqa.sh`。它们固定 TARGET 并复用本目录 73 的配置；下文/原有 `TARGET=... 73` 命令仍兼容，70 总入口已使用专属入口。完整变量与修改提示见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。

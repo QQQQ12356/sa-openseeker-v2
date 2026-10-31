@@ -12,7 +12,7 @@ NUM_WORKERS="${NUM_WORKERS:-1}"        # 每卡完整模型副本，按题并行
 RUN_DIR="${RUN_DIR:-}"                 # 已训练实验目录；自动识别 Plain/Beacon 和最终模型
 MODEL_PATH="${MODEL_PATH:-}"           # 可覆盖 RUN_DIR 的模型；必须为本地已合并 checkpoint
 PROMPT_DATA="${PROMPT_DATA:-}"          # 原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 自动定位；无两者用内置 Polar 原提示
-KIND="${KIND:-}"                       # plain / beacon；留空自动识别
+KIND="${KIND:-plain}"                       # 固定 plain 入口
 DATA="${DATA:-}"                       # 默认 ROOT_DIR/raw/queries（官方加密 Parquet）
 CORPUS="${CORPUS:-}"                   # 默认 ROOT_DIR/raw/corpus；独立完整语料
 DECRYPTED="${DECRYPTED:-0}"             # 自备明文官方 query JSONL 时设 1
@@ -46,4 +46,7 @@ JUDGE_TOP_P="${JUDGE_TOP_P:-0.8}"
 JUDGE_TOP_K="${JUDGE_TOP_K:-20}"
 SEED="${SEED:-42}"
 DRY_RUN="${DRY_RUN:-0}"
-source "$(dirname "${BASH_SOURCE[0]}")/58_offline_common.sh"
+
+# 各方案入口独立；参数表和修改提示见 docs/benchmark/46_benchmark_scripts.md。
+[[ "$KIND" == plain ]] || { echo '此入口 KIND 必须为 plain' >&2; exit 2; }
+source "$(dirname "${BASH_SOURCE[0]}")/../benchmark/58_offline_common.sh"

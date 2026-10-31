@@ -299,3 +299,5 @@ LIMIT=2 ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
 | 5 | 21 做少量 OpenSeeker 生成及 EM/F1 诊断 |
 | 6 | 按需要运行 57 Hotpot、56 BCP 或 46+47 在线 BrowseComp；先小样本再全量 |
 | 7 | 检查轨迹、评分和覆盖，保存实验条件与结果 |
+
+Plain 专属 Benchmark 入口：`47_plain_browsecomp.sh`（在线）、`56_plain_browsecomp_plus.sh`、`57_plain_hotpotqa.sh`（离线），均位于 `scripts/sh/plain/`。27 工作流已分发到这些脚本。完整变量、运行示例和路径迁移见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。

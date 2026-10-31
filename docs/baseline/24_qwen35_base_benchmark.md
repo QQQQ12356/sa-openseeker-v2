@@ -9,9 +9,11 @@
 | `scripts/sh/baseline/70_qwen35_base_eval.sh` | 总入口，用 TARGET 选择后面的脚本 | 由所选 TARGET 决定 |
 | `scripts/sh/baseline/71_qwen35_openseeker.sh` | OpenSeeker 留出/训练 split 生成与 EM/F1 | run、score；download/prepare 使用公共数据脚本 |
 | `scripts/sh/baseline/72_qwen35_browsecomp.sh` | 在线 BrowseComp 生成及官方裁判 | prepare、run、score |
-| `scripts/sh/baseline/73_qwen35_offline.sh` | 固定语料 BCP 或 Hotpot | download、prepare、index、run、score、all |
+| `scripts/sh/baseline/74_qwen35_browsecomp_plus.sh` | 固定语料 BrowseComp-Plus 独立入口 | download、prepare、index、run、score、all |
+| `scripts/sh/baseline/75_qwen35_hotpotqa.sh` | 固定语料 HotpotQA 独立入口 | download、prepare、index、run、score、all |
+| `scripts/sh/baseline/73_qwen35_offline.sh` | 74/75 的共享配置与兼容入口 | 同上，TARGET 选择数据集 |
 
-70 仅分发到同目录的 71/72/73；它们不调用 `scripts/sh/plain/` 下的训练或评测脚本。原始模型通过 `search_comp/models/base_qwen35.py` 检查原始多模态 Qwen3.5 配置，再使用文本主干加载器；不挂载 LoRA，不调用 Plain SFT 模型加载器。模型运行时使用的 `kind=plain` 仅表示无 Beacon 压缩的 agent 模式，并非选择 Plain 训练模型。
+70 仅分发到同目录的 71/72/74/75（74/75 共用 73）；它们不调用 `scripts/sh/plain/` 下的训练或评测脚本。原始模型通过 `search_comp/models/base_qwen35.py` 检查原始多模态 Qwen3.5 配置，再使用文本主干加载器；不挂载 LoRA，不调用 Plain SFT 模型加载器。模型运行时使用的 `kind=plain` 仅表示无 Beacon 压缩的 agent 模式，并非选择 Plain 训练模型。
 
 为确保实验可比，数据适配、序列化、search/visit 执行、预算、预测和评分仍与训练模型评测共用通用实现：`scripts/py/50_evaluate.py`、`47_benchmark.py`、`52_offline_benchmark.py`。运行时传 `--model-origin base-qwen35`，结果的生成配置记录 `model_origin` 和 `base_model_path`。共享评测器不等于加载训练模型。
 
@@ -219,3 +221,7 @@ JUDGE_MODEL=/models/Qwen3-32B bash scripts/sh/baseline/73_qwen35_offline.sh
 5. adapter 和合并模型的训练后对照使用 [22](22_qwen35_baseline_and_adapter.md) 的 21/47/56/57；解码和重复惩罚控制见 [23](../common/23_decoding.md)。
 
 本指南给出可执行流程，但真实模型生成质量、显存、耗时、外网服务及全量基准成绩需要在目标服务器实际验证。
+
+各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。
+
+离线基准现有数据集专属入口：`scripts/sh/baseline/74_qwen35_browsecomp_plus.sh`、`scripts/sh/baseline/75_qwen35_hotpotqa.sh`。它们固定 TARGET 并复用本目录 73 的配置；下文/原有 `TARGET=... 73` 命令仍兼容，70 总入口已使用专属入口。完整变量与修改提示见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。

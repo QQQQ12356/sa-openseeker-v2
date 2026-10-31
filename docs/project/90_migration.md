@@ -9,3 +9,7 @@
 映射中值为 `null` 的两个旧无训练 shell 入口已移除，不应作为当前可执行路径；Qwen3.5 原始模型基线使用 [baseline 70–73](../baseline/24_qwen35_base_benchmark.md)。核心清单为历史迁移记录，不代表当前推荐入口。
 
 原算法/环境文档保留为 61—67；旧工作流与旧结果报告已由本套编号文档替换，不再把旧数据条数当成当前结果。根索引为 `00_README.md`。本次没有初始化 Git 或创建提交。
+
+各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。
+
+当前 Benchmark Shell 已按方案迁移：Plain/Beacon 各自保留在线 47 和离线 56/57，Plain 服务为 plain/48；benchmark 只保留公共 46/49/58。Baseline 新增 74/75 数据集专属入口，73 兼容保留。JSON 映射的旧在线/离线路径以 Plain 为默认目标；原 Beacon 调用应按 [46 手册](../benchmark/46_benchmark_scripts.md) 选择 beacon 目录。

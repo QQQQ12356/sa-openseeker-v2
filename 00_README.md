@@ -14,7 +14,7 @@ bash scripts/sh/data/11_select.sh                  # 长度区间/精确长度/�
 bash scripts/sh/data/12_select_memory_probe.sh     # 生成显存测试训练集
 bash scripts/sh/report/40_dataset_html.sh            # 离线查看数据
 bash scripts/sh/benchmark/46_prepare_benchmark.sh       # 官方代码和 BrowseComp 数据（联网，不请求裁判）
-DRY_RUN=1 bash scripts/sh/benchmark/47_openseeker_benchmark.sh  # 审查官方 Benchmark 运行配置
+DRY_RUN=1 bash scripts/sh/plain/47_plain_browsecomp.sh  # 审查官方 Benchmark 运行配置
 # 以下由使用者之后在训练服务器执行，本次没有执行：
 # bash scripts/sh/plain/20_plain_train.sh
 # bash scripts/sh/beacon/30_beacon_train.sh
@@ -42,8 +42,10 @@ Beacon 训练支持固定/随机压缩比：修改 `30_beacon_train.sh` 内 `bea
 
 训练后独立 Benchmark：Plain/Beacon 均默认用 `MODE=native RUN_DIR=...` 运行 47；原样官方复现仍可用 48 部署 Plain，再显式选择 `MODE=official-v1` 或 `MODE=official-v2`。native 保留压缩、采用官方 search/visit 和裁判。先配置私有 API 环境文件；实际在线测试会调用这些服务。原有 21/31 的 EM/F1 测试继续保留。完整依赖、参数、失败分母和对齐边界见 [42 说明](docs/benchmark/42_openseeker_benchmark.md)。
 
-固定语料离线评测现已接入：`56_browsecomp_plus.sh` 使用独立 BCP corpus、持久化 BM25 与本地裁判；`57_hotpotqa_offline.sh` 使用有标注 dev、完整官方 Wiki 摘要库和官方 EM/F1。先 `ACTION=download` 一次性准备，之后 prepare/index/run/score/all 均严格离线。两者都支持从 RUN_DIR 读取 Plain/Beacon 训练产物。详细参数、逐步运行与修改提示见 [43 离线基准手册](docs/benchmark/43_offline_benchmarks.md)，官方版本及许可证见 [44 来源说明](docs/benchmark/44_offline_sources.md)。
+固定语料离线评测现已接入：各方案目录下的 `56_*_browsecomp_plus.sh`（Baseline 为 74） 使用独立 BCP corpus、持久化 BM25 与本地裁判；`57_*_hotpotqa.sh`（Baseline 为 75） 使用有标注 dev、完整官方 Wiki 摘要库和官方 EM/F1。先 `ACTION=download` 一次性准备，之后 prepare/index/run/score/all 均严格离线。两者都支持从 RUN_DIR 读取 Plain/Beacon 训练产物。详细参数、逐步运行与修改提示见 [43 离线基准手册](docs/benchmark/43_offline_benchmarks.md)，官方版本及许可证见 [44 来源说明](docs/benchmark/44_offline_sources.md)。
 
 四卡 A800 的 Beacon 长轨迹训练：先修改 `scripts/sh/beacon/30_beacon_train.sh` 中模型和数据路径，再用 `ACTION=plan bash scripts/sh/beacon/38_beacon_4xa800.sh` 只生成配置；实际训练运行 `bash scripts/sh/beacon/38_beacon_4xa800.sh`。显存原因、重计算修复和参数修改提示见 [52 四卡 A800 长轨迹 OOM](docs/beacon/52_beacon_oom.md)。
 
 Plain 四卡长轨迹训练：`ACTION=plan bash scripts/sh/plain/28_plain_4xa800.sh` 审查配置，实际训练去掉 `ACTION=plan`。参数统一在 `20_plain_train.sh`；分块 loss、激活卸载及限制见 [20 Plain](docs/plain/20_plain.md)。
+
+各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](docs/benchmark/46_benchmark_scripts.md)。

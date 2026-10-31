@@ -71,7 +71,9 @@ replay 只在生成动作与历史记录匹配时返回观测，用于动作复�
 ACTION=run CUDA_VISIBLE_DEVICES=0,1,2,3 NUM_WORKERS=4 \
 MODEL_PATH=/models/beacon-merged KIND=beacon LIMIT=8 \
 OUTPUT_DIR=outputs/results/bcp_beacon_4gpu_001 \
-  bash scripts/sh/benchmark/56_browsecomp_plus.sh
+  bash scripts/sh/beacon/56_beacon_browsecomp_plus.sh
 ```
 
 该命令要求已完成固定语料准备与索引构建。每个 worker 绑定一张 GPU，独立加载完整模型；生成完毕后，父进程按原顺序合并并校验题目和来源，失败则停止其他 workers，不继续评分。`LIMIT=8` 是总题数；全量设 `LIMIT=-1`。裁判仍逐题评分，使用父进程可见卡自动分配权重。完整 all/run/score 示例、worker 日志和显存边界见 [43.7.4](../benchmark/43_offline_benchmarks.md#4374-beacon-多卡测试56-与-31-的能力不同)。本次通过真实子进程与替代生成器验证调度，尚未运行真实 GPU 模型测试。
+
+各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。

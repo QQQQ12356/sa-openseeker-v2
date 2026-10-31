@@ -375,18 +375,18 @@ RUN_DIR="$RUN_DIR" SPLIT=test LIMIT=2 BACKEND=replay \
 
 ```bash
 # 联网准备机执行；后续阶段不联网。
-ACTION=download bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+ACTION=download bash scripts/sh/beacon/57_beacon_hotpotqa.sh
 
 # 目标机，原始数据已就位后：
-ACTION=prepare bash scripts/sh/benchmark/57_hotpotqa_offline.sh
-ACTION=index bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+ACTION=prepare bash scripts/sh/beacon/57_beacon_hotpotqa.sh
+ACTION=index bash scripts/sh/beacon/57_beacon_hotpotqa.sh
 
 # 先检查少量题的完整生成与评分；不用另部署 API 或摘要模型。
 ACTION=all RUN_DIR="$RUN_DIR" LIMIT=8 \
-  bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+  bash scripts/sh/beacon/57_beacon_hotpotqa.sh
 
 # 小样本流程和输出确认后，全量重新建结果目录：
-# ACTION=all RUN_DIR="$RUN_DIR" LIMIT=-1 bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+# ACTION=all RUN_DIR="$RUN_DIR" LIMIT=-1 bash scripts/sh/beacon/57_beacon_hotpotqa.sh
 ```
 
 Hotpot 使用官方有标签 dev、独立 2017 Wikipedia 摘要库，不能把题目附带 context 当作全库。索引不是网页全文，也不是实时 Wikipedia。其 EM/F1、支持事实和 Joint 指标与在线 BrowseComp 裁判准确率不可互换。
@@ -395,13 +395,13 @@ Hotpot 使用官方有标签 dev、独立 2017 Wikipedia 摘要库，不能把�
 
 ```bash
 # 联网下载；全量 corpus 可能较大，提前按 43/44 准备空间。
-ACTION=download bash scripts/sh/benchmark/56_browsecomp_plus.sh
-ACTION=prepare bash scripts/sh/benchmark/56_browsecomp_plus.sh
-ACTION=index bash scripts/sh/benchmark/56_browsecomp_plus.sh
+ACTION=download bash scripts/sh/beacon/56_beacon_browsecomp_plus.sh
+ACTION=prepare bash scripts/sh/beacon/56_beacon_browsecomp_plus.sh
+ACTION=index bash scripts/sh/beacon/56_beacon_browsecomp_plus.sh
 
 # 只生成，暂不加载本地裁判：
 ACTION=run RUN_DIR="$RUN_DIR" LIMIT=8 \
-  bash scripts/sh/benchmark/56_browsecomp_plus.sh
+  bash scripts/sh/beacon/56_beacon_browsecomp_plus.sh
 ```
 
 记录屏幕打印的本次输出目录，设置 GEN_DIR 后单独评分，避免待测模型与大裁判同时占用 GPU：
@@ -410,7 +410,7 @@ ACTION=run RUN_DIR="$RUN_DIR" LIMIT=8 \
 GEN_DIR=/absolute/path/to/the/generated/offline_result
 ACTION=score PREDICTIONS="$GEN_DIR/predictions.jsonl" \
 JUDGE_MODEL=/models/Qwen3-32B LIMIT=8 \
-  bash scripts/sh/benchmark/56_browsecomp_plus.sh
+  bash scripts/sh/beacon/56_beacon_browsecomp_plus.sh
 ```
 
 评分的 ROOT_DIR、题目顺序和 LIMIT 必须与生成一致。score 写新结果目录，不能把 OUTPUT_DIR 指回已存在的 GEN_DIR；评分时不必设置 RUN_DIR。完整答案评分需要本地裁判；RETRIEVAL_ONLY=1 只输出检索诊断，不能报告为答案准确率。
@@ -435,7 +435,7 @@ JUDGE_MODEL=/models/Qwen3-32B LIMIT=8 \
 ```bash
 # 每张卡必须能单独容纳完整 Beacon 模型；训练时用几卡与此独立。
 CUDA_VISIBLE_DEVICES=0,1,2,3 NUM_WORKERS=4 ACTION=run \
-RUN_DIR="$RUN_DIR" LIMIT=8 bash scripts/sh/benchmark/56_browsecomp_plus.sh
+RUN_DIR="$RUN_DIR" LIMIT=8 bash scripts/sh/beacon/56_beacon_browsecomp_plus.sh
 ```
 
 若 RUN_DIR 的原训练文件迁移后不可访问，增加 `PROMPT_DATA=/new/path/train.jsonl`；不要换成测试集。一个训练文件含多个不同 system 时，用只含目标 system/schema 的单 profile JSONL 显式指定，详见 45。
@@ -464,17 +464,17 @@ cp scripts/sh/benchmark/49_benchmark_env.example.sh "$HOME/.config/searchagent/b
 ```bash
 RUN_DIR="$RUN_DIR" MODE=native LIMIT=2 DRY_RUN=1 \
 ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
-  bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+  bash scripts/sh/beacon/47_beacon_browsecomp.sh
 
 # 实际访问在线服务，可能产生 API 费用：
 RUN_DIR="$RUN_DIR" MODE=native LIMIT=2 \
 ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
-  bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+  bash scripts/sh/beacon/47_beacon_browsecomp.sh
 
 # 确认模型轨迹、服务及裁判覆盖后再全量：
 # RUN_DIR="$RUN_DIR" MODE=native LIMIT=-1 \
 # ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
-#   bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+#   bash scripts/sh/beacon/47_beacon_browsecomp.sh
 ```
 
 RUN_DIR 自动选择模型和原训练提示。若使用手动合并的模型或迁移了文件：
@@ -483,7 +483,7 @@ RUN_DIR 自动选择模型和原训练提示。若使用手动合并的模型或
 MODEL_PATH="$RUN_DIR/models/model/final_recovered" KIND=beacon MODE=native \
 PROMPT_DATA=/data/original_train.jsonl LIMIT=2 \
 ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
-  bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+  bash scripts/sh/beacon/47_beacon_browsecomp.sh
 ```
 
 47 native 的 MAX_TOKENS 默认 32768（每轮）、MAX_CONTEXT=131072、MAX_TURNS=200、MAX_TOOL_TOKENS=32768。WORKERS 是官方服务模式的生成并发，不让 native 自动多卡按题并行；JUDGE_WORKERS 控制在线裁判并发。TOOL_COUNT 在 47 沿用官方模式参数，native 的循环上限由 MAX_TURNS 控制。
@@ -533,3 +533,5 @@ bash scripts/sh/report/41_predictions_html.sh
 | 11 | 必做 | 查原始轨迹与官方指标，41 导出 HTML，记录可比实验条件 |
 
 真正开始训练前，优先确认数据路径、tokenizer 身份、max_length、训练步数与模型资源；真正报告成绩前，优先确认生成是否完成、评测来源和失败覆盖率。
+
+各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。

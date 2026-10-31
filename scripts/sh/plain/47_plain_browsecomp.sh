@@ -3,11 +3,11 @@
 set -euo pipefail
 PYTHON="${PYTHON:-}"
 CONDA_ENV="${CONDA_ENV:-search-comp-qwen35-cu126}"
-MODE="${MODE:-native}"                # native：Plain/Beacon 共用训练协议；official-v1/v2：保留官方原样复现
+MODE="${MODE:-native}"                # native：本地推理；Plain 可选 official-v1/v2；Beacon 只支持 native
 RUN_DIR="${RUN_DIR:-}"                # native 自动读取训练结果
 MODEL_PATH="${MODEL_PATH:-}"          # native 可显式指定已合并模型
 PROMPT_DATA="${PROMPT_DATA:-}"          # 原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 自动定位；无两者用内置 Polar 原提示
-KIND="${KIND:-}"                      # native: plain / beacon；默认读 RUN_DIR
+KIND="${KIND:-plain}"                      # 固定 plain 入口，不可切换模型类型
 DATA="${DATA:-outputs/data/benchmarks/browsecomp.jsonl}"
 BENCHMARK="${BENCHMARK:-BrowseComp}"
 OUTPUT_DIR="${OUTPUT_DIR:-}"          # 默认新目录；已有目录拒绝覆盖
@@ -30,6 +30,11 @@ ENV_FILE="${ENV_FILE:-}"              # 可选私有 shell 文件，不在日志
 
 source "$(dirname "${BASH_SOURCE[0]}")/../common/00_common.sh"
 if [[ -n "$ENV_FILE" ]]; then source "$ENV_FILE"; fi
+
+# 各方案入口独立；参数表和修改提示见 docs/benchmark/46_benchmark_scripts.md。
+[[ "$KIND" == plain ]] || { echo '此入口 KIND 必须为 plain' >&2; exit 2; }
+[[ "$DRY_RUN" == 0 || "$DRY_RUN" == 1 ]] || { echo 'DRY_RUN 必须是 0 或 1' >&2; exit 2; }
+if [[ "$MODE" != native ]]; then KIND=""; fi
 PY=$(resolve_python)
 COMMAND=("$PY" scripts/py/47_benchmark.py --mode "$MODE" --data "$DATA" --benchmark "$BENCHMARK"
   --workers "$WORKERS" --judge-workers "$JUDGE_WORKERS" --limit "$LIMIT"

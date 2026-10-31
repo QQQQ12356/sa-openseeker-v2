@@ -117,24 +117,24 @@ bash scripts/sh/tools/59_check_agent_alignment.sh
 
 # 在线：由 RUN_DIR 自动选择实际训练提示。
 RUN_DIR=/path/to/run ENV_FILE=/private/api.env LIMIT=8 \
-  bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+  bash scripts/sh/plain/47_plain_browsecomp.sh
 
 # 模型和训练文件搬迁后：显式给对应训练数据。
 MODEL_PATH=/models/merged KIND=beacon PROMPT_DATA=/data/original_train.jsonl \
-  ENV_FILE=/private/api.env bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+  ENV_FILE=/private/api.env bash scripts/sh/beacon/47_beacon_browsecomp.sh
 
 # 离线：先按 43 完成数据与索引准备；PROMPT_DATA 对两种模型使用同一来源。
 ACTION=run RUN_DIR=/path/to/run PROMPT_DATA=/data/original_train.jsonl LIMIT=8 \
-  bash scripts/sh/benchmark/56_browsecomp_plus.sh
+  bash scripts/sh/plain/56_plain_browsecomp_plus.sh
 ACTION=run RUN_DIR=/path/to/run PROMPT_DATA=/data/original_train.jsonl LIMIT=8 \
-  bash scripts/sh/benchmark/57_hotpotqa_offline.sh
+  bash scripts/sh/plain/57_plain_hotpotqa.sh
 
 # 原样官方模式继续保留，不设置 PROMPT_DATA。
-MODE=official-v1 ENV_FILE=/private/api.env bash scripts/sh/benchmark/47_openseeker_benchmark.sh
-MODE=official-v2 ENV_FILE=/private/api.env bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+MODE=official-v1 ENV_FILE=/private/api.env bash scripts/sh/plain/47_plain_browsecomp.sh
+MODE=official-v2 ENV_FILE=/private/api.env bash scripts/sh/plain/47_plain_browsecomp.sh
 
 # 只检查参数计划，不加载模型、不调用 API。
-DRY_RUN=1 PROMPT_DATA=/data/original_train.jsonl bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+DRY_RUN=1 PROMPT_DATA=/data/original_train.jsonl bash scripts/sh/plain/47_plain_browsecomp.sh
 ```
 
 Dry-run 只展示参数/命令，不宣称训练提示文件、模型或 API 已完成真实联调。native 在线和离线生成前会读取并校验 prompt profile。离线多卡 worker 同样接收 PROMPT_DATA 和 RUN_DIR，不会在子进程意外退回默认 profile。
@@ -184,3 +184,5 @@ Beacon 默认仍使用 whole SFT；自包含脚本默认 `beacon_layout_policy=c
 native 预测保存完整 messages、prompt_source、prompt_version（当前构造策略版本）、system_prompt_sha256 和 generation_config。prompt_source 区分显式训练文件、RUN_DIR 自动定位与内置参考文件；完整 system hash 才代表具体文本身份，不能仅凭策略版本号判断不同 profile 相同。generation_config 记录模型、配置指纹及实际 Beacon 设置。
 
 已有 v3 模型可直接使用其原训练提示评测；不要求为本次修复重训。已有实验仍保留代码/数据指纹校验；代码变化后要新建训练计划，不改写旧实验指纹绕过校验。重复推理/非法调用是否改善，仍需真实模型评测；本次仅修改代码、文档和回归测试。
+
+各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。

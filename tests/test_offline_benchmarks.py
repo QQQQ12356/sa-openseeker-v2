@@ -408,8 +408,9 @@ def test_native_real_agent_search_visit_answer_and_regions(tmp_path, monkeypatch
 
 
 def test_shell_dry_run_has_no_writes_and_preserves_space_paths(tmp_path):
-    for script in ('56_browsecomp_plus.sh', '57_hotpotqa_offline.sh'):
-        command = ['bash', str(ROOT / 'scripts/sh/benchmark' / script)]
+    for script in ('plain/56_plain_browsecomp_plus.sh', 'plain/57_plain_hotpotqa.sh',
+                   'beacon/56_beacon_browsecomp_plus.sh', 'beacon/57_beacon_hotpotqa.sh'):
+        command = ['bash', str(ROOT / 'scripts/sh' / script)]
         import os
         env = dict(os.environ, ACTION='run', DRY_RUN='1', ROOT_DIR=str(tmp_path / 'root with spaces'),
                    MODEL_PATH=str(tmp_path / 'model with spaces'), PYTHON=sys.executable,

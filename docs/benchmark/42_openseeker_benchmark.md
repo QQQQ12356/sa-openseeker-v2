@@ -3,7 +3,7 @@
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
 
 `PROMPT_DATA` / `--prompt-data` 指定原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 的 train_data_path，无两者时用内置原始 Polar profile。在线保留原文，离线仅适配必要能力和答案格式；多 system 必须显式选择单 profile，详情见 45。
-本入口在现有训练、EM/F1、replay/corpus/http 和 Search-R1 流程之外增量添加。原有代码和编号入口继续可用。默认选择论文报告的英文 **BrowseComp**，它需要真实在线搜索和网页访问，适合评估训练后的复杂检索能力。它与从 Polar 训练轨迹切出的 test 集不同，不能互相代替。
+本入口在现有训练、EM/F1、replay/corpus/http 和 Search-R1 流程之外增量添加。Python 接口保持兼容，Shell 入口已按方案迁移到 plain/beacon，旧 benchmark 下的执行路径已移除，见 [46 迁移表](46_benchmark_scripts.md#465-迁移清单与后续维护)。默认选择论文报告的英文 **BrowseComp**，它需要真实在线搜索和网页访问，适合评估训练后的复杂检索能力。它与从 Polar 训练轨迹切出的 test 集不同，不能互相代替。
 
 官方来源：
 
@@ -126,7 +126,7 @@ export SCORER_API_KEY="$SUMMARY_API_KEY"
 ```bash
 ENV_FILE="$HOME/.config/openseeker/benchmark_env.sh" \
 MODE=native RUN_DIR=outputs/experiments/<beacon-run> LIMIT=2 \
-JUDGE_WORKERS=1 bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+JUDGE_WORKERS=1 bash scripts/sh/beacon/47_beacon_browsecomp.sh
 ```
 
 这个案例仍然需要通过 Serper/Jina 访问外网，并不是完全离线评测。
@@ -146,7 +146,7 @@ export E2B_API_KEY='YOUR_REAL_E2B_KEY'
 ```bash
 ENV_FILE="$HOME/.config/openseeker/benchmark_env.sh" \
 MODE=official-v1 LIMIT=2 WORKERS=1 JUDGE_WORKERS=1 \
-  bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+  bash scripts/sh/plain/47_plain_browsecomp.sh
 # 已配置 E2B 且模型适合 v2 工具时，将 MODE 改成 official-v2。
 ```
 
@@ -204,21 +204,21 @@ curl --fail --connect-timeout 10 --max-time 30 \
 Plain：训练完成后，在服务环境的终端 A 启动模型；RUN_DIR 与现有 20 训练产物相连，自动读取 `models/model/train_summary.json` 的 `final_model_path`。
 
 ```bash
-RUN_DIR=outputs/experiments/<plain-run> bash scripts/sh/benchmark/48_serve_checkpoint.sh
-# 或 MODEL_PATH=/absolute/path/to/merged-model bash scripts/sh/benchmark/48_serve_checkpoint.sh
+RUN_DIR=outputs/experiments/<plain-run> bash scripts/sh/plain/48_serve_checkpoint.sh
+# 或 MODEL_PATH=/absolute/path/to/merged-model bash scripts/sh/plain/48_serve_checkpoint.sh
 ```
 
 48 使用参数数组启动 `python -m sglang.launch_server`，不执行 eval 字符串。默认 GPU=0、TP=1、context=131072、port=30018；用同名环境变量或编辑脚本顶部修改。先等服务就绪，再在终端 B 运行：
 
 ```bash
 # 先审查配置，不创建目录、不下载数据、不调用 API：
-DRY_RUN=1 bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+DRY_RUN=1 bash scripts/sh/plain/47_plain_browsecomp.sh
 
 # 用私有环境文件配置模型服务和工具；正式运行默认全量、官方 v2：
-ENV_FILE=/private/path/env.sh bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+ENV_FILE=/private/path/env.sh bash scripts/sh/plain/47_plain_browsecomp.sh
 
 # 仅 search/visit 训练模型可改为官方 v1；先做 2 题在线 smoke：
-MODE=official-v1 LIMIT=2 ENV_FILE=/private/path/env.sh bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+MODE=official-v1 LIMIT=2 ENV_FILE=/private/path/env.sh bash scripts/sh/plain/47_plain_browsecomp.sh
 ```
 
 自动化也可用 `bash scripts/sh/tools/02_workflow.sh benchmark [47 的命令行参数]`，它复用同一 Python 入口。
@@ -229,18 +229,18 @@ Beacon：完成 30 的训练及必要的 LoRA 合并后，直接运行，不需�
 
 ```bash
 MODE=native RUN_DIR=outputs/experiments/<beacon-run> \
-  ENV_FILE=/private/path/env.sh bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+  ENV_FILE=/private/path/env.sh bash scripts/sh/beacon/47_beacon_browsecomp.sh
 # 没有 RUN_DIR 时：MODE=native MODEL_PATH=/path/to/checkpoint KIND=beacon ...
 ```
 
-目录仍是 adapter（含 `adapter_config.json`）会拒绝；按已有 `35_beacon_merge_adapter.sh` 合并。显式 MODEL_PATH 覆盖实验记录；KIND 默认读取实验配置或模型的 enable_beacon。训练本身的测试集路径不用于此独立 Benchmark。
+目录仍是 adapter（含 `adapter_config.json`）会拒绝；按已有 `35_beacon_merge_adapter.sh` 合并。显式 MODEL_PATH 覆盖实验记录；Shell 入口 KIND 固定为本方案 plain/beacon；单独调用 Python CLI 时才可省略 KIND 自动识别。训练本身的测试集路径不用于此独立 Benchmark。
 
 若已用其他方式获得 Benchmark 预测，可只跑裁判：
 
 ```bash
 MODE=native DATA=/data/benchmark.jsonl BENCHMARK=BrowseComp \
   PREDICTIONS=/data/predictions.jsonl ENV_FILE=/private/path/judge-env.sh \
-  bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+  bash scripts/sh/plain/47_plain_browsecomp.sh
 ```
 
 预测必须含 `query/answer/final_response`，问题和参考答案必须匹配 DATA；仅有现有 21/31 输出的 prediction 字段还不够，需根据原始 Benchmark 显式导出 query，不能直接把 Polar test 的预测冒充 BrowseComp。若输入来自官方 v2，选择 `MODE=official-v2`，保留官方添加的 boxed 问题后缀。manifest 会记录导入预测的指纹，但其生成来源仍由使用者负责说明。
@@ -285,3 +285,5 @@ native 的 max_tokens 是每轮生成上限，max_turns 是轮数，不等于官
 ## 42.6 不依赖联网 API 的独立固定语料流程
 
 56 BrowseComp-Plus 和 57 HotpotQA 已完整接入数据适配、持久化 BM25 与本地评分。它们不读取 49 的 API 配置，且不通过 47 的在线 search/visit 运行。BCP 完整评分使用本地裁判，Hotpot 使用无需 LLM 的官方 EM/F1。离线流程参数、准备与比较边界见 [43 离线手册](43_offline_benchmarks.md)。
+
+各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](46_benchmark_scripts.md)。

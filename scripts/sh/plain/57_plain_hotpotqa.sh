@@ -12,7 +12,7 @@ NUM_WORKERS="${NUM_WORKERS:-1}"        # 每卡完整模型副本，按题并行
 RUN_DIR="${RUN_DIR:-}"
 MODEL_PATH="${MODEL_PATH:-}"
 PROMPT_DATA="${PROMPT_DATA:-}"          # 原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 自动定位；无两者用内置 Polar 原提示
-KIND="${KIND:-}"                       # plain / beacon；默认自动识别
+KIND="${KIND:-plain}"                       # 固定 plain 入口
 DATA="${DATA:-}"                       # 默认 ROOT_DIR/raw/hotpot_dev_fullwiki_v1.json
 CORPUS="${CORPUS:-}"                   # 默认 ROOT_DIR/raw/wiki-abstracts.tar.bz2
 CORPUS_LIMIT="${CORPUS_LIMIT:-}"        # 留空全量；smoke 子集不能标为 fullwiki 正式结果
@@ -37,4 +37,7 @@ LIMIT="${LIMIT:--1}"
 OUTPUT_DIR="${OUTPUT_DIR:-}"
 PREDICTIONS="${PREDICTIONS:-}"
 DRY_RUN="${DRY_RUN:-0}"
-source "$(dirname "${BASH_SOURCE[0]}")/58_offline_common.sh"
+
+# 各方案入口独立；参数表和修改提示见 docs/benchmark/46_benchmark_scripts.md。
+[[ "$KIND" == plain ]] || { echo '此入口 KIND 必须为 plain' >&2; exit 2; }
+source "$(dirname "${BASH_SOURCE[0]}")/../benchmark/58_offline_common.sh"

@@ -135,7 +135,7 @@ def test_plain_decoding_options_reach_shell_and_offline_benchmark(tmp_path):
 def test_official_mode_rejects_custom_decoding(tmp_path):
     env = {**os.environ, 'PYTHON': sys.executable, 'MODE': 'official-v1', 'DRY_RUN': '1',
            'DECODING': 'greedy', 'REPETITION_PENALTY': '1.1'}
-    result = subprocess.run(['bash', 'scripts/sh/benchmark/47_openseeker_benchmark.sh'],
+    result = subprocess.run(['bash', 'scripts/sh/plain/47_plain_browsecomp.sh'],
                             cwd=ROOT, env=env, text=True, capture_output=True)
     assert result.returncode != 0 and 'native mode only' in result.stderr
 

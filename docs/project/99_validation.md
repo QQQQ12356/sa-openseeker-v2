@@ -1,5 +1,19 @@
 # 99 本次验证记录
 
+## Benchmark 分方案独立入口验证（2026-10-31）
+
+Plain/Beacon 各新增独立在线 47、离线 56/57 入口并固定 KIND；Plain 服务 48 移至 plain；benchmark 只保留公共数据准备、API 示例及离线参数映射。Baseline 新增固定数据集的 74/75，70 已调整分发，73 保留共享配置与兼容入口。Python 训练、推理和评分实现未修改。入口与变量说明见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。
+
+本轮实际执行：
+
+- `bash -n` 检查全部 54 个 Shell 脚本，通过；`git diff --check` 通过。
+- `python -m pytest tests/test_benchmark_entries.py -q`：8 项通过，覆盖三方案入口、固定类型/数据集、空格路径、从其他目录启动及 dry-run。
+- `python -m pytest tests/test_offline_benchmarks.py tests/test_official_benchmark.py tests/test_benchmark_progress.py -q`：65 项通过，包含官方评分、配置解析和使用替代生成器的子进程调度；没有加载真实大模型或调用真实外部服务。
+- `python -m pytest tests/test_plain_workflow.py tests/test_qwen35_base_benchmark.py -q`：29 项通过，2 项失败。失败均为 `test_plain_adapter_eval_matches_merged_checkpoint` 的 qwen3/qwen35 参数项，导入 `peft` 时发生 `ModuleNotFoundError`；当前 Python 环境缺少该依赖，未改动环境或跳过测试来隐藏结果。
+- 本轮累计 102 项通过、2 项因缺少依赖失败。Markdown 本地文件链接检查无失效；涉及迁移的当前运行命令已更新，旧路径只保留在迁移记录中。
+
+未启动真实训练、GPU benchmark、在线服务或全量数据下载；dry-run 只证明参数与分发正确，不证明模型、GPU、外部 API 或真实结果已完成联调。历史章节记录的是先前验证结果，与本轮环境和范围分开阅读。
+
 ## 自包含训练脚本验证
 
 20/26/30/37 内嵌训练、模型和 DeepSpeed 参数；22/34 的 Search-R1 默认配置同样内嵌，旧外部 YAML 仍支持显式传入。多卡启动器对新配置内联传递 ZeRO 字典，缺失配置不回退外部文件。CPU 验证覆盖 ZeRO-2/3 参数解析和覆盖、DDP 冲突、旧入口兼容、OpenSeeker 不依赖外部基础配置的 plan、Search-R1 plan、数据路径空格、Beacon 配置字段及 whole/window 策略。近期训练器和自包含配置回归 62 项通过（3 条 tiny PEFT 保存提示）；更广的相关回归 177 项通过（5 条 tiny PEFT 保存提示）。实际运行 Plain/Beacon 四卡配置 plan，未启动多卡训练；Search-R1 plan 仅打印配置，不加载模型。GPU、DeepSpeed CPUAdam、真实 4B 显存与训练质量仍需在目标服务器验证。

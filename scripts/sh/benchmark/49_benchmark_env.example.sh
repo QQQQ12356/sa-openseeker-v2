@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 49 Benchmark API 配置示例；完整说明：docs/benchmark/42_openseeker_benchmark.md 的 42.3。
-# 复制到仓库外的私有路径，填写后：ENV_FILE=/private/path/env.sh bash scripts/sh/benchmark/47_openseeker_benchmark.sh
+# 复制到仓库外的私有路径，填写后：ENV_FILE=/private/path/env.sh bash scripts/sh/plain/47_plain_browsecomp.sh
 # ${VAR:-默认值} 表示已有非空环境变量优先；也可在私有文件改用 export VAR='实际值'。
 # YOUR_... 都是占位符；只需替换当前模式使用的变量组。
 # native：搜索 + Jina + SUMMARY + SCORER；official-v1 另需 OPENSEEKER；v2 再需 E2B。
@@ -63,5 +63,5 @@ export E2B_API_KEY="${E2B_API_KEY:-YOUR_E2B_KEY}"
 # 若 48 服务需被其他节点访问，可在 48 命令末尾加 --host 0.0.0.0。
 # 不要把真实密钥提交到 Git；示例中的所有 URL/模型名都需要对应真实运行的服务。
 
-# 完全离线的固定语料评测请用 56/57；它们不读取本文件，也不需要上述在线 API。
+# 完全离线的固定语料评测请用 plain/ 或 beacon/ 的 56/57，或 baseline/74/75；它们不读取本文件，也不需要上述在线 API。
 # BrowseComp-Plus 使用本地 JUDGE_MODEL；HotpotQA 使用官方 EM/F1，不需要裁判模型。

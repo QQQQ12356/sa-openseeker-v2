@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 56/57 共享参数映射；日常配置修改各自脚本顶部，不必编辑此文件。
+# Plain/Beacon 56/57 共用参数映射；配置在各方案目录的独立脚本顶部。
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../common/00_common.sh"
 PY=$(resolve_python)
