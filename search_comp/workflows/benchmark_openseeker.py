@@ -1,8 +1,9 @@
-"""Run pinned upstream OpenSeeker generation and judging without changing legacy eval."""
+"""Run pinned OpenSeeker generation with auditable, bounded model judging."""
 from __future__ import annotations
 
 import argparse
 import ast
+from collections import Counter
 from contextlib import nullcontext
 from datetime import datetime, timezone
 import json
@@ -165,6 +166,8 @@ def align_results(rows, raw_path, destination, suffix=""):
 
 def audit_scores(path, expected):
     labels = {}
+    seen = set()
+    empty_overrides = 0
     with path.open(encoding="utf-8") as source:
         for line in source:
             item = json.loads(line)
@@ -172,10 +175,16 @@ def audit_scores(path, expected):
                 index, score = item["item_index"], item.get("score")
                 if type(index) is not int or not 0 <= index < expected:
                     raise ValueError("invalid judge item_index")
+                if index in seen:
+                    raise ValueError("duplicate judge item_index")
+                seen.add(index)
+                if "final_response" in item and isinstance(item["final_response"], str) and not item["final_response"].strip():
+                    empty_overrides += score == 1
+                    score = 0
                 if type(score) in (int, float) and score in (0, 1):
                     labels[index] = score
     correct = sum(labels.values())
-    return dict(judged=len(labels), judge_unknown_or_error=expected - len(labels),
+    return dict(empty_score_overrides=empty_overrides, judged=len(labels), judge_unknown_or_error=expected - len(labels),
                 official_accuracy=correct / len(labels) if labels else None,
                 accuracy_all_questions=correct / expected, complete=len(labels) == expected)
 
@@ -209,6 +218,9 @@ def native_generate(args, rows, output):
     if getattr(args, 'model_origin', 'checkpoint') == 'base-qwen35':
         generate.metadata.update(model_origin='base-qwen35', base_model_path=model_path)
     search, visit = Search(), Visit()
+    if getattr(args, 'tool_policy', 'official') == 'stable':
+        from search_comp.evaluation.online_visit import StableVisit
+        visit = StableVisit()
     with output.open("x", encoding="utf-8") as target:
         for index, row in enumerate(rows):
             start = time.monotonic()
@@ -219,7 +231,8 @@ def native_generate(args, rows, output):
             log("question start")
             messages = initial_messages(row["query"], system=system)
             result = run_agent(messages, tokenizer, generate, tools, args.max_turns,
-                               args.max_context, args.max_tokens, args.max_tool_tokens, log=log)
+                               args.max_context, args.max_tokens, args.max_tool_tokens, log=log,
+                               **(dict(max_call_retries=args.tool_call_retries) if hasattr(args, "tool_call_retries") else {}))
             result.update(row, final_response=result["prediction"], prompt_source=prompt_source,
                           elapsed_seconds=time.monotonic() - start,
                           tool_calls=sum(len(e.get("calls", [])) for e in result["events"]))
@@ -245,12 +258,19 @@ def main():
     parser.add_argument("--model-origin", choices=['checkpoint', 'base-qwen35'], default='checkpoint')
     parser.add_argument("--kind", choices=["plain", "beacon"])
     parser.add_argument("--workers", type=int, default=60)
-    parser.add_argument("--judge-workers", type=int, default=20)
+    parser.add_argument("--judge-workers", type=int, default=1)
+    parser.add_argument("--judge-attempts", type=int, default=3)
+    parser.add_argument("--judge-max-tokens", type=int, default=1024)
+    parser.add_argument("--judge-timeout", type=float, default=120)
+    parser.add_argument("--judge-enable-thinking", action="store_true")
+    parser.add_argument("--skip-judge-preflight", action="store_true")
     parser.add_argument("--limit", type=int, default=-1)
     parser.add_argument("--max-tokens", type=int, default=32768)
     parser.add_argument("--tool-count", type=int, default=200)
     parser.add_argument("--max-context", type=int, default=131072)
     parser.add_argument("--max-turns", type=int, default=200)
+    parser.add_argument("--tool-policy", choices=["stable", "official"], default="stable")
+    parser.add_argument("--tool-call-retries", type=int, default=1)
     parser.add_argument("--max-tool-tokens", type=int, default=32768)
     from search_comp.evaluation.tool_agent import add_decoding_arguments, decoding_options
     add_decoding_arguments(parser)
@@ -264,9 +284,13 @@ def main():
         parser.error('decoding overrides are supported in native mode only')
     if args.mode != 'native' and args.model_origin != 'checkpoint':
         parser.error('base-qwen35 loading is supported in native mode only')
-    for name in ("workers", "judge_workers", "max_tokens", "tool_count", "max_context", "max_turns", "max_tool_tokens"):
+    for name in ("workers", "judge_workers", "judge_attempts", "judge_max_tokens", "max_tokens", "tool_count", "max_context", "max_turns", "max_tool_tokens"):
         if getattr(args, name) < 1:
             parser.error(f"--{name.replace('_', '-')} must be positive")
+    if args.tool_call_retries < 0:
+        parser.error("--tool-call-retries must be nonnegative")
+    if not 0 < args.judge_timeout < float("inf"):
+        parser.error("--judge-timeout must be positive and finite")
     if args.limit != -1 and args.limit < 1:
         parser.error("--limit must be -1 (full benchmark) or positive")
     for name in ("official_dir", "data", "output_dir", "predictions", "run_dir", "csv", "prompt_data"):
@@ -288,6 +312,11 @@ def main():
         print(json.dumps(dict(revision=OFFICIAL_REVISION, mode=args.mode, model_origin=args.model_origin, data=str(args.data),
                               output=str(output), prompt_data=str(args.prompt_data) if args.prompt_data else None,
                               generation=command,
+                              judging=dict(policy="stable-judge-v1", workers=args.judge_workers,
+                                           attempts=args.judge_attempts, max_tokens=args.judge_max_tokens,
+                                           timeout=args.judge_timeout, enable_thinking=args.judge_enable_thinking,
+                                           preflight=not args.skip_judge_preflight),
+                              tools=dict(policy=args.tool_policy, call_retries=args.tool_call_retries),
                               decoding=dict(mode=args.decoding, repetition_penalty=args.repetition_penalty,
                                             temperature=args.temperature, top_p=args.top_p,
                                             generation_seed=args.generation_seed)), indent=2))
@@ -326,6 +355,9 @@ def main():
         manifest.update(model=os.environ["OPENSEEKER_MODEL"], generation_alignment="unmodified official script")
     else:
         manifest.update(predictions_sha256=sha256(args.predictions), generation_alignment="imported predictions; verify provenance")
+    from search_comp.evaluation import judging
+    manifest["judge_policy"] = judging.POLICY
+    manifest["judge_implementation_sha256"] = sha256(Path(judging.__file__))
     manifest["local_workflow_sha256"] = sha256(__file__)
     manifest["official_script_sha256"] = {
         str(path.relative_to(args.official_dir)): sha256(path)
@@ -348,13 +380,21 @@ def main():
     suffix = boxed_instruction(args.official_dir) if args.mode == "official-v2" else ""
     coverage = align_results(rows, raw, aligned, suffix)
     (output / "coverage.json").write_text(json.dumps(coverage, indent=2) + "\n")
-    run_logged([sys.executable, str(args.official_dir / "eval/eval.py"), "--data_path", str(aligned),
-                "--max_workers", str(args.judge_workers)], args.official_dir, output / "judge.log",
-               output / "result_for_judge_eval.jsonl", len(rows), f"benchmark {args.benchmark} judge",
-               key="item_index", item_type="item")
+    # Read only the pinned prompt literal; do not mutate/import the upstream evaluator.
+    tree = ast.parse((args.official_dir / "eval/prompt.py").read_text())
+    prompt = next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign)
+                  and any(isinstance(t, ast.Name) and t.id == "JUDGE_PROMPT_BC_en" for t in node.targets))
+    client = judging.ChatJudge(os.environ["SCORER_URLS"], os.environ["SCORER_MODEL_NAME"],
+                               os.environ["SCORER_API_KEY"], args.judge_max_tokens,
+                               args.judge_timeout, args.judge_enable_thinking)
+    aligned_rows = [json.loads(line) for line in aligned.read_text().splitlines() if line.strip()]
+    judging.score_online(aligned_rows, prompt, client, output, args.judge_workers,
+                         args.judge_attempts, not args.skip_judge_preflight)
     scores = audit_scores(output / "result_for_judge_eval.jsonl", len(rows))
     summary = dict(coverage, **scores, mode=args.mode, benchmark=args.benchmark,
-                   official_revision=revision, metric="OpenSeeker JUDGE_PROMPT_BC_en A/B accuracy")
+                   official_revision=revision, metric="OpenSeeker JUDGE_PROMPT_BC_en with stable judging", judge_policy=judging.POLICY,
+                   generation_status_counts=dict(Counter(row.get("status", "unreported") for row in aligned_rows)),
+                   judge_preflight_enabled=not args.skip_judge_preflight)
     (output / "summary.metrics.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary, indent=2))
     if not scores["complete"]:

@@ -1,5 +1,7 @@
 # 46 各方案独立 Benchmark 脚本与参数手册
 
+评分/工具恢复公共参数由 `54_judge_options.sh` 映射；历史审计与裁判自检入口为 `54_check_judge.sh`，完整参数、行为变化和各方法覆盖表见 [54](54_stable_judging.md)。
+
 本地摘要/裁判部署入口：`scripts/sh/benchmark/49_serve_aux_models.sh`；默认 Qwen3-32B 共用服务，支持 DRY_RUN 与分角色启动。全部部署变量、客户端 URL 和修改提示见 [49 本地辅助模型](49_local_aux_models.md)。
 
 本次仅调整 Shell 入口、分发和文档，不修改训练算法、Python 推理流程、数据协议或评分方法。未启动真实训练。OpenSeeker 留出集、在线 BrowseComp、固定语料 BrowseComp-Plus 和 HotpotQA 是不同评测；结果不能混为同一项指标。
@@ -93,7 +95,7 @@ Plain/Beacon 离线脚本默认 `ACTION=all`，Baseline 默认 `ACTION=run`，�
 | `OUTPUT_DIR` | `空` | 本次结果的新目录；留空自动选择，禁止覆盖旧结果。 |
 | `PREDICTIONS` | `空` | 已有预测 JSONL；离线 score 阶段必须设置。 |
 | `WORKERS` | `60` | 官方在线生成并发；native 不按题并行。 |
-| `JUDGE_WORKERS` | `20` | 在线裁判并发。 |
+| `JUDGE_WORKERS` | `1` | 在线裁判并发。 |
 | `LIMIT` | `-1` | -1 全量；正整数取前 N 题。 |
 | `MAX_TOKENS` | `32768` | 在线单次生成预算。 |
 | `TOOL_COUNT` | `200` | 工具调用预算；在线 native 循环由 MAX_TURNS 控制。 |
@@ -152,7 +154,7 @@ Plain/Beacon 离线脚本默认 `ACTION=all`，Baseline 默认 `ACTION=run`，�
 | `RETRIEVAL_ONLY` | `0` | 1 只报告检索诊断，不报告答案 accuracy。 |
 | `JUDGE_MAX_TOKENS` | `4096` | 裁判生成 token 上限。 |
 | `JUDGE_MAX_CONTEXT` | `32768` | 裁判上下文 token 上限。 |
-| `JUDGE_TEMPERATURE` | `0.7` | 裁判采样温度。 |
+| `JUDGE_TEMPERATURE` | `0` | 本地裁判默认贪心；>0 开启采样。 |
 | `JUDGE_TOP_P` | `0.8` | 裁判核采样阈值。 |
 | `JUDGE_TOP_K` | `20` | 裁判 top-k。 |
 | `SEED` | `42` | 裁判随机种子。 |
@@ -237,7 +239,7 @@ Plain/Beacon 离线脚本默认 `ACTION=all`，Baseline 默认 `ACTION=run`，�
 | `JUDGE_MODEL` | `空` | BrowseComp-Plus 本地裁判完整权重目录。 |
 | `JUDGE_MAX_TOKENS` | `4096` | 裁判生成 token 上限。 |
 | `JUDGE_MAX_CONTEXT` | `32768` | 裁判上下文 token 上限。 |
-| `JUDGE_TEMPERATURE` | `0.7` | 裁判采样温度。 |
+| `JUDGE_TEMPERATURE` | `0` | 本地裁判默认贪心；>0 开启采样。 |
 | `JUDGE_TOP_P` | `0.8` | 裁判核采样阈值。 |
 | `JUDGE_TOP_K` | `20` | 裁判 top-k。 |
 | `SEED` | `42` | 裁判随机种子。 |

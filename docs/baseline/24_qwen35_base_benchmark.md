@@ -1,5 +1,7 @@
 # 24 原始 Qwen3.5-4B 独立基线：数据、测试、评分和对照
 
+原始基座与 Plain/Beacon 共用 stable-judge-v1 评分保护；72 在线裁判默认并发 1，73/74 本地裁判默认温度 0。自检、重评、工具恢复和全部新参数见 [54](../benchmark/54_stable_judging.md)。
+
 本指南为 **未经本项目 SFT 的原始 Qwen3.5-4B** 提供独立的 OpenSeeker、在线 BrowseComp、离线 BrowseComp-Plus 和 HotpotQA 评测。先检查环境和权重，再准备相应基准，先测少量题、检查轨迹，然后运行全量。本文不会启动训练。
 
 ## 24.1 入口和独立边界
@@ -116,7 +118,7 @@ cp scripts/sh/benchmark/49_benchmark_env.example.sh "$HOME/.config/searchagent/b
 # 在私有副本设置搜索、Jina、摘要及裁判服务配置。
 ```
 
-native 直接加载原始基座并调用固定官方 v1 Search/Visit，不需要 OPENSEEKER 模型服务或 E2B。搜索、网页读取、摘要与裁判需要相应在线服务；接口、key、模型和网络连通性见 [42](../benchmark/42_openseeker_benchmark.md)。准备阶段可用 `DRY_RUN=1 ACTION=prepare` 审查，不会下载。
+native 直接加载原始基座，Search 使用固定官方 v1 实现，Visit 默认使用 54 的稳定适配器，不需要 OPENSEEKER 模型服务或 E2B。搜索、网页读取、摘要与裁判需要相应在线服务；接口、key、模型和网络连通性见 [42](../benchmark/42_openseeker_benchmark.md)。准备阶段可用 `DRY_RUN=1 ACTION=prepare` 审查，不会下载。
 
 ```bash
 # 显示配置；dry-run 不验证模型或服务。
@@ -147,7 +149,7 @@ ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
 | MAX_TOKENS / MAX_CONTEXT | 32768 / 131072 | 每轮生成及完整逻辑历史上限 |
 | MAX_TURNS / MAX_TOOL_TOKENS | 200 / 32768 | native 最大轮次和单条工具返回预算 |
 | TOOL_COUNT | 200 | 官方结果文件名参数；native 实际循环上限为 MAX_TURNS |
-| WORKERS / JUDGE_WORKERS | 60 / 20 | 前者不使 native 自动多卡；后者为裁判并发 |
+| WORKERS / JUDGE_WORKERS | 60 / 1 | 前者不使 native 自动多卡；后者为裁判并发 |
 | PREDICTIONS / OUTPUT_DIR | 空 / 自动 | score 输入 / 本次新结果目录；禁止覆盖旧结果 |
 
 默认结果写入 `outputs/results/qwen35_base/browsecomp/` 下按阶段和时间命名的新目录，即使设置 RUN_DIR 也不会写入训练目录。检查 `result_tool*.jsonl`、`coverage.json`、`summary.metrics.json` 和 `judge.log`；必须报告全部题数和裁判覆盖。
@@ -208,7 +210,7 @@ JUDGE_MODEL=/models/Qwen3-32B bash scripts/sh/baseline/73_qwen35_offline.sh
 | DECRYPTED | 0 | BCP 自备明文问题时设 1 |
 | JUDGE_MODEL / RETRIEVAL_ONLY | 空 / 0 | BCP 本地裁判路径 / 仅检索 |
 | JUDGE_MAX_TOKENS / JUDGE_MAX_CONTEXT | 4096 / 32768 | BCP 裁判生成和上下文预算 |
-| JUDGE_TEMPERATURE / JUDGE_TOP_P / JUDGE_TOP_K / SEED | 0.7 / 0.8 / 20 / 42 | BCP 裁判采样，与待测模型参数独立 |
+| JUDGE_TEMPERATURE / JUDGE_TOP_P / JUDGE_TOP_K / SEED | 0 / 0.8 / 20 / 42 | BCP 裁判采样，与待测模型参数独立 |
 
 详细来源、空间需求、数据版本、checksum、索引、断网限制和故障排查见 [43](../benchmark/43_offline_benchmarks.md)、[44](../benchmark/44_offline_sources.md)。实际 download 会联网；完整数据与索引可能占用较多磁盘。
 

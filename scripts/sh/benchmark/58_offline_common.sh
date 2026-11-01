@@ -36,4 +36,6 @@ if [[ "$BENCHMARK" == browsecomp-plus ]]; then
   COMMAND+=(--judge-max-tokens "$JUDGE_MAX_TOKENS" --judge-max-context "$JUDGE_MAX_CONTEXT"
     --judge-temperature "$JUDGE_TEMPERATURE" --judge-top-p "$JUDGE_TOP_P" --judge-top-k "$JUDGE_TOP_K" --seed "$SEED")
 fi
+source scripts/sh/benchmark/54_judge_options.sh
+add_judge_options offline
 exec "${COMMAND[@]}" "$@"

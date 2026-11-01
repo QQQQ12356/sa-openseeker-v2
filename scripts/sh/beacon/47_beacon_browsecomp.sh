@@ -13,7 +13,7 @@ BENCHMARK="${BENCHMARK:-BrowseComp}"
 OUTPUT_DIR="${OUTPUT_DIR:-}"          # 默认新目录；已有目录拒绝覆盖
 PREDICTIONS="${PREDICTIONS:-}"          # 可只评分已有 query/answer/final_response
 WORKERS="${WORKERS:-60}"
-JUDGE_WORKERS="${JUDGE_WORKERS:-20}"
+JUDGE_WORKERS="${JUDGE_WORKERS:-1}"
 LIMIT="${LIMIT:--1}"                  # -1 全量；正数用于 smoke，不能当全量结果
 MAX_TOKENS="${MAX_TOKENS:-32768}"
 TOOL_COUNT="${TOOL_COUNT:-200}"        # 官方模式的工具调用上限
@@ -49,4 +49,6 @@ if [[ -n "$KIND" ]]; then COMMAND+=(--kind "$KIND"); fi
 if [[ -n "$OUTPUT_DIR" ]]; then COMMAND+=(--output-dir "$OUTPUT_DIR"); fi
 if [[ -n "$PREDICTIONS" ]]; then COMMAND+=(--predictions "$PREDICTIONS"); fi
 if [[ "$DRY_RUN" == 1 ]]; then COMMAND+=(--dry-run); fi
+source scripts/sh/benchmark/54_judge_options.sh
+add_judge_options online
 exec "${COMMAND[@]}" "$@"

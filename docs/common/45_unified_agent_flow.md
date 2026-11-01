@@ -160,7 +160,7 @@ Dry-run 只展示参数/命令，不宣称训练提示文件、模型或 API 已
 | `TOOL_COUNT` | 200 | 离线真实调用上限；47 沿用官方模式工具次数参数，native 仍由轮数控制 |
 | `LIMIT` | -1 | 全量；正数为前 N 题，不能称全量成绩 |
 | `NUM_WORKERS` | 56/57=1 | 每 GPU 完整模型副本，按题并行；训练提示来源随子进程传播 |
-| `WORKERS` / `JUDGE_WORKERS` | 47=60/20 | 官方生成/裁判并发；native 生成仍逐题 |
+| `WORKERS` / `JUDGE_WORKERS` | 47=60/1 | 官方生成/裁判并发；native 生成仍逐题 |
 | `DATA` | 测试脚本默认问题集 | 评测问题来源，与 PROMPT_DATA 的训练提示来源区分 |
 | `CORPUS` / `ROOT_DIR` | 56/57 | 独立文档/索引；保留原来源和指纹检查 |
 | `OUTPUT_DIR` | 新结果目录 | 禁止覆盖旧结果，防止缓存混用 |
@@ -186,3 +186,5 @@ native 预测保存完整 messages、prompt_source、prompt_version（当前构�
 已有 v3 模型可直接使用其原训练提示评测；不要求为本次修复重训。已有实验仍保留代码/数据指纹校验；代码变化后要新建训练计划，不改写旧实验指纹绕过校验。重复推理/非法调用是否改善，仍需真实模型评测；本次仅修改代码、文档和回归测试。
 
 各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。
+
+模型评分、默认工具格式恢复与 native bounded visit 的最新协议及参数见 [54](../benchmark/54_stable_judging.md)。

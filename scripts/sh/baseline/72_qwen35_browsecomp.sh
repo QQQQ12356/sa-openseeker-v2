@@ -13,7 +13,7 @@ OUTPUT_DIR="${OUTPUT_DIR:-}"
 PREDICTIONS="${PREDICTIONS:-}"            # score 输入
 ENV_FILE="${ENV_FILE:-}"                  # 私有在线服务配置
 WORKERS="${WORKERS:-60}"                 # 保留的官方参数；native 不做题目并行
-JUDGE_WORKERS="${JUDGE_WORKERS:-20}"
+JUDGE_WORKERS="${JUDGE_WORKERS:-1}"
 LIMIT="${LIMIT:--1}"
 MAX_TOKENS="${MAX_TOKENS:-32768}"
 TOOL_COUNT="${TOOL_COUNT:-200}"           # 官方裁判文件名；native 循环由 MAX_TURNS 控制
@@ -55,4 +55,6 @@ COMMAND=("$PY" scripts/py/47_benchmark.py --mode native --kind plain --model-ori
 [[ -z "$OUTPUT_DIR" ]] || COMMAND+=(--output-dir "$OUTPUT_DIR")
 [[ -z "$PREDICTIONS" ]] || COMMAND+=(--predictions "$PREDICTIONS")
 [[ "$DRY_RUN" != 1 ]] || COMMAND+=(--dry-run)
+source scripts/sh/benchmark/54_judge_options.sh
+add_judge_options online
 exec "${COMMAND[@]}" "$@"

@@ -1,5 +1,7 @@
 # 42 OpenSeeker 官方 Benchmark 对齐评测
 
+当前模型评分采用 stable-judge-v1：保留固定官方提示，增加空回答判错、自检、严格解析与有限重试；native 默认开启有限工具格式恢复及 bounded visit。完整参数、历史结果审计和协议区别见 [54](54_stable_judging.md)。
+
 本地部署摘要与裁判请先执行 [49 本地辅助模型指南](49_local_aux_models.md)：新增 `49_serve_aux_models.sh`，默认 Qwen3-32B 共用一个 SGLang 服务，49 配置模板默认已匹配。支持两个独立服务及 Qwen3.5 替换；仅 source 配置不会启动服务。
 
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
@@ -10,16 +12,16 @@
 官方来源：
 
 - [OpenSeeker 官方仓库](https://github.com/PolarSeeker/OpenSeeker)，此次固定提交 `e3dec1f727d87c5eaa93506e4882c67237647098`。
-- [固定版本生成与评分脚本](https://github.com/PolarSeeker/OpenSeeker/tree/e3dec1f727d87c5eaa93506e4882c67237647098/eval)。官方 README 的并发参数示例与实际生成脚本不一致，本项目按实际解析器使用 `--max_worker`，裁判则使用 `--max_workers`。
+- [固定版本生成与评分脚本](https://github.com/PolarSeeker/OpenSeeker/tree/e3dec1f727d87c5eaa93506e4882c67237647098/eval)。官方 README 的并发参数示例与实际生成脚本不一致，本项目按实际解析器使用 `--max_worker`，上游裁判参数为 `--max_workers`，本项目稳定评分器使用 `--judge-workers`。
 - [BrowseComp 官方数据加载与解密实现](https://github.com/openai/simple-evals/blob/main/browsecomp_eval.py)。本项目采用相同的 canary → SHA256 重复密钥 → XOR → UTF-8 解码方式，分别解密 problem 与 answer。测试集不进入训练准备或长度筛选流程。
 
 ## 42.1 选择运行方式
 
 | 模式 | 模型运行方式 | 工具、提示与生成 | 评分与适用范围 |
 |---|---|---|---|
-| `official-v2` | 已部署的 Plain 模型 completion 服务 | 原样执行官方 `generate_answer_v2.py`；search、visit、E2B；保留 boxed 格式指令 | 官方 `eval.py`；用于 v2 工具协议对比 |
-| `official-v1` | 已部署的 Plain 模型 completion 服务 | 原样执行官方 `generate_answer.py`；search、visit | 同一官方裁判；适合只训练了 search/visit 的 checkpoint |
-| `native`（默认） | 本项目直接加载 Plain / Beacon checkpoint | 与训练共享的 system prompt、官方 v1 Search 和 Visit；本项目序列化、默认贪心生成、停止和预算策略 | 官方裁判；保留 Beacon 压缩，必须注明生成侧差异 |
+| `official-v2` | 已部署的 Plain 模型 completion 服务 | 原样执行官方 `generate_answer_v2.py`；search、visit、E2B；保留 boxed 格式指令 | 固定官方提示 + 稳定评分器；用于 v2 工具协议对比 |
+| `official-v1` | 已部署的 Plain 模型 completion 服务 | 原样执行官方 `generate_answer.py`；search、visit | 同一稳定评分器；适合只训练了 search/visit 的 checkpoint |
+| `native`（默认） | 本项目直接加载 Plain / Beacon checkpoint | 与训练共享的 system prompt、官方 v1 Search、默认 bounded Visit；本项目序列化、默认贪心生成、停止和预算策略 | 固定官方提示 + 稳定评分器；保留 Beacon 压缩，必须注明生成侧差异 |
 
 模型训练中出现的工具决定适用协议；不要因为目录名含 v2 就把仅训练 search/visit 的模型默认解释为掌握 E2B 工具。v2 需要单独配置 E2B。若对比压缩方法，建议 Plain 和 Beacon 均使用 native、相同预算与工具供应商，再用官方模式的 Plain 单独作为参考。
 
@@ -253,7 +255,7 @@ MODE=native DATA=/data/benchmark.jsonl BENCHMARK=BrowseComp \
 |---|---|---|
 | MODE | native | 上表三种模式 |
 | LIMIT | -1 | 全量；正数取原始顺序前 N 题，属于子集 smoke |
-| WORKERS / JUDGE_WORKERS | 60 / 20 | 官方生成异步任务数 / 裁判线程数；native 逐题运行，WORKERS 不控制 GPU 副本 |
+| WORKERS / JUDGE_WORKERS | 60 / 1 | 官方生成异步任务数 / 裁判线程数；native 逐题运行，WORKERS 不控制 GPU 副本 |
 | MAX_TOKENS / TOOL_COUNT | 32768 / 200 | 官方生成脚本的 `max_tokens` / `tool_count_max` |
 | MAX_CONTEXT | 131072 | native 完整未压缩序列预算；Beacon 压缩后也保留此逻辑预算 |
 | MAX_TURNS / MAX_TOOL_TOKENS | 200 / 32768 | native 最大轮数 / 单条工具回复 token 上限 |
@@ -261,7 +263,7 @@ MODE=native DATA=/data/benchmark.jsonl BENCHMARK=BrowseComp \
 
 native 的 max_tokens 是每轮生成上限，max_turns 是轮数，不等于官方工具调用次数；TOOL_COUNT 不控制 native，MAX_CONTEXT/MAX_TURNS/MAX_TOOL_TOKENS 不控制官方脚本。官方模式保留上游停止、重试、解码和工具行为（不自行设置 temperature）；服务端默认值也影响结果，应随实验一起记录。48 服务默认上下文为 131072，官方部署示例为 256000，若要采用示例预算应显式设置 `CONTEXT_LENGTH=256000` 并确认模型支持。当前默认值不是论文全部实验设置的证明。
 
-评分原样调用固定版本 `eval/eval.py`：英文 `JUDGE_PROMPT_BC_en`、system 为客观评判要求、temperature=0、`skip_special_tokens=False`，A 为正确、B 为错误。沿用上游对 `</think>` 等包装和 A/B 标签的解析，不用字符串 EM/F1 替代语义裁判。此口径是 **OpenSeeker 的 BrowseComp 裁判**，与 OpenAI simple-evals 自己的 grader prompt 不同。
+评分读取固定版本的英文 `JUDGE_PROMPT_BC_en`，system 仍要求客观评判，temperature=0、skip_special_tokens=false，A 为正确、B 为错误；请求与解析由本项目 stable-judge-v1 执行，不再直接运行上游 eval.py。空回答本地固定 0，非空回答做自检、关闭 thinking、限制输出、校验完成状态与严格标签，并有限重试。详见 [54](54_stable_judging.md)。提示来自 OpenSeeker，与 OpenAI simple-evals 的 grader prompt 不同；增强评分不等于上游评分脚本原样复现。
 
 新增运行目录包含：
 
@@ -273,12 +275,12 @@ native 的 max_tokens 是每轮生成上限，max_turns 是轮数，不等于官
 | `generation.log`、上游日志 | 官方生成 stdout/stderr、上游统计与逐题完成计数；native 进度输出到终端，轨迹逐题落盘 |
 | `result_for_judge.jsonl` | 统一评分输入，按基准顺序每题一条，重试同题使用最后一条；缺失生成填空回答并标记失败 |
 | `coverage.json` | 原始尝试数、唯一预测数、漏题数、空回答数 |
-| `result_for_judge_eval.jsonl` | 官方裁判结果与官方 summary |
+| `result_for_judge_eval.jsonl` | 稳定评分逐题记录，含原始裁判文本、尝试历史和评分来源 |
 | `judge.log`、`summary.metrics.json` | 裁判日志与增加覆盖审计后的汇总 |
 
-生成和评分分别实时输出 `done=已完成/实际题数`。例如 `LIMIT=8` 时，官方生成显示 `[benchmark BrowseComp generation] done=1/8; elapsed=...s`，裁判显示 `[benchmark BrowseComp judge] done=1/8; elapsed=...s`；这些记录也写入对应的 `.log`。重试同题只计一次，计数表示已有结果，不代表回答正确或裁判标签有效。
+生成和评分分别实时输出 `done=已完成/实际题数`。例如 `LIMIT=8` 时，官方生成显示 `[benchmark BrowseComp generation] done=1/8; elapsed=...s`，裁判显示 `[stable judge] done=1/8 source=model`；这些记录也写入对应的 `.log`。重试同题只计一次，计数表示已有结果，不代表回答正确或裁判标签有效。
 
-`official_accuracy` 沿用官方已得到有效 0/1 标签的分母；`accuracy_all_questions` 以所有选定题目为分母，未知/错误裁判按 0 计入，作为覆盖审计补充指标。成功完整评分时两者一致。上游可能过滤裁判异常条目；因此本入口重新检查 item_index 覆盖率，缺任何裁判结果都会写出汇总并以非零状态结束，不能当成完整成绩。生成缺失题保留空回答交给同一官方裁判，不从分母删除。v2 的 boxed 后缀通过读取固定官方源码的常量处理，不修改其提示。
+`official_accuracy` 沿用官方已得到有效 0/1 标签的分母；`accuracy_all_questions` 以所有选定题目为分母，未知/错误裁判按 0 计入，作为覆盖审计补充指标。成功完整评分时两者一致。本项目保留裁判异常条目并重新检查 item_index 覆盖率，未知/缺失裁判结果都会写出汇总并以非零状态结束，不能当成完整成绩。生成缺失题的空回答本地计错，不交给裁判，不从分母删除。v2 的 boxed 后缀通过读取固定官方源码的常量处理，不修改其提示。
 
 已有输出目录一律拒绝覆盖，避免上游按 item_index 恢复评分时串用旧文件。修复 API 后用新目录重跑，或用原始预测文件走仅评分模式。官方 checkout 的源码修改或版本变化也会拒绝；升级时应修改固定提交、对齐测试和说明，再建立新实验。
 

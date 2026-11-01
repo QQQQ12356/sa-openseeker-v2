@@ -30,6 +30,7 @@ export TAVILY_API_KEY="${TAVILY_API_KEY:-YOUR_TAVILY_KEY}"
 export JINA_API_KEYS="${JINA_API_KEYS:-YOUR_JINA_KEY}"
 
 # ===== 4. visit 的摘要模型 =====
+# 54 稳定评分/visit 的超时、重试、thinking 和字符预算见 docs/benchmark/54_stable_judging.md。
 # 默认由 49_serve_aux_models.sh 部署 Qwen3-32B，共用服务；完整步骤见
 # docs/benchmark/49_local_aux_models.md。这里只赋值，不启动服务。
 # 自部署：向服务管理员获取 base URL、模型 ID、认证 key；/v1/models 可用于确认模型 ID。

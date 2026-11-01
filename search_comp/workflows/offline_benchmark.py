@@ -106,7 +106,8 @@ def run_phase(args, output, rows, manifest):
             # Only question text, no reference, qrels, supporting facts or source context.
             messages = [dict(role="system", content=system), dict(role="user", content=row["query"])]
             result = run_agent(messages, tokenizer, generate, tools, args.max_turns,
-                               args.max_context, args.max_new_tokens, args.max_tool_tokens)
+                               args.max_context, args.max_new_tokens, args.max_tool_tokens,
+                               max_call_retries=args.tool_call_retries)
             result.update(id=row["id"], sample_index=args.shard_index + position * args.shard_count,
                           prompt_source=prompt_source,
                           query=row["query"], final_response=result["prediction"],
@@ -281,9 +282,11 @@ def score_phase(args, output, rows, manifest, prediction_path):
             def judge(prompt):
                 if not loaded:
                     loaded.append(LocalJudge(args.judge_model, args.judge_max_tokens, args.judge_max_context,
-                                             args.judge_temperature, args.judge_top_p, args.judge_top_k, args.seed))
+                                             args.judge_temperature, args.judge_top_p, args.judge_top_k, args.seed,
+                                             args.judge_enable_thinking))
                 return loaded[0](prompt)
-        summary = score_browsecomp(args.root, rows, predictions, output, judge, args.retrieval_only)
+        summary = score_browsecomp(args.root, rows, predictions, output, judge, args.retrieval_only,
+                                   args.judge_attempts, not args.skip_judge_preflight)
     summary.update(benchmark=args.benchmark, prediction_count=len(predictions),
                    missing_predictions=len(rows) - len(predictions),
                    questions_sha256=manifest["questions_sha256"], corpus_sha256=manifest["corpus_sha256"],
@@ -327,6 +330,7 @@ def make_parser():
     parser.add_argument("--topk", type=int, default=5)
     parser.add_argument("--snippet-tokens", type=int, default=512)
     parser.add_argument("--allow-visit", action="store_true")
+    parser.add_argument("--tool-call-retries", type=int, default=1)
     parser.add_argument("--read-tokens", type=int, default=4096)
     parser.add_argument("--tool-count", type=int, default=200)
     parser.add_argument("--max-turns", type=int, default=200)
@@ -339,7 +343,10 @@ def make_parser():
     parser.add_argument("--judge-max-context", type=int, default=32768)
     from search_comp.evaluation.tool_agent import add_decoding_arguments
     add_decoding_arguments(parser)
-    parser.add_argument("--judge-temperature", type=float, default=0.7)
+    parser.add_argument("--judge-temperature", type=float, default=0)
+    parser.add_argument("--judge-attempts", type=int, default=3)
+    parser.add_argument("--judge-enable-thinking", action="store_true")
+    parser.add_argument("--skip-judge-preflight", action="store_true")
     parser.add_argument("--judge-top-p", type=float, default=0.8)
     parser.add_argument("--judge-top-k", type=int, default=20)
     parser.add_argument("--seed", type=int, default=42)
@@ -360,7 +367,7 @@ def main():
         if isinstance(value, Path):
             setattr(args, key, value.expanduser().resolve())
     positive = ("topk", "snippet_tokens", "read_tokens", "tool_count", "max_turns", "max_context",
-                "max_new_tokens", "max_tool_tokens", "judge_max_tokens", "judge_max_context", "judge_top_k")
+                "max_new_tokens", "max_tool_tokens", "judge_max_tokens", "judge_max_context", "judge_top_k", "judge_attempts")
     if any(getattr(args, name) < 1 for name in positive) or args.limit == 0 or args.limit < -1:
         parser.error("budgets must be positive; limit must be -1 or positive")
     if args.num_workers < 1 or args.shard_count < 1 or not 0 <= args.shard_index < args.shard_count:
@@ -380,6 +387,8 @@ def main():
         parser.error("invalid BM25 weight or judge sampling parameters")
     if args.action == "score" and not args.predictions:
         parser.error("score requires --predictions")
+    if args.tool_call_retries < 0:
+        parser.error("--tool-call-retries must be nonnegative")
     if args.action in {"all", "score"} and args.benchmark == "browsecomp-plus" and not args.retrieval_only and not args.judge_model and not args.dry_run:
         parser.error("BrowseComp-Plus needs --judge-model; use --retrieval-only only for retrieval diagnostics")
     if args.dry_run:
@@ -428,7 +437,10 @@ def main():
         judge_model=str(args.judge_model) if args.judge_model else None,
         arguments={key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
         code_sha256={str(path.relative_to(ROOT)): digest(path) for path in
-                     [Path(__file__), *sorted((ROOT / "search_comp/offline").glob("*.py"))]}, status="running")
+                     [Path(__file__), ROOT / "search_comp/evaluation/judging.py",
+                      ROOT / "search_comp/evaluation/tool_agent.py",
+                      ROOT / "search_comp/data/openseeker.py",
+                      *sorted((ROOT / "search_comp/offline").glob("*.py"))]}, status="running")
     dump(output / "manifest.json", run_manifest)
     try:
         predictions = run_phase(args, output, rows, manifest) if args.action in {"run", "all"} else args.predictions

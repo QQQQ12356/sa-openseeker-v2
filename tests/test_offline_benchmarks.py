@@ -293,7 +293,7 @@ def test_bcp_official_prompt_judge_recall_and_missing_denominator(tmp_path):
         return 'extracted_final_answer: answer\nreasoning: matches\ncorrect: yes\nconfidence: 90'
     output = tmp_path / 'scores'
     output.mkdir()
-    metrics = score_browsecomp(root, rows, predictions, output, judge)
+    metrics = score_browsecomp(root, rows, predictions, output, judge, judge_preflight=False)
     assert metrics['accuracy'] == metrics['evidence_recall'] == 0.5
     assert metrics['avg_tool_stats']['search'] == 0.5
     assert len(prompts) == 1 and 'REFERENCE_DO_NOT_PROMPT' in prompts[0]
@@ -309,7 +309,8 @@ def test_bcp_unknown_judge_is_not_a_wrong_label_or_removed_question(tmp_path):
     predictions = {r['id']: dict(status='completed', final_response='prediction') for r in rows}
     output = tmp_path / 'score'
     output.mkdir()
-    metrics = score_browsecomp(root, rows, predictions, output, lambda _: 'malformed judge output')
+    metrics = score_browsecomp(root, rows, predictions, output, lambda _: 'malformed judge output',
+                               judge_preflight=False)
     assert metrics['accuracy'] == 0
     assert metrics['judge_errors'] == 2 and not metrics['complete']
 
@@ -488,7 +489,8 @@ def test_local_judge_loads_and_generates_from_real_tiny_hf_checkpoint(tmp_path):
     model.save_pretrained(tmp_path)
     tokenizer.save_pretrained(tmp_path)
     judge = LocalJudge(tmp_path, max_tokens=4, max_context=32, temperature=0)
-    assert judge('question') == ''
+    with pytest.raises(ValueError, match='empty_judge_content'):
+        judge('question')
     judge.max_context = 1
     with pytest.raises(ValueError, match='context budget'):
         judge('question')
@@ -664,3 +666,44 @@ def test_plain_workflow_hotpot_prepare_index_and_score(tmp_path):
         assert result.returncode == 0, result.stderr
     metrics = json.loads((output / 'summary.metrics.json').read_text())
     assert metrics['f1'] == 0.5 and metrics['missing_predictions'] == 1
+
+
+def test_bcp_preflight_and_bounded_retry_preserve_attempts(tmp_path):
+    root = prepared_bcp(tmp_path)
+    rows, _ = workflow.prepared_questions(root, 'browsecomp-plus')
+    predictions = {rows[0]['id']: dict(status='completed', final_response='prediction')}
+    calls = []
+    def judge(prompt):
+        calls.append(prompt)
+        if '[response]: Tokyo' in prompt:
+            label = 'no'
+        elif '[response]: prediction' in prompt and calls.count(prompt) == 1:
+            return 'correct: yes\ncorrect: no'
+        else:
+            label = 'yes'
+        return f'extracted_final_answer: value\nreasoning: compared\ncorrect: {label}\nconfidence: 90'
+    output = tmp_path / 'scores'; output.mkdir()
+    metrics = score_browsecomp(root, rows, predictions, output, judge, judge_attempts=2)
+    assert metrics['complete'] and metrics['accuracy'] == 0.5
+    report = json.loads((output / 'judge_preflight.json').read_text())
+    assert report['passed']
+    details = json.loads((output / 'per_question.json').read_text())
+    assert len(details[0]['judge_attempts']) == 2
+    assert not details[0]['judge_attempts'][0]['valid']
+    assert details[1]['score_source'] == 'empty_or_failed_response_rule'
+
+
+@pytest.mark.parametrize('raw', [
+    'extracted_final_answer: a\nreasoning: compared\ncorrect: yes\nconfidence: 101',
+    'extracted_final_answer: a\nreasoning: compared\ncorrect: yes\ncorrect: no\nconfidence: 90',
+    '<think>correct: yes',
+])
+def test_bcp_rejects_conflicts_out_of_range_and_thinking(tmp_path, raw):
+    root = prepared_bcp(tmp_path)
+    rows, _ = workflow.prepared_questions(root, 'browsecomp-plus')
+    predictions = {rows[0]['id']: dict(status='completed', final_response='prediction')}
+    output = tmp_path / 'scores'; output.mkdir()
+    metrics = score_browsecomp(root, rows, predictions, output, lambda _: raw,
+                              judge_attempts=1, judge_preflight=False)
+    assert not metrics['complete'] and metrics['judge_errors'] == 1
+    assert metrics['accuracy'] == 0

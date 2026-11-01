@@ -151,12 +151,16 @@ def test_pipeline_runs_generation_and_judge_subprocesses(tmp_path, monkeypatch):
         "rows=[json.loads(s) for s in Path(a.dataset_path).read_text().splitlines()]\n"
         "rows=[dict(r,final_response='predicted') for r in rows]\n"
         "Path(a.out_dir,'result_tool'+a.tool_count_max+'.jsonl').write_text(''.join(json.dumps(r)+'\\n' for r in rows))\n")
-    (official / "eval/eval.py").write_text(
-        "import argparse,json\nfrom pathlib import Path\n"
-        "p=argparse.ArgumentParser();p.add_argument('--data_path');p.add_argument('--max_workers');a=p.parse_args()\n"
-        "rows=[json.loads(s) for s in Path(a.data_path).read_text().splitlines()]\n"
-        "out=[dict(type='item',item_index=i,score=int(r['final_response']=='predicted')) for i,r in enumerate(rows)]\n"
-        "Path(a.data_path.replace('.jsonl','_eval.jsonl')).write_text(''.join(json.dumps(r)+'\\n' for r in out))\n")
+    (official / "eval/prompt.py").write_text("JUDGE_PROMPT_BC_en = '{question} {correct_answer} {response}'\n")
+    from search_comp.evaluation import judging
+    class Client:
+        urls = ["http://local-test/v1"]
+        def __init__(self, *args): pass
+        def __call__(self, messages, endpoint):
+            return 'B' if 'Tokyo' in messages[-1]['content'] else 'A'
+    monkeypatch.setattr(judging, "ChatJudge", Client)
+    monkeypatch.setenv("SCORER_URLS", "http://local-test/v1")
+    monkeypatch.setenv("SCORER_API_KEY", "EMPTY")
     data = jsonl(tmp_path / "data.jsonl", [dict(query="q", answer="reference")])
     monkeypatch.setattr(benchmark, "ensure_official", lambda _: benchmark.OFFICIAL_REVISION)
     monkeypatch.setattr(benchmark, "require_environment", lambda *a, **kw: None)

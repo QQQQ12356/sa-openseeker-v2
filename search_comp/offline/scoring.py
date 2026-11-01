@@ -6,7 +6,10 @@ from collections import Counter
 from contextlib import redirect_stdout
 import io
 import json
+import re
 from pathlib import Path
+
+from search_comp.evaluation.judging import (POLICY, JudgeError, attempt_judgment, calibration, final_content)
 
 from .assets import digest, dump, verify_official
 from .data import load_official_functions, records
@@ -106,9 +109,9 @@ def score_hotpot(root, questions, predictions, output):
 
 
 class LocalJudge:
-    """Local HF generation with the official Qwen3-32B judge sampling defaults."""
-    def __init__(self, model_path, max_tokens=4096, max_context=32768, temperature=0.7,
-                 top_p=0.8, top_k=20, seed=42):
+    """Local HF judge with explicit greedy decoding and thinking disabled by default."""
+    def __init__(self, model_path, max_tokens=4096, max_context=32768, temperature=0,
+                 top_p=0.8, top_k=20, seed=42, enable_thinking=False):
         path = Path(model_path).expanduser().resolve()
         if not path.is_dir():
             raise ValueError("judge model must be an existing local directory")
@@ -119,15 +122,17 @@ class LocalJudge:
         self.model = AutoModelForCausalLM.from_pretrained(path, local_files_only=True,
             trust_remote_code=False, torch_dtype=torch.bfloat16, device_map="auto").eval()
         self.max_context, self.max_tokens = max_context, max_tokens
+        self.enable_thinking = enable_thinking
         self.sampling = dict(do_sample=temperature > 0)
         if temperature > 0:
             self.sampling.update(temperature=temperature, top_p=top_p, top_k=top_k)
 
     def __call__(self, prompt):
         import torch
-        # Match upstream user-only chat; preserve the local model's default thinking template.
+        # Preserve the upstream user-only prompt; explicitly select thinking behavior.
         text = self.tokenizer.apply_chat_template([dict(role="user", content=prompt)],
-                                                  tokenize=False, add_generation_prompt=True)
+                                                  tokenize=False, add_generation_prompt=True,
+                                                  enable_thinking=self.enable_thinking)
         inputs = self.tokenizer(text, return_tensors="pt").to(next(self.model.parameters()).device)
         length = inputs["input_ids"].shape[1]
         if length + self.max_tokens > self.max_context:
@@ -136,9 +141,13 @@ class LocalJudge:
             ids = self.model.generate(**inputs, max_new_tokens=self.max_tokens,
                 pad_token_id=(self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None
                               else self.tokenizer.eos_token_id), **self.sampling)
-        if ids.shape[1] - length >= self.max_tokens and ids[0, -1].item() != self.tokenizer.eos_token_id:
+        eos = self.model.generation_config.eos_token_id
+        eos = eos if isinstance(eos, list) else [eos]
+        if ids.shape[1] - length >= self.max_tokens and ids[0, -1].item() not in eos:
             raise ValueError("judge generation exhausted token budget")
-        return self.tokenizer.decode(ids[0, length:], skip_special_tokens=True)
+        raw = self.tokenizer.decode(ids[0, length:], skip_special_tokens=True)
+        final_content(raw)
+        return raw
 
 
 def retrieval_metrics(questions, predictions):
@@ -159,13 +168,41 @@ def retrieval_metrics(questions, predictions):
     return {kind + "_recall": sum(values) / len(values) for kind, values in recalls.items()}, per_query
 
 
-def score_browsecomp(root, questions, predictions, output, judge=None, retrieval_only=False):
+def score_browsecomp(root, questions, predictions, output, judge=None, retrieval_only=False,
+                     judge_attempts=3, judge_preflight=True):
     verify_official(root, "browsecomp-plus")
     script = Path(root) / "official/scripts_evaluation/evaluate_run.py"
     funcs = load_official_functions(script, {"GRADER_TEMPLATE", "create_judge_prompt", "parse_judge_response",
         "extract_citations_from_response", "compute_citation_metrics", "calib_err", "calculate_calibration_error"})
     import numpy as np
     funcs["calib_err"].__globals__["np"] = np
+    def parse(raw):
+        text = final_content(raw)
+        parsed = funcs["parse_judge_response"](text)
+        # The upstream parser is permissive; reject conflicting/duplicate labels and missing fields.
+        labels = re.findall(r"(?im)^\s*(?:\*\*)?correct(?:\*\*)?\s*:(?:\*\*)?\s*(yes|no)\b", text)
+        if (len(labels) != 1 or parsed.get("parse_error") or type(parsed.get("correct")) is not bool
+                or not parsed.get("extracted_final_answer") or not parsed.get("reasoning")
+                or parsed.get("confidence") is None):
+            raise JudgeError("invalid_bcp_judge_fields")
+        confidence = re.findall(r"(?im)^\s*(?:\*\*)?confidence(?:\*\*)?\s*:(?:\*\*)?\s*([0-9.]+)", text)
+        if len(confidence) != 1 or not 0 <= float(confidence[0]) <= 100:
+            raise JudgeError("invalid_bcp_confidence")
+        return parsed
+
+    def check(query, response, answer):
+        prompt = funcs["create_judge_prompt"](query, response, answer)
+        return attempt_judgment(lambda: judge(prompt), parse, judge_attempts)
+
+    eligible = any(p.get("status") == "completed" and p.get("final_response", "").strip()
+                   for p in predictions.values())
+    if not retrieval_only and judge_preflight and eligible:
+        if judge is None:
+            raise ValueError("full BrowseComp-Plus scoring requires a local judge model")
+        def calibration_check(query, response, answer):
+            parsed, history = check(query, response, answer)
+            return (parsed["correct"] if parsed else None), history
+        calibration(calibration_check, output / "judge_preflight.json")
     recalls, per_query = retrieval_metrics(questions, predictions)
     details = []
     errors = correct = 0
@@ -188,16 +225,16 @@ def score_browsecomp(root, questions, predictions, output, judge=None, retrieval
             if completed and not retrieval_only:
                 if judge is None:
                     raise ValueError("full BrowseComp-Plus scoring requires a local judge model")
-                prompt = funcs["create_judge_prompt"](row["query"], response, row["answer"])
-                try:
-                    raw = judge(prompt)
-                    parsed = funcs["parse_judge_response"](raw)
-                    result.update(judge_response=raw, judge_result=parsed, correct=parsed["correct"] is True)
-                    if parsed["parse_error"]:
-                        errors += 1
-                except Exception as error:
-                    result.update(judge_error=str(error))
+                parsed, history = check(row["query"], response, row["answer"])
+                result["judge_attempts"] = history
+                result["judge_response"] = history[-1].get("raw", "")
+                if parsed is None:
+                    result.update(judge_error="judge_attempts_exhausted", score_source="judge_error")
                     errors += 1
+                else:
+                    result.update(judge_result=parsed, correct=parsed["correct"], score_source="model")
+            elif not retrieval_only:
+                result["score_source"] = "empty_or_failed_response_rule"
             if completed:
                 cited = funcs["extract_citations_from_response"](response)
                 citation = funcs["compute_citation_metrics"](cited, row["evidence_docs"])
@@ -214,7 +251,9 @@ def score_browsecomp(root, questions, predictions, output, judge=None, retrieval
             log.flush()
             print(f"[score browsecomp-plus] done={index + 1}/{len(questions)}; judge_errors={errors}", flush=True)
     metrics = dict(recalls, count=len(questions), judge_errors=errors, complete=errors == 0,
-                   score_mode="retrieval-only" if retrieval_only else "official prompt/parser with local HF judge",
+                   judge_policy=POLICY, judge_attempts=judge_attempts, judge_preflight=judge_preflight,
+                   completed_predictions=sum(d["completed"] for d in details),
+                   score_mode="retrieval-only" if retrieval_only else "official prompt with validated local HF judge",
                    metric="BrowseComp-Plus", official_evaluator_sha256=digest(script),
                    avg_tool_stats={key: value / len(questions) for key, value in counts.items()})
     if not retrieval_only:

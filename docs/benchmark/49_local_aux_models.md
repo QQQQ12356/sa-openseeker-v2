@@ -1,5 +1,7 @@
 # 49 本地摘要与裁判：Qwen3 / Qwen3.5 + SGLang
 
+部署后的裁判需按 [54 评分稳定性](54_stable_judging.md) 做正反例自检；47 默认使用稳定评分器，关闭裁判 thinking、空回答本地计错。仅健康检查成功不足以确认判分可靠。
+
 ## 49.1 作用与最小修改范围
 
 在线 BrowseComp 的 visit 摘要使用 `SUMMARY_*`，答案评分使用 `SCORER_*`。本文中 SUMMARY_MODEL / SCORE_MODEL 指这两种角色；代码实际变量是 `SUMMARY_MODEL_NAME` / `SCORER_MODEL_NAME`，不要改成不存在的变量名。
@@ -85,6 +87,7 @@ AUX_CONTEXT_LENGTH=8192 AUX_MAX_RUNNING_REQUESTS=1 \
 | `AUX_CONTEXT_LENGTH` | `32768` | prompt 与生成总 token 预算，不是单次输出长度；OOM 可先减小 |
 | `AUX_MEM_FRACTION` | `0.80` | SGLang 静态内存池比例，取值有效性由 SGLang 校验；降低会减少缓存容量 |
 | `AUX_MAX_RUNNING_REQUESTS` | `4` | 服务并发上限，独立于评测 WORKERS/JUDGE_WORKERS；首次建议 1 |
+| `AUX_ENABLE_THINKING` | `0` | 服务默认关闭辅助模型思考；1 开启；请求的 chat_template_kwargs 可覆盖 |
 | `DRY_RUN` | `0` | 仅允许 0/1；1 打印非敏感命令，不启动进程，不验证依赖/权重/显存 |
 | `CUDA_HOME` / `CUDA_PATH` / `FLASHINFER_NVCC` | 继承环境 | 指向与服务 runtime 匹配的 Toolkit，见 48；不是模型参数 |
 
@@ -130,7 +133,7 @@ CUDA_VISIBLE_DEVICES=1,2 AUX_TP_SIZE=2 AUX_PORT=8891 \
   bash scripts/sh/benchmark/49_serve_aux_models.sh
 ```
 
-想让两种角色共用 Qwen3.5，只需保留默认 shared 配置并修改 AUX_MODEL_PATH。本入口默认 `--reasoning-parser qwen3`，将思考内容与最终 `content` 分离；它不关闭 thinking，也不保证短输出。官方客户端主要读取 content，因此必须检查实际最终答案非空，尤其是生成预算耗尽时。需要关闭思考时遵循所选模型与安装版本支持的 chat template 配置；本次不修改官方请求或替换 tokenizer 模板。Qwen3 与 Qwen3.5 的模型支持随版本变化，不能仅凭脚本成功打印证明可用。
+想让两种角色共用 Qwen3.5，只需保留默认 shared 配置并修改 AUX_MODEL_PATH。本入口默认 `--reasoning-parser qwen3`，将思考内容与最终 `content` 分离；parser 本身不关闭 thinking；启动器现在同时设置 `--default-chat-template-kwargs`，默认 enable_thinking=false。官方客户端主要读取 content，因此必须检查实际最终答案非空，尤其是生成预算耗尽时。设置 `AUX_ENABLE_THINKING=1` 可显式恢复服务默认思考；54 稳定评分请求还会明确覆盖 thinking 配置。未替换 tokenizer 模板；部署版本需支持该服务参数。Qwen3 与 Qwen3.5 的模型支持随版本变化，不能仅凭脚本成功打印证明可用。
 
 跨节点示例：服务 `AUX_HOST=0.0.0.0`，私有文件两组 URL 使用 `http://gpu-node-01:8890/v1`。不要把 `0.0.0.0` 写入客户端 URL。该服务可与 48 的待测 Plain 服务同时运行，但需要不同端口和明确 GPU 分配。
 

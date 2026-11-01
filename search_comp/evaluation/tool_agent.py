@@ -217,15 +217,16 @@ def extract_response(text):
 
 def run_agent(messages, tokenizer, generate, tools, max_turns=32,
               max_context=16384, max_new_tokens=8192, max_tool_tokens=8192, tool_schemas=None,
-              log=None):
+              log=None, max_call_retries=0):
     # Only the original system/question enter inference; no reference is injected.
     history = [dict(message) for message in messages[:2]]
     history[0]['content'] = render_system(history[0]['content'], tool_schemas)
     if hasattr(generate, 'start_question'):
         generate.start_question(history[1]['content'])
     events = []; status = 'turn_limit'; prediction = ''; generated_tokens = 0
+    call_retries = 0
     for turn in range(max_turns):
-        encoded = encode(history, tokenizer, generation_prompt=True)
+        encoded = encode(history, tokenizer, generation_prompt=True, allow_invalid_calls=max_call_retries > 0)
         available = max_context - len(encoded['input_ids'])
         if available <= 0:
             status = 'context_limit'; break
@@ -248,7 +249,17 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
         try:
             calls = parse_calls(text)
         except ValueError as error:
-            status = 'invalid_call'; events.append(dict(error=str(error))); break
+            event = dict(error=str(error), kind='invalid_call', retry_requested=False)
+            events.append(event)
+            if call_retries < max_call_retries and turn + 1 < max_turns:
+                call_retries += 1
+                event['retry_requested'] = True
+                history.append(dict(role='user', content='<tool_response>Invalid tool-call format. '
+                    'No tools were executed. Retry using valid JSON with name and arguments object, '
+                    'inside the required tool-call tags. Escape quotes inside JSON strings.</tool_response>'))
+                continue
+            status = 'invalid_call'
+            break
         if not calls:
             prediction = extract_response(text)
             status = 'completed' if prediction else 'empty_answer'; break

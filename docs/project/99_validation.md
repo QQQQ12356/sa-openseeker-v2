@@ -1,5 +1,24 @@
 # 99 本次验证记录
 
+## 54 模型评分稳定性与远端结果离线审计（2026-11-01）
+
+对提供的 `tmp/benchmark_native_20261101T091822637884Z` 做离线审计：12 个唯一评分，11 条空回答；item_index=8 空回答被原裁判记 1。保留原始目录，新输出 `outputs/results/judge_audit_20261101T093424349679Z` 将该项修正为 0，汇总为 0/12。非空回答未重新调用模型或核实事实。输入指纹、原始标签和修正原因均保留。
+
+Plain/Beacon/原始基座在线评分现共用 stable-judge-v1；BCP 本地 HF 评分增加同类保护。空回答固定计错、裁判正反例自检、显式关闭 thinking、温度 0、截断/格式验证、有限重试、unknown 完整保留。HotpotQA 与原有 EM/F1 保持确定性指标。native 另支持每题最多一次格式反馈，在线 visit 区分页读取与摘要错误，49 服务默认关闭辅助模型 thinking。完整协议及变量见 [54](../benchmark/54_stable_judging.md)。
+
+相关回归命令：
+
+```bash
+python -m pytest -q tests/test_stable_judging.py tests/test_official_benchmark.py \
+  tests/test_offline_benchmarks.py tests/test_openseeker.py tests/test_unified_agent.py \
+  tests/test_qwen35_base_benchmark.py tests/test_benchmark_entries.py \
+  tests/test_benchmark_progress.py tests/test_beacon_interactive_cache.py --disable-warnings
+```
+
+结果：164 passed，12 warnings。新增测试包含真实本机 HTTP 请求序列化/评分流程（响应由测试服务构造），不连接外部服务；旧的本地微型 HF checkpoint 测试仍验证真实 loader/generate，不下载真实权重。Bash/Python 语法、文档代码块、158 个相关本地链接及 diff 空白检查通过。
+
+本次没有启动训练、真实模型服务、远端正反例校准或真实 benchmark 重新生成。目标服务器需更新代码、重启 49 辅助服务，并执行 54 preflight 和小批量重评；不能把自检通过当成裁判语义绝对正确。
+
 ## 49 本地摘要/裁判部署（2026-11-01）
 
 新增前台 SGLang 入口，默认 Qwen3-32B 共用服务，49 模板的 SUMMARY/SCORER 默认指向本地端点；支持分角色、私有配置、真实 key 认证和 DRY_RUN。未修改 Python 评测或训练实现。详细参数和使用说明见 [49](../benchmark/49_local_aux_models.md)。

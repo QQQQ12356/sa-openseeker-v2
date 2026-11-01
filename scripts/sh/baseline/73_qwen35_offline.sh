@@ -34,7 +34,7 @@ RETRIEVAL_ONLY="${RETRIEVAL_ONLY:-0}"   # BCP 仅检索，无答案 accuracy
 JUDGE_MODEL="${JUDGE_MODEL:-}"           # BCP 本地裁判目录
 JUDGE_MAX_TOKENS="${JUDGE_MAX_TOKENS:-4096}"
 JUDGE_MAX_CONTEXT="${JUDGE_MAX_CONTEXT:-32768}"
-JUDGE_TEMPERATURE="${JUDGE_TEMPERATURE:-0.7}"
+JUDGE_TEMPERATURE="${JUDGE_TEMPERATURE:-0}"
 JUDGE_TOP_P="${JUDGE_TOP_P:-0.8}"
 JUDGE_TOP_K="${JUDGE_TOP_K:-20}"
 SEED="${SEED:-42}"                       # BCP 裁判种子，独立于生成种子
@@ -81,4 +81,6 @@ if [[ "$TARGET" == browsecomp-plus ]]; then
   COMMAND+=(--judge-max-tokens "$JUDGE_MAX_TOKENS" --judge-max-context "$JUDGE_MAX_CONTEXT"
     --judge-temperature "$JUDGE_TEMPERATURE" --judge-top-p "$JUDGE_TOP_P" --judge-top-k "$JUDGE_TOP_K" --seed "$SEED")
 fi
+source scripts/sh/benchmark/54_judge_options.sh
+add_judge_options offline
 exec "${COMMAND[@]}" "$@"

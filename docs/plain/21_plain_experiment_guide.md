@@ -1,5 +1,7 @@
 # 21 Plain 完整实验指南：数据、训练、测试与评分
 
+在线/BCP 模型评分默认启用空回答保护、裁判自检与有限重试；原有 EM/F1 不变。历史结果审计及重评见 [54](../benchmark/54_stable_judging.md)。
+
 本文按实际实验顺序组织，以 **OpenSeeker Polar + Qwen3.5-4B + Plain + LoRA** 为基线，训练后分别在 OpenSeeker 留出轨迹、在线 BrowseComp、离线 BrowseComp-Plus 和 HotpotQA 上评测。Plain 使用完整上下文，不进行 Beacon 压缩。本文命令需要在项目根目录执行；真实训练和评测需在有相应资源的目标服务器执行。
 
 复读诊断可通过 `DECODING`、`REPETITION_PENALTY` 等变量设置 Plain native 推理策略；默认保持贪心且不惩罚，完整参数和对照见 [23](../common/23_decoding.md)。

@@ -185,7 +185,7 @@ def pieces(messages, generation_prompt=False):
 
 
 def encode(messages, tokenizer, generation_prompt=False, loss_segments=None,
-           return_loss_segment_ids=False, tools=None):
+           return_loss_segment_ids=False, tools=None, allow_invalid_calls=False):
     from ..loss_segments import (LossSegmentConfig, SEGMENT_IGNORE, SEGMENT_IDS,
                                  classify_assistant_text)
     loss = LossSegmentConfig.from_dict(loss_segments)
@@ -207,10 +207,18 @@ def encode(messages, tokenizer, generation_prompt=False, loss_segments=None,
                 segment_ids.extend([SEGMENT_IDS['other']] * len(tokens))
             else:
                 segment_ids.extend(classify_assistant_text(text, tokenizer, expected_ids=tokens))
+    n_calls = 0
+    for message in messages:
+        if message['role'] == 'assistant':
+            try:
+                n_calls += len(parse_calls(message['content']))
+            except ValueError:
+                if not allow_invalid_calls:
+                    raise
     return dict(input_ids=ids, labels=labels, regions=regions,
                 question=messages[1]['content'], loss_segment_ids=segment_ids if segmented else None,
                 n_turns=sum(m['role'] == 'assistant' for m in messages),
-                n_searches=sum(len(parse_calls(m['content'])) for m in messages if m['role'] == 'assistant'))
+                n_searches=n_calls)
 
 
 class OpenSeekerDataset:

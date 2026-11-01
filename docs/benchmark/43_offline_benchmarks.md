@@ -1,5 +1,7 @@
 # 43 固定语料离线评测：BrowseComp-Plus 与 HotpotQA
 
+BrowseComp-Plus 裁判默认改为贪心、关闭思考，并增加正反例自检、有限重试和严格字段校验；HotpotQA 仍使用官方确定性指标。详细参数和旧配置迁移见 [54 评分稳定性](54_stable_judging.md)。
+
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
 
 `PROMPT_DATA` / `--prompt-data` 指定原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 的 train_data_path，无两者时用内置原始 Polar profile。在线保留原文，离线仅适配必要能力和答案格式；多 system 必须显式选择单 profile，详情见 45。
@@ -394,12 +396,12 @@ SQLite FTS5 的 BM25 使用固定 k1=1.2、b=0.75，分词为 `unicode61 remove_
 | RETRIEVAL_ONLY | 0 | 1 时仅检索诊断，不加载裁判、不输出答案 accuracy |
 | JUDGE_MAX_TOKENS | 4096 | 裁判最大输出；预算耗尽会记录错误，不把未完成判决当正常标签 |
 | JUDGE_MAX_CONTEXT | 32768 | 裁判输入 + 预留输出的上限；超限报错，不静默截断答案或参考 |
-| JUDGE_TEMPERATURE | 0.7 | 官方参考脚本默认；设 0 切换贪心，属于不同评分配置 |
+| JUDGE_TEMPERATURE | 0 | 本项目稳定评分默认贪心；显式 0.7 可恢复采样，属于不同评分配置 |
 | JUDGE_TOP_P | 0.8 | 官方默认 nucleus sampling |
 | JUDGE_TOP_K | 20 | 官方默认 sampling top-k；不是文档检索 TOPK |
 | SEED | 42 | 本地裁判随机种子；记录配置便于复现 |
 
-对应 Python 参数为 `--judge-model`、`--retrieval-only`、`--judge-max-tokens`、`--judge-max-context`、`--judge-temperature`、`--judge-top-p`、`--judge-top-k`、`--seed`。官方使用 vLLM，本实现使用 Transformers，本地模型的默认 chat template / thinking 行为被保留；prompt、parser 与默认 temperature/top_p/top_k/max_output_tokens 对齐，但不同引擎或随机数实现不保证逐 token 一致。替换成更小裁判可用于资源受限测试，必须在报告中注明，不能视为官方 Qwen3-32B 裁判成绩。
+对应 Python 参数为 `--judge-model`、`--retrieval-only`、`--judge-max-tokens`、`--judge-max-context`、`--judge-temperature`、`--judge-top-p`、`--judge-top-k`、`--seed`。官方使用 vLLM，本实现使用 Transformers，保留模型 chat template，但默认显式关闭 thinking、temperature=0，并在官方 parser 之上增加字段校验；提示仍是固定官方版本，采样默认与上游不同。不同引擎、配置或随机数实现不保证逐 token 一致。替换成更小裁判可用于资源受限测试，必须在报告中注明，不能视为官方 Qwen3-32B 裁判成绩。
 
 Hotpot 不需要这些参数；裁判大模型只影响 BCP。完整 Hotpot EM/F1 计算不使用任何 API 或辅助生成模型。
 
