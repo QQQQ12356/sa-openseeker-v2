@@ -1,5 +1,7 @@
 # 48 Plain 模型 SGLang 部署：独立 Conda 环境、启动与联调
 
+摘要/裁判辅助服务另用 [49 本地辅助模型](../benchmark/49_local_aux_models.md) 一键部署 Qwen3/Qwen3.5；复用本文服务环境，使用独立端口与 GPU 分配。48 继续只部署待测 Plain 模型。
+
 入口：`scripts/sh/plain/48_serve_checkpoint.sh`。它读取本地已合并 Plain checkpoint，通过 `python -m sglang.launch_server` 提供 HTTP completion 服务。训练后的 Qwen3 与 Qwen3.5 必须分别核对架构支持；Beacon 使用 native 推理。
 
 本文给出可执行的环境创建、启动、检查和评测连接命令。本地验证限于配置与文档。用户提供的远端日志已显示 Qwen3.5 权重加载成功，但在 FlashInfer JIT 阶段失败；新的 CUDA Toolkit 配置仍需远端重启验证，不能视作服务已完成联调。

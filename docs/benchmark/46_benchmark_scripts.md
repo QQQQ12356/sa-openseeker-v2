@@ -1,5 +1,7 @@
 # 46 各方案独立 Benchmark 脚本与参数手册
 
+本地摘要/裁判部署入口：`scripts/sh/benchmark/49_serve_aux_models.sh`；默认 Qwen3-32B 共用服务，支持 DRY_RUN 与分角色启动。全部部署变量、客户端 URL 和修改提示见 [49 本地辅助模型](49_local_aux_models.md)。
+
 本次仅调整 Shell 入口、分发和文档，不修改训练算法、Python 推理流程、数据协议或评分方法。未启动真实训练。OpenSeeker 留出集、在线 BrowseComp、固定语料 BrowseComp-Plus 和 HotpotQA 是不同评测；结果不能混为同一项指标。
 
 ## 46.1 入口与目录职责

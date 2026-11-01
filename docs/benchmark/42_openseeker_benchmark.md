@@ -1,5 +1,7 @@
 # 42 OpenSeeker 官方 Benchmark 对齐评测
 
+本地部署摘要与裁判请先执行 [49 本地辅助模型指南](49_local_aux_models.md)：新增 `49_serve_aux_models.sh`，默认 Qwen3-32B 共用一个 SGLang 服务，49 配置模板默认已匹配。支持两个独立服务及 Qwen3.5 替换；仅 source 配置不会启动服务。
+
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
 
 `PROMPT_DATA` / `--prompt-data` 指定原训练 JSONL，仅取 system/schema；优先于 RUN_DIR 的 train_data_path，无两者时用内置原始 Polar profile。在线保留原文，离线仅适配必要能力和答案格式；多 system 必须显式选择单 profile，详情见 45。
@@ -102,7 +104,7 @@ chmod 600 "$HOME/.config/openseeker/benchmark_env.sh"
 
 ### 42.3.3 案例 A：Beacon native，摘要与裁判共用本地服务
 
-假设你已在**运行 47 的同一节点**部署一个兼容 chat completions 的辅助模型服务：端口 8890，服务模型名为 `judge-summary`，无需认证。下面的名称和端口只是配置案例，写入变量不会自动创建这个服务。可以向管理员索取已有服务，也可以自己部署一个支持此接口的模型。
+假设你已在**运行 47 的同一节点**部署一个兼容 chat completions 的辅助模型服务：端口 8890，服务模型名为 `judge-summary`，无需认证。下面的名称和端口只是配置案例，写入变量不会自动创建这个服务。可以向管理员索取已有服务，也可以按 [49 本地辅助模型](49_local_aux_models.md) 部署：默认别名为 `qwen-aux`；若沿用本节 `judge-summary`，先设置 `SUMMARY_MODEL_NAME=judge-summary` 并让 SCORER 同步后启动 49。
 
 编辑私有环境文件，主要配置如下（所有 key 都是占位符，需要替换）：
 

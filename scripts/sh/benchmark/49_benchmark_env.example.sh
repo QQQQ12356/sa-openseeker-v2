@@ -30,14 +30,16 @@ export TAVILY_API_KEY="${TAVILY_API_KEY:-YOUR_TAVILY_KEY}"
 export JINA_API_KEYS="${JINA_API_KEYS:-YOUR_JINA_KEY}"
 
 # ===== 4. visit 的摘要模型 =====
+# 默认由 49_serve_aux_models.sh 部署 Qwen3-32B，共用服务；完整步骤见
+# docs/benchmark/49_local_aux_models.md。这里只赋值，不启动服务。
 # 自部署：向服务管理员获取 base URL、模型 ID、认证 key；/v1/models 可用于确认模型 ID。
 # 第三方：从供应商 API 文档/模型列表/密钥控制台获取以上三项。
 # URL 填 chat API 的 base URL，例如 http://127.0.0.1:8890/v1，不加 /chat/completions。
 # MODEL 填服务实际接受的名称，例如你注册的 judge-summary；没有部署就不能直接用这个名字。
 # KEY：只有服务确实无需认证时才填 EMPTY；外部服务填实际 key。
-export SUMMARY_API_URL="${SUMMARY_API_URL:-YOUR_SUMMARY_URL}"
-export SUMMARY_MODEL_NAME="${SUMMARY_MODEL_NAME:-YOUR_SUMMARY_MODEL}"
-export SUMMARY_API_KEY="${SUMMARY_API_KEY:-YOUR_SUMMARY_KEY}"
+export SUMMARY_API_URL="${SUMMARY_API_URL:-http://127.0.0.1:8890/v1}"
+export SUMMARY_MODEL_NAME="${SUMMARY_MODEL_NAME:-qwen-aux}"
+export SUMMARY_API_KEY="${SUMMARY_API_KEY:-EMPTY}"
 
 # ===== 5. 答案裁判模型（所有真实评分都需要） =====
 # 获取方式同 SUMMARY；URL 仍是 base URL，不加 /chat/completions。
@@ -47,9 +49,9 @@ export SUMMARY_API_KEY="${SUMMARY_API_KEY:-YOUR_SUMMARY_KEY}"
 # export SCORER_API_KEY="$SUMMARY_API_KEY"
 # 多 URL 可用逗号分隔，但所有端点须接受同一个 model 和 key。
 # 固定官方裁判还发送 skip_special_tokens=false；请确认目标 chat 服务接受此扩展参数。
-export SCORER_URLS="${SCORER_URLS:-YOUR_SCORER_URL}"
-export SCORER_MODEL_NAME="${SCORER_MODEL_NAME:-YOUR_SCORER_MODEL}"
-export SCORER_API_KEY="${SCORER_API_KEY:-YOUR_SCORER_KEY}"
+export SCORER_URLS="${SCORER_URLS:-$SUMMARY_API_URL}"
+export SCORER_MODEL_NAME="${SCORER_MODEL_NAME:-$SUMMARY_MODEL_NAME}"
+export SCORER_API_KEY="${SCORER_API_KEY:-$SUMMARY_API_KEY}"
 
 # ===== 6. E2B 云沙箱（仅 official-v2） =====
 # 获取：https://console.e2b.dev/?tab=keys，注册/登录后复制 API Key。

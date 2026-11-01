@@ -1,5 +1,11 @@
 # 99 本次验证记录
 
+## 49 本地摘要/裁判部署（2026-11-01）
+
+新增前台 SGLang 入口，默认 Qwen3-32B 共用服务，49 模板的 SUMMARY/SCORER 默认指向本地端点；支持分角色、私有配置、真实 key 认证和 DRY_RUN。未修改 Python 评测或训练实现。详细参数和使用说明见 [49](../benchmark/49_local_aux_models.md)。
+
+Bash 语法和 git diff 空白检查通过；多组子进程 dry-run 检查覆盖默认命令、summary/scorer、模型路径含空格、私有配置、共用配置不一致、非法角色/端口/TP、密钥不出现在打印输出。没有创建环境、下载权重、启动 SGLang、调用 API 或启动训练；真实 GPU 加载和 chat 输出尚未验证。
+
 ## 服务 CUDA 13.0 Toolkit 补齐与远端故障记录
 
 用户提供的远端日志及版本信息确认：torch 2.14.1+cu130、SGLang 0.5.23、FlashInfer 0.7.2，系统 `/usr/local/cuda` 指向 11.8；JIT 编译器拒绝 `--compress-mode=size`。模型已完成 Qwen3_5ForCausalLM 权重和缓存加载，失败发生在预热期内核编译。

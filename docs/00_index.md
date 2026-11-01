@@ -1,5 +1,7 @@
 # 00 文档与入口索引
 
+本地 SUMMARY / SCORER 部署入口与全部参数见 [49 本地辅助模型](benchmark/49_local_aux_models.md)：默认 Qwen3-32B 共用 SGLang，可分别部署或替换为 Qwen3.5。
+
 首次开展 Plain 实验，按 [21 Plain 完整实验指南](plain/21_plain_experiment_guide.md) 执行；Beacon 实验参照 [32 Beacon 完整实验指南](beacon/32_beacon_experiment_guide.md)。下面各文档用于对应阶段的参数与实现细节。
 
 文档保留原有编号，按功能模块存放；本文件是总入口。相关 JSON 资料与对应文档放在同一目录。
@@ -50,6 +52,7 @@
 | [67 环境细节](tools/67_environment_details.md) | 安装、兼容性及服务器环境 |
 | [46 Benchmark 独立脚本](benchmark/46_benchmark_scripts.md) | 三方案入口、一键运行、全部变量、配置优先级与修改提示 |
 | [48 Plain 服务部署](plain/48_sglang_deployment.md) | 独立 Conda、SGLang/CUDA、模型架构核验、启动与 completion 联调 |
+| [49 本地摘要与裁判](benchmark/49_local_aux_models.md) | Qwen3/Qwen3.5 SGLang 一键部署、共用/双服务、全部变量与 chat 联调 |
 | [90 迁移](project/90_migration.md) | 来源、目录重组、保留范围与入口映射 |
 | [99 验证](project/99_validation.md) | 本次实际检查、结果和未实测范围 |
 

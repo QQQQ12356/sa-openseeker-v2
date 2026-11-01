@@ -1,5 +1,7 @@
 # sa-openseeker-v2
 
+在线 Benchmark 的摘要与裁判可用 Qwen3-32B 共用本地 SGLang 服务：`DRY_RUN=1 bash scripts/sh/benchmark/49_serve_aux_models.sh` 审查命令，正式部署去掉 DRY_RUN。Qwen3.5 替换、独立双服务、全部变量及联调见 [49 本地辅助模型](docs/benchmark/49_local_aux_models.md)。
+
 以 `../sa-qwen-openseeker` 为骨架，保留 Qwen3 / Qwen3.5、Plain / Beacon、Search-R1、多工具轨迹处理、LoRA、蒸馏算法和原有测试。OpenSeeker 训练保留原始回答，不追加参考答案；原有评测使用模型最后一轮回答计算 EM/F1；新增固定官方版本的 BrowseComp 在线生成与 LLM 裁判评测，见 [42 Benchmark](docs/benchmark/42_openseeker_benchmark.md)。
 
 只迁移 Polar 原始快照；本目录中的规范化数据由新代码重新生成，没有复制其他数据集、模型权重、旧训练结果或实验日志。本次没有启动真实模型训练。
