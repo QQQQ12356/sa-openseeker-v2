@@ -134,3 +134,18 @@ python -m search_comp.workflows.judge_openseeker \
 - 三种方法须采用相同数据、LIMIT、工具后端、预算及裁判配置。语义裁判不会改变 replay 的动作匹配限制；它只改变最终答案的评分方式。
 
 该流程需本机具备裁判模型权重及相应显存，不会自动下载模型或调用外部 API。
+
+### 40.4.1 Plain 21 直接执行 ACTION=score
+
+与 56 的分阶段方式一致，21 支持 `ACTION=run`（默认）和 `ACTION=score`。后者只加载裁判，不需要 `MODEL_PATH`、训练模型权重、CORPUS 或 ENDPOINT：
+
+```bash
+ACTION=score \
+PREDICTIONS=/path/to/predictions_test.jsonl \
+DATA=/path/to/test.jsonl LIMIT=100 \
+JUDGE_MODEL=/models/Qwen3-32B \
+OUTPUT_DIR=/path/to/new_score_results \
+bash scripts/sh/plain/21_plain_eval.sh
+```
+
+`DATA` 和 `LIMIT` 应与生成时一致。`DATA` 留空时可从 `RUN_DIR` 和 `SPLIT` 读取；这只用于定位数据，不要求训练模型存在。`ACTION=score` 的输出目录按 `JUDGE_OUTPUT_DIR`、`OUTPUT_DIR`、预测文件去扩展名加 `.judge` 的顺序选择，目录必须不存在。`DRY_RUN=1` 只打印评分命令，不加载模型或创建输出。`ACTION=run` 保留原来的生成和 EM/F1 流程，设置 `JUDGE_MODEL` 时仍会在生成后追加语义评分。

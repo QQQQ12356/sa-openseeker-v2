@@ -11,5 +11,12 @@ run_openseeker_judge() {
     --judge-max-context "${JUDGE_MAX_CONTEXT:-32768}")
   if [[ "${JUDGE_ENABLE_THINKING:-0}" == 1 ]]; then judge_command+=(--judge-enable-thinking); fi
   if [[ "${SKIP_JUDGE_PREFLIGHT:-0}" == 1 ]]; then judge_command+=(--skip-judge-preflight); fi
+  judge_command+=("$@")
+  if [[ "${DRY_RUN:-0}" == 1 ]]; then
+    printf '[openseeker-judge] command:'
+    printf ' %q' "${judge_command[@]}"
+    printf '\n'
+    return 0
+  fi
   "${judge_command[@]}"
 }

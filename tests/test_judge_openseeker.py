@@ -110,3 +110,37 @@ run_openseeker_judge
     env['JUDGE_MODEL'] = ''
     result = subprocess.run(['bash', '-c', command], env=env, text=True, capture_output=True, check=True)
     assert result.stdout == ''
+
+
+def test_plain_score_action_runs_without_test_model_or_tool_backend(tmp_path):
+    import os
+    import subprocess
+    import sys
+    data = tmp_path / 'data.jsonl'
+    raw = dict(answer='21', messages=[dict(role='system', content='Answer.'),
+        dict(role='user', content='Age?'), dict(role='assistant', content='21')])
+    data.write_text(json.dumps(raw) + '\n')
+    prediction = dict(normalize(raw, index=0), sample_index=0, prediction='', status='tool_error')
+    predictions = tmp_path / 'predictions.jsonl'
+    predictions.write_text(json.dumps(prediction) + '\n')
+    judge = tmp_path / 'judge'
+    judge.mkdir()
+    output = tmp_path / 'scores'
+    env = {**os.environ, 'PYTHON': sys.executable, 'ACTION': 'score', 'DATA': str(data),
+           'PREDICTIONS': str(predictions), 'JUDGE_MODEL': str(judge), 'OUTPUT_DIR': str(output),
+           'LIMIT': '1', 'BACKEND': 'http', 'ENDPOINT': '', 'MODEL_PATH': '', 'RUN_DIR': '',
+           'JUDGE_OUTPUT_DIR': '', 'DRY_RUN': '0'}
+    command = ['bash', 'scripts/sh/plain/21_plain_eval.sh']
+    # Dry-run must describe scoring and create no directory.
+    dry = subprocess.run(command, env={**env, 'DRY_RUN': '1'}, text=True, capture_output=True)
+    assert dry.returncode == 0, dry.stderr
+    assert 'search_comp.workflows.judge_openseeker' in dry.stdout
+    assert not output.exists()
+    # All failed: no judge model is loaded, and denominator is preserved.
+    result = subprocess.run(command, env=env, text=True, capture_output=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    summary = json.loads((output / 'summary.metrics.json').read_text())
+    assert summary['count'] == 1 and summary['accuracy'] == 0 and summary['complete']
+    assert not list(tmp_path.glob('*.metrics.json'))
+    missing = subprocess.run(command, env={**env, 'PREDICTIONS': ''}, text=True, capture_output=True)
+    assert missing.returncode != 0 and 'PREDICTIONS' in missing.stderr

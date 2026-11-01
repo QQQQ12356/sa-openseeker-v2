@@ -6,6 +6,7 @@ set -euo pipefail
 # 独立调用通用 Python 评测器；参数和协议见 docs/benchmark/40_evaluation.md。
 # ===== 运行环境 =====
 # 留空时按 common.sh 的规则选择 Python；也可填 Python 绝对路径。
+ACTION="${ACTION:-run}"                # run：生成及 EM/F1；score：已有预测的大模型语义评分
 PYTHON="${PYTHON:-}"
 CONDA_ENV="${CONDA_ENV:-search-comp-qwen35-cu126}"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"      # 多卡示例："0,1,2,3"
@@ -38,12 +39,48 @@ REPETITION_PENALTY="${REPETITION_PENALTY:-1.0}"     # 1.0 关闭；>1 抑制可�
 TEMPERATURE="${TEMPERATURE:-1.0}"                   # 仅 sample 有效，必须 > 0
 TOP_P="${TOP_P:-1.0}"                               # 仅 sample 有效，(0,1]
 GENERATION_SEED="${GENERATION_SEED:-42}"             # sample 按问题独立派生种子
-OUTPUT_DIR="${OUTPUT_DIR:-}"                        # 留空：RUN_DIR/evaluation 或 outputs/results/openseeker
+OUTPUT_DIR="${OUTPUT_DIR:-}"                        # run：预测目录；score：新评分目录，优先级低于 JUDGE_OUTPUT_DIR
 
-# 可选语义裁判：JUDGE_MODEL=/本地裁判模型；生成结束后另启进程评分，保留 EM/F1。
+# ===== 大模型语义评分；ACTION=score 不加载待测模型、不执行工具 =====
+PREDICTIONS="${PREDICTIONS:-}"          # score 必填：已有预测 JSONL
+JUDGE_MODEL="${JUDGE_MODEL:-}"          # score 必填：本地裁判模型目录；run 非空时生成后自动评分
+JUDGE_OUTPUT_DIR="${JUDGE_OUTPUT_DIR:-}" # 优先于 OUTPUT_DIR；留空使用预测文件名加 .judge
+JUDGE_ATTEMPTS="${JUDGE_ATTEMPTS:-3}"
+JUDGE_MAX_TOKENS="${JUDGE_MAX_TOKENS:-4096}"
+JUDGE_MAX_CONTEXT="${JUDGE_MAX_CONTEXT:-32768}"
+JUDGE_ENABLE_THINKING="${JUDGE_ENABLE_THINKING:-0}"
+SKIP_JUDGE_PREFLIGHT="${SKIP_JUDGE_PREFLIGHT:-0}"
 source "$(dirname "${BASH_SOURCE[0]}")/../common/00_common.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/../benchmark/55_openseeker_judge.sh"
 PY=$(resolve_python)
+
+[[ "$ACTION" == run || "$ACTION" == score ]] || { echo 'ACTION 必须为 run 或 score' >&2; exit 2; }
+[[ "$DRY_RUN" == 0 || "$DRY_RUN" == 1 ]] || { echo 'DRY_RUN 必须为 0 或 1' >&2; exit 2; }
+[[ "$SPLIT" == train || "$SPLIT" == validation || "$SPLIT" == test ]] || { echo '无效 SPLIT' >&2; exit 2; }
+if [[ "$ACTION" == score ]]; then
+  [[ -f "$PREDICTIONS" ]] || { echo 'ACTION=score 需要有效 PREDICTIONS 文件' >&2; exit 2; }
+  [[ -n "$JUDGE_MODEL" ]] || { echo 'ACTION=score 需要 JUDGE_MODEL 本地裁判目录' >&2; exit 2; }
+  if [[ -z "$DATA" && -n "$RUN_DIR" ]]; then
+    DATA=$("$PY" - "$RUN_DIR" "$SPLIT" <<'PYDATA'
+import json, sys
+from pathlib import Path
+run, split = sys.argv[1:]
+spec = json.loads((Path(run) / 'experiment.json').read_text())
+key = {'train': 'train_data_path', 'validation': 'val_data_path', 'test': 'test_data_path'}[split]
+value = spec['training_config'].get(key)
+if not value:
+    sys.exit(f'run has no {split} data; set DATA explicitly')
+print(value)
+PYDATA
+)
+  fi
+  DATA="${DATA:-outputs/data/openseeker/polar_correct_qwen35_16k/$SPLIT.jsonl}"
+  [[ -f "$DATA" ]] || { echo "测试集不存在：$DATA" >&2; exit 2; }
+  OUTPUT="$PREDICTIONS"
+  JUDGE_OUTPUT_DIR="${JUDGE_OUTPUT_DIR:-${OUTPUT_DIR:-${PREDICTIONS%.jsonl}.judge}}"
+  run_openseeker_judge "$@"
+  exit 0
+fi
 
 if ! [[ "$NUM_WORKERS" =~ ^[1-9][0-9]*$ ]]; then
   echo "NUM_WORKERS 必须是正整数" >&2
