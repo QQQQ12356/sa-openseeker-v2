@@ -24,8 +24,32 @@ def read_rows(path):
     return rows
 
 
-def render_report(source, destination, template=DEFAULT_TEMPLATE, title=None):
+REFERENCE_FIELDS = ('answer', 'answers', 'reference_answer', 'ground_truth')
+
+
+def reference_index(path):
+    """Match full questions rather than IDs, which vary between dataset exports."""
+    index = {}
+    for row in read_rows(path):
+        question = row.get('question') or row.get('query')
+        answer = next((row[k] for k in REFERENCE_FIELDS if row.get(k) is not None), None)
+        if not question or answer is None:
+            continue
+        if question in index and index[question] != answer:
+            raise ValueError(f'{path}: conflicting reference answers for question {question!r}')
+        index[question] = answer
+    return index
+
+
+def render_report(source, destination, template=DEFAULT_TEMPLATE, title=None, references=None):
     rows = read_rows(source)
+    if references is not None:
+        for row in rows:
+            if any(row.get(k) is not None for k in REFERENCE_FIELDS):
+                continue
+            question = row.get('question') or row.get('query')
+            if question in references:
+                row['answer'] = references[question]
     payload = json.dumps(
         {'title': title or source.name, 'source': str(source), 'rows': rows},
         ensure_ascii=False, allow_nan=False,
@@ -49,6 +73,8 @@ def main():
     output.add_argument('--output-dir', type=Path, help='Directory for batch reports')
     parser.add_argument('--template', type=Path, default=DEFAULT_TEMPLATE)
     parser.add_argument('--title', help='Report title (defaults to source filename)')
+    parser.add_argument('--reference-data', type=Path,
+                        help='JSONL dataset supplying missing answers by exact question/query match')
     args = parser.parse_args()
     if args.output and len(args.inputs) != 1:
         parser.error('--output requires exactly one input; use --output-dir for batches')
@@ -61,8 +87,9 @@ def main():
     if protected.intersection(resolved):
         parser.error('output must not overwrite an input or template')
     try:
+        references = reference_index(args.reference_data) if args.reference_data else None
         for source, destination in zip(args.inputs, targets):
-            count = render_report(source, destination, args.template, args.title)
+            count = render_report(source, destination, args.template, args.title, references)
             print(f'{source} -> {destination} ({count} records)')
     except (OSError, ValueError) as exc:
         parser.exit(1, f'Error: {exc}\n')

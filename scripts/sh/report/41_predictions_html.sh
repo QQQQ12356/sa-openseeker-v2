@@ -8,7 +8,7 @@ CONDA_ENV="${CONDA_ENV:-search-comp-qwen35-cu126}"
 
 # ===== 输入：可填写多个 JSONL；相对路径以项目根目录为准 =====
 INPUTS=(
-  "outputs/results/openseeker/predictions.jsonl"
+  "tmp/predictions-plain-browseplus.jsonl"
   # "outputs/experiments/你的实验/evaluation/predictions_test_时间戳.jsonl"
 )
 
@@ -16,6 +16,8 @@ INPUTS=(
 OUTPUT_DIR="outputs/reports"          # 留空：保存到各输入文件旁边
 TITLE=""                             # 留空：使用输入文件名；非空：所有报告使用此标题
 TEMPLATE="scripts/templates/41_predictions.html"
+# 预测文件不含参考答案时，按完整 question/query 从此数据集补齐；留空则不补齐。
+REFERENCE_DATA=""                    # 旧预测文件可填写对应 benchmark 数据集路径
 
 source "$(dirname "${BASH_SOURCE[0]}")/../common/00_common.sh"
 PY=$(resolve_python)
@@ -32,6 +34,7 @@ for input in "${INPUTS[@]}"; do
 done
 
 ARGS=("${INPUTS[@]}" --template "$TEMPLATE")
+if [[ -n "$REFERENCE_DATA" ]]; then ARGS+=(--reference-data "$REFERENCE_DATA"); fi
 if [[ -n "$OUTPUT_DIR" ]]; then ARGS+=(--output-dir "$OUTPUT_DIR"); fi
 if [[ -n "$TITLE" ]]; then ARGS+=(--title "$TITLE"); fi
 

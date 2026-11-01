@@ -379,6 +379,7 @@ def test_native_real_agent_search_visit_answer_and_regions(tmp_path, monkeypatch
     def generator(m, tok, beacon):
         generator_kinds.append(beacon)
         def generate(encoded, budget):
+            assert 'REFERENCE_ANSWER_DO_NOT_PROMPT' not in tok.decode(encoded['input_ids'])
             assert 'REFERENCE_CONTEXT' not in tok.decode(encoded['input_ids'])
             assert 'TRAINING_ANSWER' not in tok.decode(encoded['input_ids'])
             assert 'Keep original training instruction.' in tok.decode(encoded['input_ids'])
@@ -397,6 +398,7 @@ def test_native_real_agent_search_visit_answer_and_regions(tmp_path, monkeypatch
     args = workflow.make_parser().parse_args(['run', '--benchmark', 'hotpotqa', '--root', str(root),
           '--model', str(model_path), '--kind', kind, '--allow-visit', '--prompt-data', str(prompt_data)])
     rows, manifest = workflow.prepared_questions(root, 'hotpotqa', 1)
+    rows[0]['answer'] = 'REFERENCE_ANSWER_DO_NOT_PROMPT'
     workflow.run_phase(args, output, rows, manifest)
     predictions = list(records(output / 'predictions.jsonl'))
     assert predictions[0]['status'] == 'completed'
@@ -405,7 +407,7 @@ def test_native_real_agent_search_visit_answer_and_regions(tmp_path, monkeypatch
     assert predictions[0]['tool_call_counts'] == dict(search=1, visit=1)
     assert generator_kinds == [kind == 'beacon']
     assert saw_regions == [False, True, True]
-    assert 'answer' not in predictions[0]
+    assert predictions[0]['answer'] == rows[0]['answer']
 
 
 def test_shell_dry_run_has_no_writes_and_preserves_space_paths(tmp_path):
@@ -557,6 +559,7 @@ def test_parallel_real_processes_merge_and_score(tmp_path, monkeypatch, capsys, 
     predictions = list(records(output / 'predictions.jsonl'))
     assert [row['id'] for row in predictions] == [row['id'] for row in rows]
     assert [row['sample_index'] for row in predictions] == list(range(len(rows)))
+    assert [row['answer'] for row in predictions] == [row['answer'] for row in rows]
     devices = ['0', '3'][:min(workers, len(rows))]
     assert [row['final_response'] for row in predictions] == [
         'gpu=' + devices[i % len(devices)] for i in range(len(rows))]

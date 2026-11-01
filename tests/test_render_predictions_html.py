@@ -44,6 +44,29 @@ def test_empty_report_and_template_validation(tmp_path):
         renderer.render_report(source, tmp_path / 'bad-report.html', template)
 
 
+def test_missing_references_join_by_question_without_overwriting_existing_answers(tmp_path):
+    dataset = tmp_path / 'dataset.jsonl'
+    dataset.write_text(json.dumps({'id': 999, 'query': 'Who?', 'answer': 'Alice'}) + '\n')
+    source = tmp_path / 'predictions.jsonl'
+    rows = [{'id': 1, 'question': 'Who?'},
+            {'query': 'Who?', 'answer': 'Existing'}, {'query': 'Unknown'}]
+    source.write_text(''.join(json.dumps(row) + '\n' for row in rows))
+    destination = tmp_path / 'report.html'
+    renderer.render_report(source, destination, references=renderer.reference_index(dataset))
+    data = destination.read_text().split('<script id="report-data" type="application/json">')[1].split('</script>')[0]
+    rendered = json.loads(data)['rows']
+    assert rendered == [dict(rows[0], answer='Alice'), rows[1], rows[2]]
+    assert renderer.read_rows(source) == rows
+
+
+def test_conflicting_reference_answers_are_rejected(tmp_path):
+    dataset = tmp_path / 'dataset.jsonl'
+    dataset.write_text('\n'.join(json.dumps({'query': 'Who?', 'answer': answer})
+                                 for answer in ['Alice', 'Bob']))
+    with pytest.raises(ValueError, match='conflicting reference answers'):
+        renderer.reference_index(dataset)
+
+
 def test_client_role_boundaries_and_interactions(tmp_path):
     import shutil
     import subprocess

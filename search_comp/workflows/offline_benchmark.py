@@ -110,7 +110,7 @@ def run_phase(args, output, rows, manifest):
                                max_call_retries=args.tool_call_retries)
             result.update(id=row["id"], sample_index=args.shard_index + position * args.shard_count,
                           prompt_source=prompt_source,
-                          query=row["query"], final_response=result["prediction"],
+                          query=row["query"], answer=row["answer"], final_response=result["prediction"],
                           seconds=time.monotonic() - tick, retrieved_docids=sorted(tools.retrieved),
                           visited_docids=sorted(tools.visited), retrieval_trace=tools.trace,
                           tool_call_counts=dict(tools.counts))
