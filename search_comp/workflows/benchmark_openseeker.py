@@ -380,10 +380,8 @@ def main():
     suffix = boxed_instruction(args.official_dir) if args.mode == "official-v2" else ""
     coverage = align_results(rows, raw, aligned, suffix)
     (output / "coverage.json").write_text(json.dumps(coverage, indent=2) + "\n")
-    # Read only the pinned prompt literal; do not mutate/import the upstream evaluator.
-    tree = ast.parse((args.official_dir / "eval/prompt.py").read_text())
-    prompt = next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign)
-                  and any(isinstance(t, ast.Name) and t.id == "JUDGE_PROMPT_BC_en" for t in node.targets))
+    # The official assignment is a string literal followed by .strip().
+    prompt = judging.load_judge_prompt(args.official_dir / "eval/prompt.py")
     client = judging.ChatJudge(os.environ["SCORER_URLS"], os.environ["SCORER_MODEL_NAME"],
                                os.environ["SCORER_API_KEY"], args.judge_max_tokens,
                                args.judge_timeout, args.judge_enable_thinking)

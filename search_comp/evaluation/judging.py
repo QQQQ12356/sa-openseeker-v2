@@ -1,6 +1,7 @@
 """Bounded, auditable judging shared by online and offline benchmarks."""
 from __future__ import annotations
 
+import ast
 from concurrent.futures import ThreadPoolExecutor
 import json
 import re
@@ -16,6 +17,29 @@ class JudgeError(ValueError):
     def __init__(self, code, **details):
         super().__init__(code)
         self.details = details
+
+
+def load_judge_prompt(path):
+    """Read the pinned prompt without executing Python; allow literal .strip()."""
+    tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+    values = [node.value for node in tree.body if isinstance(node, ast.Assign)
+              and any(isinstance(target, ast.Name) and target.id == 'JUDGE_PROMPT_BC_en'
+                      for target in node.targets)]
+    if len(values) != 1:
+        raise ValueError('expected exactly one JUDGE_PROMPT_BC_en assignment')
+
+    def read_string(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == 'strip' and not node.args and not node.keywords):
+            return read_string(node.func.value).strip()
+        raise ValueError('JUDGE_PROMPT_BC_en must be a string literal with optional .strip()')
+
+    prompt = read_string(values[0])
+    if not prompt.strip():
+        raise ValueError('JUDGE_PROMPT_BC_en must not be empty')
+    return prompt
 
 
 def final_content(raw):

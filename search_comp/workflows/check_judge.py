@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 import argparse
-import ast
 from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
 
 from search_comp.evaluation.benchmark_data import sha256
-from search_comp.evaluation.judging import ChatJudge, POLICY, attempt_judgment, calibration, parse_ab
+from search_comp.evaluation.judging import ChatJudge, POLICY, attempt_judgment, calibration, load_judge_prompt, parse_ab
 from search_comp.workflows.benchmark_openseeker import ROOT, audit_scores, ensure_official
 
 
@@ -81,9 +80,7 @@ def main():
         from search_comp.workflows.benchmark_openseeker import require_environment
         require_environment('native', generate=False)
         ensure_official(args.official_dir)
-        tree = ast.parse((args.official_dir / 'eval/prompt.py').read_text())
-        prompt = next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign)
-                      and any(isinstance(t, ast.Name) and t.id == 'JUDGE_PROMPT_BC_en' for t in node.targets))
+        prompt = load_judge_prompt(args.official_dir / 'eval/prompt.py')
         client = ChatJudge(os.environ['SCORER_URLS'], os.environ['SCORER_MODEL_NAME'], os.environ['SCORER_API_KEY'],
                            args.judge_max_tokens, args.judge_timeout, args.judge_enable_thinking)
         output.mkdir(parents=True, exist_ok=False)

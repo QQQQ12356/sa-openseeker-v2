@@ -164,3 +164,69 @@ def test_real_local_http_chat_preflight_and_scoring(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+@pytest.mark.parametrize('expression,expected', [
+    ("'  prompt  '", '  prompt  '),
+    ('\"\"\"\\nQuestion: {question}\\nAnswer: {correct_answer}\\nResponse: {response}\\n\"\"\".strip()',
+     'Question: {question}\nAnswer: {correct_answer}\nResponse: {response}'),
+])
+def test_official_prompt_loader_accepts_literal_strip(tmp_path, expression, expected):
+    from search_comp.evaluation.judging import load_judge_prompt
+    path = tmp_path / 'prompt.py'
+    path.write_text('JUDGE_PROMPT_BC_en = ' + expression + '\n')
+    assert load_judge_prompt(path) == expected
+
+
+@pytest.mark.parametrize('source', [
+    "JUDGE_PROMPT_BC_en = str('prompt')",
+    "JUDGE_PROMPT_BC_en = 'prompt'.replace('p', 'x')",
+    "JUDGE_PROMPT_BC_en = 'prompt'.strip('p')",
+    "JUDGE_PROMPT_BC_en = ''",
+    "JUDGE_PROMPT_BC_en = 'one'\nJUDGE_PROMPT_BC_en = 'two'",
+    "OTHER_PROMPT = 'prompt'",
+])
+def test_prompt_loader_rejects_dynamic_expressions(tmp_path, source):
+    from search_comp.evaluation.judging import load_judge_prompt
+    path = tmp_path / 'prompt.py'
+    path.write_text(source + '\n')
+    with pytest.raises(ValueError):
+        load_judge_prompt(path)
+
+
+def test_prompt_loader_never_executes_source(tmp_path):
+    from search_comp.evaluation.judging import load_judge_prompt
+    marker = tmp_path / 'must_not_exist'
+    path = tmp_path / 'prompt.py'
+    path.write_text(f"from pathlib import Path\nPath({str(marker)!r}).touch()\n"
+                    "JUDGE_PROMPT_BC_en = 'prompt'.strip()\n")
+    assert load_judge_prompt(path) == 'prompt'
+    assert not marker.exists()
+
+
+def test_preflight_cli_reads_official_strip_prompt(tmp_path, monkeypatch, capsys):
+    import sys
+    from search_comp.workflows import check_judge
+    official = tmp_path / 'official'
+    (official / 'eval').mkdir(parents=True)
+    (official / 'eval/prompt.py').write_text(
+        "JUDGE_PROMPT_BC_en = '''\\n{question} {correct_answer} {response}\\n'''.strip()\n")
+    monkeypatch.setattr(check_judge, 'ensure_official', lambda _: None)
+    for name, value in dict(SCORER_URLS='http://localhost/v1', SCORER_MODEL_NAME='judge', SCORER_API_KEY='EMPTY').items():
+        monkeypatch.setenv(name, value)
+    calls = []
+    class Client:
+        model = 'judge'
+        urls = ['http://localhost/v1']
+        def __init__(self, *args): pass
+        def __call__(self, messages, endpoint):
+            calls.append(messages)
+            return 'B' if 'Tokyo' in messages[-1]['content'] else 'A'
+    monkeypatch.setattr(check_judge, 'ChatJudge', Client)
+    output = tmp_path / 'preflight'
+    monkeypatch.setattr(sys, 'argv', ['check', 'preflight', '--official-dir', str(official),
+                                    '--output-dir', str(output)])
+    check_judge.main()
+    assert len(calls) == 2
+    report = json.loads((output / 'judge_preflight_0.json').read_text())
+    assert report['passed']

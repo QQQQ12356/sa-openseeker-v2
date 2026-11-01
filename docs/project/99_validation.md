@@ -1,5 +1,11 @@
 # 99 本次验证记录
 
+## 54 preflight 提示读取 ast.Call 修复（2026-11-01）
+
+远端 `tmp/log.txt` 的 ast.literal_eval 错误源于官方提示赋值以无参 `.strip()` 结尾；异常发生在 API 调用之前。新增安全共享 load_judge_prompt，只解析字符串字面量及无参 strip，统一替换 preflight 和在线正式评分中的重复读取代码，不修改上游提示，不执行上游 Python 源码。之前测试替身遗漏真实 strip 结构，此次已更新正式评分测试并增加 preflight CLI 测试。
+
+直接读取本地固定上游 `outputs/vendor/OpenSeeker/eval/prompt.py` 得到 5564 字符提示，三个格式占位符有效。相关回归 50 passed、2 warnings，覆盖字面量/strip、禁止执行源文件、动态表达式拒绝及自检/正式评分链路；未调用真实模型/API。远端同步文件及重跑步骤见 [54.10](../benchmark/54_stable_judging.md)。
+
 ## 54 模型评分稳定性与远端结果离线审计（2026-11-01）
 
 对提供的 `tmp/benchmark_native_20261101T091822637884Z` 做离线审计：12 个唯一评分，11 条空回答；item_index=8 空回答被原裁判记 1。保留原始目录，新输出 `outputs/results/judge_audit_20261101T093424349679Z` 将该项修正为 0，汇总为 0/12。非空回答未重新调用模型或核实事实。输入指纹、原始标签和修正原因均保留。

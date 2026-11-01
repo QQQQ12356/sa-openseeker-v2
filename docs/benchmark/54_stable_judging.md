@@ -158,3 +158,26 @@ encode 仅在显式启用恢复的推理中允许携带历史非法调用用于�
 本次用提供的历史文件做真实离线审计，确认修正项恰为 item_index=8，输入指纹与 manifest 一致。自动化覆盖空回答无 API 调用、截断的 A 被拒绝、A/B 冲突、非法输出重试、有效 B 不重试、401 不重试、unknown 留在分母、自检识别总判 A、审计不改旧文件、工具格式恢复和网页认证诊断；相关现有基准测试继续检查 Plain/Beacon/基座与离线保护路径。
 
 没有在远端创建环境、运行真实 Qwen/SGLang、自检真实裁判、访问搜索/Jina 或重新生成真实题目，也没有启动训练。真实模型的语义可靠性与网页可访问性需要目标服务器按 54.4、54.5 和小批量重新生成步骤验证。
+
+## 54.10 preflight 报 ast.Call / malformed node 的修复
+
+远端日志 `tmp/log.txt` 显示异常发生在读取 `eval/prompt.py`，尚未构造裁判客户端或发出模型请求。固定上游的真实赋值是 `JUDGE_PROMPT_BC_en = """...""".strip()`；赋值右侧是 AST Call，而不是单纯字符串 Constant。旧代码直接对右侧调用 ast.literal_eval，因其不支持执行 `.strip()` 而抛出 `ValueError: malformed node or string ... <ast.Call ...>`。这是本项目读取代码的缺陷，与 API key、401、CUDA 或模型能力无关。
+
+修复统一使用 `search_comp.evaluation.judging.load_judge_prompt`，只接受字符串字面量及无参 `.strip()`，不执行上游 Python 文件，不使用 eval。preflight 与 47 正式评分共用同一读取器，避免修好自检后正式评分仍在同一位置失败。原上游文件和提示内容不修改；不需要升级 Python、安装依赖或重启 SGLang 来解决这个异常。
+
+将以下三个文件一起同步到目标服务器，不能只更新调用处而遗漏 helper：
+
+- `search_comp/evaluation/judging.py`
+- `search_comp/workflows/check_judge.py`
+- `search_comp/workflows/benchmark_openseeker.py`
+
+之后重跑：
+
+```bash
+ENV_FILE=/private/path/49_benchmark_env.sh \
+  bash scripts/sh/benchmark/54_check_judge.sh preflight
+```
+
+默认会生成新的输出目录。若指定 OUTPUT_DIR / --output-dir，使用尚不存在的目录；正式评分旧失败目录也不原地覆盖。修复通过只表示提示可读取；后续仍要看自检正/反例是否通过。
+
+回归覆盖真实上游的 `.strip()` 赋值结构、字面量兼容、非法表达式拒绝、禁止执行源码，以及 preflight CLI 与正式评分链路。先前只含字符串字面量的测试替身没有覆盖真实 `.strip()` 形式，此次已纠正，并直接检查仓库内固定上游提示能正确读取。

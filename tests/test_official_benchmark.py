@@ -151,7 +151,7 @@ def test_pipeline_runs_generation_and_judge_subprocesses(tmp_path, monkeypatch):
         "rows=[json.loads(s) for s in Path(a.dataset_path).read_text().splitlines()]\n"
         "rows=[dict(r,final_response='predicted') for r in rows]\n"
         "Path(a.out_dir,'result_tool'+a.tool_count_max+'.jsonl').write_text(''.join(json.dumps(r)+'\\n' for r in rows))\n")
-    (official / "eval/prompt.py").write_text("JUDGE_PROMPT_BC_en = '{question} {correct_answer} {response}'\n")
+    (official / "eval/prompt.py").write_text("JUDGE_PROMPT_BC_en = ' {question} {correct_answer} {response} '.strip()\n")
     from search_comp.evaluation import judging
     class Client:
         urls = ["http://local-test/v1"]
