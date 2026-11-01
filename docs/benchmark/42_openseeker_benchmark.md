@@ -1,5 +1,7 @@
 # 42 OpenSeeker 官方 Benchmark 对齐评测
 
+跨 benchmark 的指标总表，以及 `official_accuracy` 与 `accuracy_all_questions` 的分母区别，见 [40.3 指标说明](40_evaluation.md#403-当前各-benchmark-指标总表)。
+
 当前模型评分采用 stable-judge-v1：保留固定官方提示，增加空回答判错、自检、严格解析与有限重试；native 默认开启有限工具格式恢复及 bounded visit。完整参数、历史结果审计和协议区别见 [54](54_stable_judging.md)。
 
 本地部署摘要与裁判请先执行 [49 本地辅助模型指南](49_local_aux_models.md)：新增 `49_serve_aux_models.sh`，默认 Qwen3-32B 共用一个 SGLang 服务，49 配置模板默认已匹配。支持两个独立服务及 Qwen3.5 替换；仅 source 配置不会启动服务。

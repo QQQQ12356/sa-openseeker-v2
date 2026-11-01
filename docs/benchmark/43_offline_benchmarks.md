@@ -1,5 +1,7 @@
 # 43 固定语料离线评测：BrowseComp-Plus 与 HotpotQA
 
+跨 benchmark 的指标总表、公式、分母与结果文件见 [40.3 指标说明](40_evaluation.md#403-当前各-benchmark-指标总表)。
+
 BrowseComp-Plus 裁判默认改为贪心、关闭思考，并增加正反例自检、有限重试和严格字段校验；HotpotQA 仍使用官方确定性指标。详细参数和旧配置迁移见 [54 评分稳定性](54_stable_judging.md)。
 
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。

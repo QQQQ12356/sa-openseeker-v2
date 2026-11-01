@@ -1,5 +1,7 @@
 # 00 文档与入口索引
 
+各 benchmark 当前指标、字段名、计算方式与失败样本分母见 [40.3 指标总表](benchmark/40_evaluation.md#403-当前各-benchmark-指标总表)。
+
 模型评分稳定性、历史结果审计与自检操作见 [54](benchmark/54_stable_judging.md)。
 
 本地 SUMMARY / SCORER 部署入口与全部参数见 [49 本地辅助模型](benchmark/49_local_aux_models.md)：默认 Qwen3-32B 共用 SGLang，可分别部署或替换为 Qwen3.5。
