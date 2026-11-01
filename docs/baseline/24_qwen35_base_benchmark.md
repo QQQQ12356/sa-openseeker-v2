@@ -1,5 +1,7 @@
 # 24 原始 Qwen3.5-4B 独立基线：数据、测试、评分和对照
 
+OpenSeeker 三种模型路线的可选本地语义裁判与独立重评见 [40.4](../benchmark/40_evaluation.md#404-openseeker-可选大模型语义评分)。
+
 原始基座与 Plain/Beacon 共用 stable-judge-v1 评分保护；72 在线裁判默认并发 1，73/74 本地裁判默认温度 0。自检、重评、工具恢复和全部新参数见 [54](../benchmark/54_stable_judging.md)。
 
 本指南为 **未经本项目 SFT 的原始 Qwen3.5-4B** 提供独立的 OpenSeeker、在线 BrowseComp、离线 BrowseComp-Plus 和 HotpotQA 评测。先检查环境和权重，再准备相应基准，先测少量题、检查轨迹，然后运行全量。本文不会启动训练。

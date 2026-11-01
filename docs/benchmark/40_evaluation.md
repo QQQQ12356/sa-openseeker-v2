@@ -20,7 +20,7 @@
 | corpus | 对给定 JSONL 本地 BM25 search/visit，可执行新查询；结果取决于语料来源 |
 | http | 向 ENDPOINT POST `{name, arguments}`，要求返回 `{content: str}`；用于真实工具服务 |
 
-不把 replay 结果解释为在线搜索能力。历史 visit 语料库要注明来源划分，不能称为独立检索评测。当前保留 EM/F1，不自动调用付费裁判 API。
+不把 replay 结果解释为在线搜索能力。历史 visit 语料库要注明来源划分，不能称为独立检索评测。默认保留 EM/F1；可选本地大模型裁判见 [40.4](#404-openseeker-可选大模型语义评分)，不自动调用付费裁判 API。
 
 ## 40.1 独立 Benchmark 与官方裁判
 
@@ -36,7 +36,7 @@
 
 | 测试路线 | 主要指标（JSON 字段） | 辅助指标 | 汇总文件 |
 |---|---|---|---|
-| OpenSeeker 数据集诊断（21 / 31 / 基座 71） | 严格 EM：`exact_match`；token F1：`f1` | `statuses`、`count`、`seconds` | 预测文件同名 `.metrics.json` |
+| OpenSeeker 数据集诊断（21 / 31 / 基座 71） | 严格 EM：`exact_match`；token F1：`f1`；可选语义裁判 `accuracy`（见 40.4） | `statuses`、`count`、`seconds` | 预测文件同名 `.metrics.json` |
 | 在线 BrowseComp（47 / 基座 72，含 official-v1、official-v2、native） | 语义裁判准确率：`accuracy_all_questions` | `official_accuracy`、`judged`、`judge_unknown_or_error`、生成覆盖率与状态分布 | `summary.metrics.json` |
 | 离线 BrowseComp-Plus（56 / 基座 74） | 语义裁判准确率：`accuracy` / `Accuracy (%)`；检索召回：`evidence_recall` / `Recall (%)` | `gold_recall`、引用指标、校准误差、`avg_tool_stats` | `summary.metrics.json` |
 | 离线 HotpotQA（57 / 基座 75） | 官方答案 `em`、`f1` | 答案 `prec` / `recall`，支持事实 `sp_*`，联合 `joint_*` | `summary.metrics.json` |
@@ -91,3 +91,46 @@
 - [OpenSeeker 评分与汇总](../../search_comp/workflows/evaluate_openseeker.py)：`score_answer`、`write_summary`。
 - [在线完整分母与合法判决统计](../../search_comp/workflows/benchmark_openseeker.py)：`audit_scores`；[在线裁判](../../search_comp/evaluation/judging.py)：`score_online`。
 - [离线评分](../../search_comp/offline/scoring.py)：`score_hotpot`、`retrieval_metrics`、`score_browsecomp`。
+
+## 40.4 OpenSeeker 可选大模型语义评分
+
+Plain 21、Beacon 31 和原始模型 71 均支持设置 `JUDGE_MODEL`，在生成进程结束、释放待测模型后启动本地裁判评分。原有 EM/F1 文件保留，语义准确率写入独立目录；不设置时保持原来的 EM/F1 流程。
+
+```bash
+# Plain；Beacon 换成 scripts/sh/beacon/31_beacon_eval.sh。
+RUN_DIR=/path/to/plain_run DATA=/path/to/test.jsonl LIMIT=100 \
+JUDGE_MODEL=/models/Qwen3-32B \
+bash scripts/sh/plain/21_plain_eval.sh
+
+# 未经本项目训练的原始模型。
+BASE_CHECKPOINT=/models/Qwen3.5-4B DATA=/path/to/test.jsonl LIMIT=100 \
+JUDGE_MODEL=/models/Qwen3-32B \
+bash scripts/sh/baseline/71_qwen35_openseeker.sh
+
+# 已有预测单独评分：DATA 和 LIMIT 应与生成时保持一致，目录必须是新目录。
+python -m search_comp.workflows.judge_openseeker \
+  --predictions /path/to/predictions.jsonl \
+  --data /path/to/test.jsonl --limit 100 \
+  --judge-model /models/Qwen3-32B --output-dir /path/to/new_judge_results
+```
+
+评分流程仿照 BrowseComp-Plus：本地 HF 裁判、默认贪心且关闭思考、正负例自检、格式严格校验、有限重试，以及失败样本保留完整分母。OpenSeeker 使用独立的 `openseeker-semantic-json-v1` 语义判定提示词和 JSON 输出协议，**不是 BrowseComp-Plus 官方提示词的直接复用，也不能将该分数称为官方 BCP 成绩**。裁判收到问题、参考答案及完整生成回答，允许语义等价的别名、措辞和无害补充，不要求字符串相等。
+
+| 参数 / 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `--judge-model` / `JUDGE_MODEL` | shell 留空，CLI 必填 | 本地裁判模型目录；shell 非空即启用 |
+| `--output-dir` / `JUDGE_OUTPUT_DIR` | 预测文件去扩展名后加 `.judge` | 独立评分目录，须不存在 |
+| `--judge-attempts` / `JUDGE_ATTEMPTS` | 3 | 包含首次调用；仅异常或非法输出重试，合法负判不重试 |
+| `--judge-max-tokens` / `JUDGE_MAX_TOKENS` | 4096 | 裁判输出 token 预算 |
+| `--judge-max-context` / `JUDGE_MAX_CONTEXT` | 32768 | 裁判上下文预算；超限报错，不静默截断 |
+| `--judge-enable-thinking` / `JUDGE_ENABLE_THINKING=1` | 关闭 | 显式启用裁判思考 |
+| `--skip-judge-preflight` / `SKIP_JUDGE_PREFLIGHT=1` | 不跳过 | 跳过正负例自检，配置写入汇总 |
+
+- 分母来自 `DATA` 前 `LIMIT` 条实际存在的样本，不以预测行数或成功回答数为分母。按 `sample_index` 对齐，核对 ID、参考答案和问题；缺失预测补为失败题。非本次数据、重复或越界预测拒绝评分。
+- 仅 `status=completed` 且非空回答进入裁判；缺失、失败和空回答计 0。裁判返回 boolean `correct`、答案提取、理由及 0—100 的 confidence。
+- `accuracy = 裁判判对题数 / 全部选定题数`，取值 0—1。confidence 不参与加权，本路线不计算 BCP 的检索、引用或校准误差指标。
+- 裁判重试耗尽记录 `correct=null`、`score_source=judge_error`；汇总 `judge_errors>0`、`complete=false`，CLI 非零退出，不能将其报告为完整成绩。
+- `judge.jsonl` 包含问题、参考答案、被评分回答、`generation_status`、全部裁判尝试及判决；`summary.metrics.json` 包含 accuracy、完整分母、缺失题数、生成状态、裁判配置及输入文件 SHA256；自检结果写入 `judge_preflight.json`。
+- 三种方法须采用相同数据、LIMIT、工具后端、预算及裁判配置。语义裁判不会改变 replay 的动作匹配限制；它只改变最终答案的评分方式。
+
+该流程需本机具备裁判模型权重及相应显存，不会自动下载模型或调用外部 API。

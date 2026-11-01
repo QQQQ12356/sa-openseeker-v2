@@ -30,7 +30,9 @@ LOG_PATH="${LOG_PATH:-}"
 PREDICTIONS="${PREDICTIONS:-}"         # score 输入
 OUTPUT_PATH="${OUTPUT_PATH:-}"         # score 输出 JSON，新文件
 DRY_RUN="${DRY_RUN:-0}"
+# 可选语义裁判：JUDGE_MODEL=/本地裁判模型；生成结束后另启进程评分，保留 EM/F1。
 source "$(dirname "${BASH_SOURCE[0]}")/../common/00_common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../benchmark/55_openseeker_judge.sh"
 PY=$(resolve_python)
 [[ "$DRY_RUN" == 0 || "$DRY_RUN" == 1 ]] || { echo 'DRY_RUN 必须是 0 或 1' >&2; exit 2; }
 case "$ACTION" in
@@ -90,3 +92,5 @@ if [[ "$ACTION" == score ]]; then exec "${COMMAND[@]}" "$@"; fi
 mkdir -p "$(dirname "$OUTPUT")" "$(dirname "$LOG_PATH")"
 run_logged "$LOG_PATH" "${COMMAND[@]}" "$@"
 echo "[qwen35-base] predictions: $OUTPUT; metrics: ${OUTPUT%.jsonl}.metrics.json"
+
+run_openseeker_judge

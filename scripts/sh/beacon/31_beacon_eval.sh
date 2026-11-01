@@ -39,7 +39,9 @@ TOP_P="${TOP_P:-1.0}"                               # 仅 sample 有效，(0,1]
 GENERATION_SEED="${GENERATION_SEED:-42}"             # sample 按问题独立派生种子
 OUTPUT_DIR="${OUTPUT_DIR:-}"                        # 留空：RUN_DIR/evaluation 或 outputs/results/openseeker
 
+# 可选语义裁判：JUDGE_MODEL=/本地裁判模型；生成结束后另启进程评分，保留 EM/F1。
 source "$(dirname "${BASH_SOURCE[0]}")/../common/00_common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../benchmark/55_openseeker_judge.sh"
 PY=$(resolve_python)
 
 if ! [[ "$NUM_WORKERS" =~ ^[1-9][0-9]*$ ]]; then
@@ -132,3 +134,5 @@ run_logged "$LOG_PATH" "${COMMAND[@]}"
 echo "[openseeker-test] 预测: $OUTPUT"
 echo "[openseeker-test] 指标: ${OUTPUT%.jsonl}.metrics.json"
 echo "[openseeker-test] 日志: $LOG_PATH"
+
+run_openseeker_judge
