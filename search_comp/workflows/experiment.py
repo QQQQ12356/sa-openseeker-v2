@@ -86,10 +86,19 @@ def main():
         taghash=hashlib.sha256(json.dumps(dict(spec=spec,cfg=cfg),sort_keys=True).encode()).hexdigest()[:10]
         # Dataset identity is separate from its trajectory encoding protocol.
         source=spec.get('dataset_manifest',{}).get('arguments',{}).get('source')
-        dataset_name=spec.get('dataset_name') or ('browsecomp-plus' if source=='browsecomp' else spec['data_mode'])
+        dataset_name=spec.get('dataset_name') or ('research' if source == 'research' else spec['data_mode'])
+        if source == 'browsecomp':
+            p.error('BrowseComp SFT has been removed; use openseeker or research')
+        if source == 'research' and dataset_name != 'research':
+            p.error('RESEARCH manifest requires dataset_name=research')
+        if source in ('polar', 'zephyr', 'combined') and dataset_name != 'openseeker':
+            p.error('OpenSeeker manifest requires dataset_name=openseeker')
         if not isinstance(dataset_name,str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]*',dataset_name):
             p.error('dataset_name must contain only letters, digits, underscores or hyphens, starting with a letter or digit')
-        tag=f"{family}_{kind}_{dataset_name}_L{cfg['max_length']}_r{cfg['beacon'].get('beacon_ratio',16)}_lr{cfg['learning_rate']}_s{cfg['seed']}_{taghash}"
+        method=spec.get('method', kind)
+        if method not in ('plain', 'beacon', 'baseline') or kind != ('beacon' if method == 'beacon' else 'plain'):
+            p.error('method must be plain/beacon/baseline with the matching trainer kind')
+        tag=f"{family}_{method}_{dataset_name}_L{cfg['max_length']}_r{cfg['beacon'].get('beacon_ratio',16)}_lr{cfg['learning_rate']}_s{cfg['seed']}_{taghash}"
         name=tag+'_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
         run=(ROOT/'outputs/experiments'/name).resolve();run.mkdir(parents=True)
         cfg.update(output_dir=str(run),exp_name='model')

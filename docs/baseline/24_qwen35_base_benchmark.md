@@ -1,5 +1,7 @@
 # 24 原始 Qwen3.5-4B 独立基线：数据、测试、评分和对照
 
+> 当前操作入口以 [68 两数据集、三种方法与独立测试/评分](../project/68_training_benchmark_guide.md) 为准。训练仅使用 OpenSeeker / Research；新入口每种方法均为 10/11 训练、40/42/44 测试、41/43/45 评分。下文旧编号用于兼容或历史实验。
+
 2026-11-03：原始模型与 Plain/Beacon 共用新增 HotpotQA 语义裁判，all/score 需要 JUDGE_MODEL；只算官方分数可 LLM_JUDGE=0。各方法目录下的独立脚本、九种组合和全部裁判参数见 [59](../benchmark/59_llm_judge_matrix.md)。
 
 OpenSeeker 三种模型路线的可选本地语义裁判与独立重评见 [40.4](../benchmark/40_evaluation.md#404-openseeker-可选大模型语义评分)。

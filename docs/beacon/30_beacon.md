@@ -1,12 +1,12 @@
 # 30 Beacon 训练与评测
 
-BrowseComp-Plus SFT 使用独立的 [39 训练入口](39_beacon_browsecomp_train.md)，默认只做计划，完整参数直接在 39 中修改；先通过 [14](../data/14_browsecomp_sft.md) 独立预处理，与 Plain 共用完整轨迹长度过滤、仅压缩 observation 正文。39 不转调 30。三类基准裁判见 [59](../benchmark/59_llm_judge_matrix.md)。
+> 当前操作入口以 [68 两数据集、三种方法与独立测试/评分](../project/68_training_benchmark_guide.md) 为准。训练仅使用 OpenSeeker / Research；新入口每种方法均为 10/11 训练、40/42/44 测试、41/43/45 评分。下文旧编号用于兼容或历史实验。
 
 从数据准备到训练、合并、评测的顺序操作见 [32 完整实验指南](32_beacon_experiment_guide.md)；本文侧重参数和算法入口。
 
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
 
-主入口为 `scripts/sh/beacon/30_beacon_train.sh`，使用方式与 Plain 相同。模型支持 Qwen3 和 Qwen3.5，默认 whole observation 压缩。OpenSeeker 中只有 `tool_response` 的正文进入压缩区域：工具调用 JSON、system、问题、推理和原始回答都保留。训练和 agent 评测共用序列化与 observation 区域定义。
+主入口为 `scripts/sh/beacon/10_train_openseeker.sh`，使用方式与 Plain 相同。模型支持 Qwen3 和 Qwen3.5，默认 whole observation 压缩。OpenSeeker 中只有 `tool_response` 的正文进入压缩区域：工具调用 JSON、system、问题、推理和原始回答都保留。训练和 agent 评测共用序列化与 observation 区域定义。
 
 可修改 `beacon_ratio`、LoRA、分段损失、续写损失、information/readout/output 蒸馏等。默认关闭需要完整 teacher 的额外输出蒸馏。模型结构、Qwen3.5 线性状态处理、continuation、问题记忆等已有实现和测试均保留，详见 60—65 文档。默认各主 CE 片段权重均为 1，可设置 `{}` 恢复默认。
 

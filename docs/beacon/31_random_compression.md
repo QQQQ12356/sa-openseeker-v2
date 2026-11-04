@@ -6,7 +6,7 @@ Beacon 支持固定压缩比与随机压缩比，Qwen3/Qwen3.5、OpenSeeker/Sear
 
 ## 一键脚本
 
-在 `scripts/sh/beacon/30_beacon_train.sh` 的内嵌 YAML 中修改：
+在 `scripts/sh/beacon/10_train_openseeker.sh` 的内嵌 YAML 中修改：
 
 ```yaml
 beacon:

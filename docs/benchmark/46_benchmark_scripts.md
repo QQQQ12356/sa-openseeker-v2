@@ -1,5 +1,7 @@
 # 46 各方案独立 Benchmark 脚本与参数手册
 
+> 当前操作入口以 [68 两数据集、三种方法与独立测试/评分](../project/68_training_benchmark_guide.md) 为准。训练仅使用 OpenSeeker / Research；新入口每种方法均为 10/11 训练、40/42/44 测试、41/43/45 评分。下文旧编号用于兼容或历史实验。
+
 Plain、Beacon、原始模型分别直接运行 plain/、beacon/、baseline/ 目录下对应 benchmark 的独立脚本，不使用统一分发入口；九个脚本的完整路径、变量和示例见 [59](59_llm_judge_matrix.md)。Hotpot all/score 现默认需要 JUDGE_MODEL。
 
 评分/工具恢复公共参数由 `54_judge_options.sh` 映射；历史审计与裁判自检入口为 `54_check_judge.sh`，完整参数、行为变化和各方法覆盖表见 [54](54_stable_judging.md)。

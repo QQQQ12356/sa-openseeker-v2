@@ -1,61 +1,28 @@
-# sa-openseeker-v2
+# 00 sa-openseeker-v2
 
-新增 BrowseComp Qwen3.5 SFT 数据适配、一键预处理与 Plain/Beacon 计划/训练入口见 [14](docs/data/14_browsecomp_sft.md)。三种方法在各自目录下的 HotpotQA、BrowseComp、BrowseComp-Plus 独立脚本及 LLM-Judge 参数见 [59](docs/benchmark/59_llm_judge_matrix.md)：Hotpot 保留官方 EM/F1，新增语义评分，shell 的 all/score 默认需 JUDGE_MODEL。
+当前训练数据集为 **OpenSeeker** 和 **Research**。BrowseComp Qwen3.5 SFT 的预处理、适配器、训练脚本已移除；BrowseComp、BrowseComp-Plus、HotpotQA 三项独立 benchmark 继续保留。原始数据与已有输出未改动。
 
-模型评分现使用 stable-judge-v1：空回答固定计错、裁判正反例自检、有限重试与完整分母；历史评分离线审计、重评命令和所有参数见 [54 评分稳定性](docs/benchmark/54_stable_judging.md)。
+完整实验先按数据集选择 [70 OpenSeeker 全流程](docs/data/70_openseeker_experiment_guide.md) 或 [71 Research 全流程](docs/data/71_research_experiment_guide.md)，两者均包含下载、预处理、原始/规范化 HTML、全量分布分析、三方法训练、三项测试与独立评分。脚本变量查 [68](docs/project/68_training_benchmark_guide.md)；训练参数逐项说明见 [69 训练配置参数](docs/project/69_training_parameters.md)；全部文档见 [00 索引](docs/00_index.md)。所有预处理、训练、真实推理和评分均在 Linux 执行。Windows 仅修改代码并做无模型静态/单元检查。
 
-在线 Benchmark 的摘要与裁判可用 Qwen3-32B 共用本地 SGLang 服务：`DRY_RUN=1 bash scripts/sh/benchmark/49_serve_aux_models.sh` 审查命令，正式部署去掉 DRY_RUN。Qwen3.5 替换、独立双服务、全部变量及联调见 [49 本地辅助模型](docs/benchmark/49_local_aux_models.md)。
+| 方法目录 | 训练入口 | 测试入口 | 评分入口 |
+|---|---|---|---|
+| `scripts/sh/plain/` | `10_train_openseeker.sh`、`11_train_research.sh` | `40_test_browsecomp.sh`、`42_test_browsecomp_plus.sh`、`44_test_hotpotqa.sh` | `41_score_browsecomp.sh`、`43_score_browsecomp_plus.sh`、`45_score_hotpotqa.sh` |
+| `scripts/sh/beacon/` | 同上，配置独立 | 同上，Beacon 推理 | 同上，独立进程 |
+| `scripts/sh/baseline/` | 同上，全参数 SFT | 同上，使用训练后的模型 | 同上，独立进程 |
 
-以 `../sa-qwen-openseeker` 为骨架，保留 Qwen3 / Qwen3.5、Plain / Beacon、Search-R1、多工具轨迹处理、LoRA、蒸馏算法和原有测试。OpenSeeker 训练保留原始回答，不追加参考答案；原有评测使用模型最后一轮回答计算 EM/F1；新增固定官方版本的 BrowseComp 在线生成与 LLM 裁判评测，见 [42 Benchmark](docs/benchmark/42_openseeker_benchmark.md)。
+每个方法有自己的脚本及参数，直接修改对应文件或设置其环境变量。底层复用已有 Python 实现。Plain 默认 LoRA；Beacon 使用已有压缩训练；baseline 新训练入口采用标准全参数 SFT。Baseline 的旧 `70`–`75` 入口仍表示**未训练原始 Qwen3.5 基座**，供历史结果复现，不能用于替代新训练模型的测试。
 
-原有 Polar 规范化流程继续保留；新增读取本目录已有 BrowseComp Qwen3.5 SFT 文件的独立适配入口，源文件不覆盖。本次没有复制模型权重或启动真实模型训练。
-
-Plain 完整实验优先阅读 [21 从数据到评测](docs/plain/21_plain_experiment_guide.md)，Beacon 参照 [32 从数据到评测](docs/beacon/32_beacon_experiment_guide.md)，再按阶段查阅 [文档索引](docs/00_index.md) 和 [45 统一训练与测试](docs/common/45_unified_agent_flow.md)。训练保留每条轨迹的原始 system；Plain/Beacon 的 native 在线测试复用对应训练提示，离线仅调整必要的工具能力和格式要求。当前使用原始 v3 数据协议，已有原始 v3 数据可直接复用。常用入口如下，参数直接修改各 shell 脚本顶部，然后运行，无需传命令行参数：
+Linux 最小示例（先完成预处理、模型缓存与 benchmark 准备）：
 
 ```bash
-bash scripts/sh/tools/01_test.sh                    # CPU 回归测试
-bash scripts/sh/tools/59_check_agent_alignment.sh   # 共享协议与 tiny 模型数值一致性检查，不训练
-bash scripts/sh/data/10_prepare.sh                 # 全量规范化和分词；输出存在时拒绝覆盖
-bash scripts/sh/data/11_select.sh                  # 长度区间/精确长度/正确性/观测筛选
-bash scripts/sh/data/12_select_memory_probe.sh     # 生成显存测试训练集
-bash scripts/sh/report/40_dataset_html.sh            # 离线查看数据
-bash scripts/sh/benchmark/46_prepare_benchmark.sh       # 官方代码和 BrowseComp 数据（联网，不请求裁判）
-DRY_RUN=1 bash scripts/sh/plain/47_plain_browsecomp.sh  # 审查官方 Benchmark 运行配置
-# 以下由使用者之后在训练服务器执行，本次没有执行：
-# bash scripts/sh/plain/20_plain_train.sh
-# bash scripts/sh/beacon/30_beacon_train.sh
-# bash scripts/sh/plain/26_plain_memory_probe.sh
-# bash scripts/sh/beacon/37_beacon_memory_probe.sh
-# bash scripts/sh/plain/21_plain_eval.sh
-# bash scripts/sh/beacon/31_beacon_eval.sh
+# 修改对应训练脚本 YAML 或设置路径；plan 不加载模型，但要求预处理数据存在。
+ACTION=plan bash scripts/sh/plain/11_train_research.sh
+bash scripts/sh/plain/11_train_research.sh
+
+# RUN_DIR 使用训练输出的具体实验目录。
+RUN_DIR=/path/to/research_run bash scripts/sh/plain/44_test_hotpotqa.sh
+PREDICTIONS=/path/to/test/predictions.jsonl JUDGE_MODEL=/models/judge \
+  bash scripts/sh/plain/45_score_hotpotqa.sh
 ```
 
-训练脚本支持将 `ACTION="train"` 改成 `ACTION="plan"`，只创建可审查的配置和启动命令。多卡参数集中在训练脚本顶部：`CUDA_VISIBLE_DEVICES`、`DISTRIBUTED_BACKEND`、`NPROC_PER_NODE`。配置脚本后直接运行即可。
-
-目录分工：`search_comp/` 为核心实现，`search_comp/workflows/` 为可导入的流程实现，`scripts/sh/` 按功能分类存放编号 shell 入口，`scripts/py/` 为编号的 Python 薄入口，`scripts/templates/` 为编号的 HTML 模板，`tests/` 为回归测试，`configs/` 为训练配置。`docs/` 按 common、data、plain、baseline、beacon、benchmark、report、tools、architecture 和 project 分类；各模块的入口见 [文档索引](docs/00_index.md)。
-
-OpenSeeker 的 21 入口支持直接评测 Plain LoRA adapter；原始 Qwen3.5-4B 在 OpenSeeker、在线 BrowseComp、离线 BrowseComp-Plus 和 HotpotQA 的基线入口及对照方法见 [22](docs/baseline/22_qwen35_baseline_and_adapter.md)。
-
-原始 Qwen3.5 基线有独立加载器及 70–73 脚本，不调用 Plain 训练模型的加载脚本；详细操作和参数见 [24 独立基线实验指南](docs/baseline/24_qwen35_base_benchmark.md)。
-
-Plain / Beacon native 的贪心与重复惩罚、Plain 采样和生成种子配置见 [23](docs/common/23_decoding.md)，默认保留原有贪心且不惩罚重复。
-
-现有原始 v3 数据（train/validation/test=644/9/11）、43 条约 64k 的显存测试数据和数据 HTML 保留，可用于当前流程，详情见 [数据说明](docs/data/10_data.md) 与 [验证记录](docs/project/99_validation.md)。当前保留原始 system 的统一流程全量回归为 **564 通过、2 项跳过**，详细命令和边界见验证记录。
-
-Beacon 训练支持固定/随机压缩比：修改 `30_beacon_train.sh` 内 `beacon` 段的 `beacon_compression_mode`、`beacon_ratio` 和 `beacon_compression_ratios`，详见 [31 随机压缩说明](docs/beacon/31_random_compression.md)。默认保持固定压缩。
-
-训练与多卡 DeepSpeed 参数已放入各训练 shell；修改和计划审查方法见 [53 自包含训练配置](docs/tools/53_self_contained_training.md)。
-
-训练后独立 Benchmark：Plain/Beacon 均默认用 `MODE=native RUN_DIR=...` 运行 47；原样官方复现仍可用 48 部署 Plain，再显式选择 `MODE=official-v1` 或 `MODE=official-v2`。native 保留压缩、采用官方 search/visit 和裁判。先配置私有 API 环境文件；实际在线测试会调用这些服务。原有 21/31 的 EM/F1 测试继续保留。完整依赖、参数、失败分母和对齐边界见 [42 说明](docs/benchmark/42_openseeker_benchmark.md)。
-
-固定语料离线评测现已接入：各方案目录下的 `56_*_browsecomp_plus.sh`（Baseline 为 74） 使用独立 BCP corpus、持久化 BM25 与本地裁判；`57_*_hotpotqa.sh`（Baseline 为 75） 使用有标注 dev、完整官方 Wiki 摘要库和官方 EM/F1。先 `ACTION=download` 一次性准备，之后 prepare/index/run/score/all 均严格离线。两者都支持从 RUN_DIR 读取 Plain/Beacon 训练产物。详细参数、逐步运行与修改提示见 [43 离线基准手册](docs/benchmark/43_offline_benchmarks.md)，官方版本及许可证见 [44 来源说明](docs/benchmark/44_offline_sources.md)。
-
-四卡 A800 的 Beacon 长轨迹训练：先修改 `scripts/sh/beacon/30_beacon_train.sh` 中模型和数据路径，再用 `ACTION=plan bash scripts/sh/beacon/38_beacon_4xa800.sh` 只生成配置；实际训练运行 `bash scripts/sh/beacon/38_beacon_4xa800.sh`。显存原因、重计算修复和参数修改提示见 [52 四卡 A800 长轨迹 OOM](docs/beacon/52_beacon_oom.md)。
-
-Plain 四卡长轨迹训练：`ACTION=plan bash scripts/sh/plain/28_plain_4xa800.sh` 审查配置，实际训练去掉 `ACTION=plan`。参数统一在 `20_plain_train.sh`；分块 loss、激活卸载及限制见 [20 Plain](docs/plain/20_plain.md)。
-
-各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](docs/benchmark/46_benchmark_scripts.md)。
-
-Plain checkpoint 的独立 Conda 环境（`search-comp-sglang`）、SGLang 安装、架构兼容检查、单卡/多卡服务启动与联调见 [48 部署手册](docs/plain/48_sglang_deployment.md)。Qwen3.5 纯文本训练产物需要单独验证后端兼容性。
-
-本地 RESEARCH OpenSeeker 数据新增适配见 [09 完整指南](docs/data/09_research_sft.md)：原始 HTML 小样本、完整长度审计、Plain/Beacon 分阶段入口与 LLM-Judge 测试矩阵。
+测试和评分分开执行，三个 benchmark 均提供 EM、F1、LLM judge。训练与测试共用原始 system/schema 和轨迹序列化；离线测试仅调整工具能力和答案格式。Research 评测必须读取其对应训练实验或规范化训练 JSONL。完整参数、离线准备步骤、失败样本口径、脚本兼容说明与修改提示见 68/69。

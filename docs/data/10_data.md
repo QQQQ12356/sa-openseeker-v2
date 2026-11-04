@@ -1,6 +1,7 @@
 # 10 Polar 数据处理与细粒度筛选
 
-新增 BrowseComp Qwen3.5 SFT 来源使用专用 14 入口，完整数据结构、reference-free 处理、长度/observation 和训练参数见 [14](14_browsecomp_sft.md)。原 Polar 默认流程不变。
+完整执行顺序见 [70 OpenSeeker 完整实验指南](70_openseeker_experiment_guide.md)，包括下载、原始/规范化 HTML、结构审计、筛选前后整体分布、三方法训练与三项独立测试/评分。本文保留来源和预处理接口细节。
+
 
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
 

@@ -42,7 +42,7 @@ PYTHON=/path/to/env/bin/python CUDA_VISIBLE_DEVICES=4,5,6,7 \
   ACTION=plan bash scripts/sh/beacon/38_beacon_4xa800.sh
 ```
 
-38 只设置四卡、zero2 和 action 的默认值，委托 30；不复制另一份训练 YAML。**模型、数据、长度和全部实验参数只改 `scripts/sh/beacon/30_beacon_train.sh`。** 显存探测使用 37，参数独立，不会自动继承你对 30 的修改。30/37 现在保留外部 `PYTHON`、`CONDA_ENV` 和 `ACTION`。每次 plan/train 各建新实验；plan 后再次运行 train 会建另一目录，并非继续之前的 plan。
+38 只设置四卡、zero2 和 action 的默认值，委托 30；不复制另一份训练 YAML。**模型、数据、长度和全部实验参数只改 `scripts/sh/beacon/10_train_openseeker.sh`。** 显存探测使用 37，参数独立，不会自动继承你对 30 的修改。30/37 现在保留外部 `PYTHON`、`CONDA_ENV` 和 `ACTION`。每次 plan/train 各建新实验；plan 后再次运行 train 会建另一目录，并非继续之前的 plan。
 
 Search-R1 的 32/34 不读取 30 的嵌入配置。需要同样的重计算可显式传：
 

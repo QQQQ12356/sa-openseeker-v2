@@ -9,6 +9,7 @@ import re
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 from search_comp.data.openseeker import parse_calls, normalize, question_key
+from search_comp.data.research import normalize_research
 from search_comp.workflows.prepare_openseeker import rows, stats
 
 
@@ -16,6 +17,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--input',type=Path,nargs='+',required=True)
     p.add_argument('--output',type=Path,required=True)
+    p.add_argument('--source', choices=['openseeker', 'research'], default='openseeker')
     args=p.parse_args()
     counts=Counter();roles=Counter();tools=Counter();correctness=Counter();schemas=Counter()
     parameters=defaultdict(Counter);metrics=defaultdict(list);questions=Counter();failures=Counter()
@@ -43,6 +45,13 @@ def main():
                                 calls.append(fn)
                         else:calls.extend(parse_calls(text))
                     except (ValueError,TypeError,KeyError):counts['malformed_action_messages']+=1
+            if args.source == 'research':
+                try:
+                    normalized = normalize_research(raw)
+                    calls = [call for message in normalized['messages'] if message['role'] == 'assistant'
+                             for call in parse_calls(message['content'])]
+                except (ValueError, KeyError, TypeError) as error:
+                    failures[str(error)] += 1
             metrics['trajectory_characters'].append(sum(role_chars.values()))
             for role,n in role_chars.items():metrics[f'{role}_characters'].append(n)
             metrics['parsed_calls'].append(len(calls))
@@ -54,15 +63,16 @@ def main():
                 if declared!=len(calls):counts['declared_calls_mismatch']+=1
                 if declared==sum(m['role']=='assistant' for m in msgs):counts['declared_matches_assistant_messages']+=1
                 if declared==len(calls)+1:counts['declared_equals_calls_plus_one']+=1
-            try:normalize(raw)
-            except (ValueError,KeyError,TypeError) as e:failures[str(e)]+=1
-    result=dict(counts=dict(counts),schemas=dict(schemas),roles=dict(roles),tools=dict(tools),
+            if args.source == 'openseeker':
+                try:normalize(raw)
+                except (ValueError,KeyError,TypeError) as e:failures[str(e)]+=1
+    result=dict(source=args.source, counts=dict(counts),schemas=dict(schemas),roles=dict(roles),tools=dict(tools),
         tool_argument_keys={k:dict(v) for k,v in parameters.items()},correctness=dict(correctness),
         duplicate_question_rows=sum(v-1 for v in questions.values()),unique_questions=len(questions),
         language_heuristic={k:dict(v) for k,v in groups.items()},normalization_failures=dict(failures),
         distributions={k:stats(v) for k,v in metrics.items()},sources=[str(p.resolve()) for p in args.input])
     args.output.parent.mkdir(parents=True,exist_ok=True)
-    args.output.write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+    args.output.write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n', encoding='utf-8')
     print(json.dumps(result,ensure_ascii=False,indent=2))
 
 

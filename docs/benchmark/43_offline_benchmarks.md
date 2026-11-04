@@ -1,5 +1,7 @@
 # 43 固定语料离线评测：BrowseComp-Plus 与 HotpotQA
 
+> 当前操作入口以 [68 两数据集、三种方法与独立测试/评分](../project/68_training_benchmark_guide.md) 为准。训练仅使用 OpenSeeker / Research；新入口每种方法均为 10/11 训练、40/42/44 测试、41/43/45 评分。下文旧编号用于兼容或历史实验。
+
 2026-11-03：Hotpot all/score 默认增加本地 LLM-Judge，需 `JUDGE_MODEL`；`LLM_JUDGE=0` 仅执行官方指标。下文历史示例执行前设置相应变量。统一九种组合、参数表和结果解释见 [59](59_llm_judge_matrix.md)。
 
 跨 benchmark 的指标总表、公式、分母与结果文件见 [40.3 指标说明](40_evaluation.md#403-当前各-benchmark-指标总表)。

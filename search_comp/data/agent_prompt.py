@@ -26,16 +26,21 @@ def resolve_system_prompt(prompt_data=None, run_dir=None):
 
     Require a single effective system; never select an arbitrary row from mixed
     training instructions. Only system/tools are used, never questions or answers.
-    BrowseComp demonstrations explicitly adapt capabilities to benchmark search/visit.
     """
+    expected_digest = None
     if prompt_data is None and run_dir is not None:
         spec = json.loads((Path(run_dir) / 'experiment.json').read_text())
         prompt_data = spec.get('training_config', {}).get('train_data_path')
+        expected_digest = spec.get('data_fingerprints', {}).get('train_data_path')
         if not prompt_data:
             raise ValueError('RUN_DIR has no training prompt source; set --prompt-data explicitly')
     if prompt_data is None:
         return DEFAULT_SYSTEM_FILE.read_text(), str(DEFAULT_SYSTEM_FILE)
     path = Path(prompt_data).expanduser().resolve()
+    if expected_digest:
+        from search_comp.evaluation.benchmark_data import sha256
+        if sha256(path) != expected_digest:
+            raise ValueError('training prompt data changed since training; restore the archived training JSONL')
     system = None
     with path.open(encoding='utf-8') as source:
         for line in source:
@@ -47,12 +52,12 @@ def resolve_system_prompt(prompt_data=None, run_dir=None):
                 messages = json.loads(messages)
             if not messages or messages[0].get('role') != 'system':
                 raise ValueError(f'prompt source requires an original system message: {path}')
+            if any(m.get('role') in {'reasoning', 'tool_call', 'tool_output', 'answer'} for m in messages):
+                raise ValueError('use prepared RESEARCH train.jsonl as --prompt-data, not the raw role export')
             tools = row.get('tools') or []
             if isinstance(tools, str):
                 tools = json.loads(tools)
             current = render_system(messages[0]['content'], tools)
-            if row.get('training_only') and str(row.get('source', '')).split('/')[0] == 'browsecomp':
-                current = browsecomp_benchmark_prompt(current)
             if not current.strip():
                 raise ValueError(f'empty training system: {path}')
             if system is not None and current != system:
@@ -61,18 +66,6 @@ def resolve_system_prompt(prompt_data=None, run_dir=None):
     if system is None:
         raise ValueError(f'empty prompt source: {path}')
     return system, str(path)
-
-
-def browsecomp_benchmark_prompt(system):
-    """Preserve research instructions, but advertise only executable benchmark tools."""
-    source = TOOLS_RE.search(system)
-    target = TOOLS_RE.search(DEFAULT_SYSTEM_FILE.read_text(encoding='utf-8'))
-    if source is None or target is None:
-        raise ValueError('BrowseComp benchmark adaptation requires tool schemas')
-    return (system[:source.start(1)] + target.group(1) + system[source.end(1):]
-            + '\nFor this evaluation, only search and visit in the supplied tool schema are available. '
-            'Historical browser.*, web_search, open_url, find_text, paper_search and pubmed_search '
-            'tools are unavailable. Use the supplied search/visit argument schema.')
 
 
 def build_system_prompt(*, system=None, allow_visit=True, local=False, answer_instruction=""):

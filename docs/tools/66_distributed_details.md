@@ -18,7 +18,7 @@ CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/beacon/32_beacon_searchr1_train.sh
 CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/plain/22_plain_searchr1_train.sh
 
 # OpenSeeker Beacon：Plain 使用自己的 20 脚本
-CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/beacon/30_beacon_train.sh
+CUDA_VISIBLE_DEVICES=0,1 bash scripts/sh/beacon/10_train_openseeker.sh
 
 # plain 可进一步分片参数：ZeRO-3 + CPU 参数和优化器卸载
 CUDA_VISIBLE_DEVICES=0,1 DISTRIBUTED_BACKEND=zero3 bash scripts/sh/plain/22_plain_searchr1_train.sh

@@ -17,9 +17,10 @@ case "$ACTION" in
   plan|train)
     export ACTION
     case "$METHOD" in
-      plain) exec bash scripts/sh/plain/20_plain_train.sh "$@" ;;
-      beacon) exec bash scripts/sh/beacon/30_beacon_train.sh "$@" ;;
-      *) echo 'METHOD 必须是 plain 或 beacon' >&2; exit 2 ;;
+      plain) exec bash scripts/sh/plain/11_train_research.sh "$@" ;;
+      beacon) exec bash scripts/sh/beacon/11_train_research.sh "$@" ;;
+      baseline) exec bash scripts/sh/baseline/11_train_research.sh "$@" ;;
+      *) echo 'METHOD 必须是 plain、beacon 或 baseline' >&2; exit 2 ;;
     esac ;;
   *) echo 'ACTION 必须是 html/prepare/plan/train' >&2; exit 2 ;;
 esac

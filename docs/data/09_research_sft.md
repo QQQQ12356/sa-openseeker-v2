@@ -1,6 +1,10 @@
 # 09 RESEARCH OpenSeeker SFT：本地导出、审计、训练与测试
 
-适用数据为 `AmanPriyanshu/tool-reasoning-sft-RESEARCH-OpenSeeker-v1-Data` 的本地 JSONL 导出，例如 `outputs/data/openseeker_one.jsonl`。不调用 Hub、不下载数据或模型。所有预处理、训练、推理命令在 Linux 项目根目录运行。Windows 本次只编辑与检查代码；没有运行真实预处理、训练或模型评分。
+> 从下载到评分的完整实验顺序见 [71 Research 完整实验指南](71_research_experiment_guide.md)。本文专讲角色适配、数据边界和接口参数。
+
+> 当前操作入口以 [68 两数据集、三种方法与独立测试/评分](../project/68_training_benchmark_guide.md) 为准。训练仅使用 OpenSeeker / Research；新入口每种方法均为 10/11 训练、40/42/44 测试、41/43/45 评分。下文旧编号用于兼容或历史实验。
+
+适用数据为 `AmanPriyanshu/tool-reasoning-sft-RESEARCH-OpenSeeker-v1-Data` 的本地 JSONL 导出，例如 `outputs/data/openseeker_one.jsonl`。本文件的 prepare/html 阶段不调用 Hub、不下载数据或模型；独立下载使用 data/08_download_research.sh，见 71。所有预处理、训练、推理命令在 Linux 项目根目录运行。Windows 本次只编辑与检查代码；没有运行真实预处理、训练或模型评分。
 
 ## 09.1 最短使用路径
 
@@ -64,16 +68,17 @@ prepared 继续使用 `data_mode: openseeker` 和现有协议版本，新增的�
 | measurements.jsonl | 每个有效样本的长度、工具调用数与拒绝原因；invalid 无可用 token 测量 |
 | manifest.json | 参数、adapter 版本、dataset ID、输入路径/字节数/SHA256、tokenizer 指纹、计数、角色和工具统计 |
 
-manifest 的 distributions 保持原口径：每个 tokenizer 的 total/observations/assistant，以及 calls/messages 的 n/min/max/mean/p50/p90/p95/p99 和超 8k/16k/32k/64k 计数。分布覆盖规范化成功的筛选前总体；无效样本独立计数。normalized 和 measurements 可继续使用既有 refilter、审计与绘图工具。`OBSERVATIONS=with` 只保留有非空 observation 正文的轨迹，`without` 选择无正文轨迹，`any` 不按 observation 筛选。原始 tool_output 的 HTML 展示保留原文包装，字符统计不是 token 统计。
+manifest 的 distributions 保持原口径：每个 tokenizer 的 total/observations/assistant，以及 calls/messages 的 n/min/max/mean/p50/p90/p95/p99 和超 8k/16k/32k/64k 计数。分布覆盖规范化成功的筛选前总体；无效样本独立计数。normalized 和 measurements 可继续使用既有 refilter、报告与绘图工具；原始 Research 结构审计使用 18 的 --source research。45_report 显式选 tokenizer，并区分筛选前与实际各 split；44_plot 的 POPULATION 可选 all/retained/rejected，详见 71.6。`OBSERVATIONS=with` 只保留有非空 observation 正文的轨迹，`without` 选择无正文轨迹，`any` 不按 observation 筛选。原始 tool_output 的 HTML 展示保留原文包装，字符统计不是 token 统计。
 
 ## 09.4 脚本变量和修改位置
 
 | 变量 | 默认值 | 适用阶段与修改提示 |
 |---|---|---|
 | ACTION | html | html/prepare/plan/train；分别执行，不自动串联 |
-| METHOD | plain | plan/train 时可选 plain/beacon |
+| METHOD | plain | 兼容 workflow 的 plan/train 可选 plain/beacon/baseline；日常直接使用方法目录下独立 11 |
 | INPUT | outputs/data/openseeker_one.jsonl | html/prepare 的本地输入，真实数据请显式覆盖 |
 | DATASET_DIR | outputs/data/research/prepared_16k | prepare 输出；plan/train 输入 |
+| SNAPSHOT_DIR | 空 | prepare 非空时优先读取 download_manifest.json 中全部 jsonl_inputs；覆盖 INPUT |
 | MODEL_PATH | Qwen/Qwen3.5-4B | prepare 的 tokenizer 与训练模型；默认只查本地缓存，推荐服务器绝对路径 |
 | MAX_LENGTH | 16384 | prepare 和训练的完整 token 上限，正整数 |
 | WORKERS | 4 | prepare CPU 进程数；多进程会各自加载 tokenizer |
@@ -87,43 +92,38 @@ manifest 的 distributions 保持原口径：每个 tokenizer 的 total/observat
 | DISTRIBUTED_BACKEND | zero2 | 多卡复用原入口；详见既有 Plain/Beacon 文档 |
 | DATASET_NAME | workflow 固定 research | 经共享 05 写入实验配置，区分数据来源和 data_mode |
 
-直接运行 `data/09_prepare_research.sh` 只做 prepare；workflow 不增加另一份训练超参数。Plain 调整 `plain/20_plain_train.sh` 内联 YAML，Beacon 调整 `beacon/30_beacon_train.sh` 内联 YAML；训练变量、LoRA、梯度累积、显存、损失和分布式说明见 [20](../plain/20_plain.md)、[30](../beacon/30_beacon.md)、[53](../tools/53_self_contained_training.md)。common/05 仅应用明确设置的 DATASET_DIR、MODEL_PATH、MAX_LENGTH、DATASET_NAME；原入口默认行为继续沿用。
+直接运行 `data/09_prepare_research.sh` 只做 prepare；workflow 不增加另一份训练超参数。Plain 调整 `plain/11_train_research.sh` 内联 YAML，Beacon 调整 `beacon/11_train_research.sh` 内联 YAML；训练变量、LoRA、梯度累积、显存、损失和分布式说明见 [20](../plain/20_plain.md)、[30](../beacon/30_beacon.md)、[53](../tools/53_self_contained_training.md)。common/05 仅应用明确设置的 DATASET_DIR、MODEL_PATH、MAX_LENGTH、DATASET_NAME；原入口默认行为继续沿用。
 
 HTML 可查看原始角色或 prepared 后的 assistant/user。原始 JSON 数据仍保留，新增 reasoning/tool_call/tool_output/answer 角色筛选和正文着色。分批查看另一段用 OFFSET=100 LIMIT=20；prepared 文件直接使用 `report/40_dataset_html.sh`，详见 [41](../report/41_html.md)。
 
-## 09.5 三种方法、三类基准与 LLM-Judge
+## 09.5 三种方法、三个 Benchmark 与独立评分
 
-九种组合分别使用 plain、beacon、baseline 目录下对应 benchmark 的独立脚本，路径和全部裁判参数见 [59](../benchmark/59_llm_judge_matrix.md)。每个脚本直接确定方法和基准，不经过统一分发接口。RESEARCH 训练的 Plain/Beacon 使用其 RUN_DIR；原始模型以 BASE_CHECKPOINT 指定，需要匹配训练提示时再显式设置 PROMPT_DATA。
+Research 训练入口分别为 `plain/11_train_research.sh`、`beacon/11_train_research.sh`、`baseline/11_train_research.sh`。Baseline 使用标准全参数 SFT，Plain 默认 LoRA，Beacon 使用压缩训练。旧 baseline/72/74/75 是未训练原始基座，不用于测试新的 baseline SFT。
+
+每个方法目录的 `40_test_browsecomp.sh`、`42_test_browsecomp_plus.sh`、`44_test_hotpotqa.sh` 只生成；对应 `41_score_browsecomp.sh`、`43_score_browsecomp_plus.sh`、`45_score_hotpotqa.sh` 只评分。脚本、全部变量、离线资产准备和修改提示见 [68](../project/68_training_benchmark_guide.md)，训练字段逐项见 [69](../project/69_training_parameters.md)。
 
 ```bash
-# 先仅检查参数；删除 DRY_RUN=1 后才真实运行。
-ACTION=all DRY_RUN=1 LIMIT=8 \
-  RUN_DIR=outputs/experiments/YOUR_RESEARCH_RUN JUDGE_MODEL=/data/models/Qwen3-32B \
-  bash scripts/sh/beacon/57_beacon_hotpotqa.sh
+RUN_DIR=/experiments/research_plain LIMIT=8 DRY_RUN=1 \
+  bash scripts/sh/plain/44_test_hotpotqa.sh
 
-# BrowseComp-Plus 同样使用本地 JUDGE_MODEL。
-ACTION=all LIMIT=8 \
-  RUN_DIR=outputs/experiments/YOUR_RESEARCH_RUN JUDGE_MODEL=/data/models/Qwen3-32B \
-  bash scripts/sh/plain/56_plain_browsecomp_plus.sh
-
-# BrowseComp 在线裁判和工具服务配置在私有 ENV_FILE。
-LIMIT=8 \
-  BASE_CHECKPOINT=/data/models/Qwen3.5-4B \
-  PROMPT_DATA=outputs/data/research/prepared_16k/train.jsonl ENV_FILE=/private/benchmark_env.sh \
-  bash scripts/sh/baseline/72_qwen35_browsecomp.sh
+# 数据和索引准备完毕后正式生成；评分在另一个进程进行。
+RUN_DIR=/experiments/research_plain LIMIT=8 OUTPUT_DIR=outputs/results/research_hotpot_run \
+  bash scripts/sh/plain/44_test_hotpotqa.sh
+PREDICTIONS=outputs/results/research_hotpot_run/predictions.jsonl LIMIT=8 \
+  JUDGE_MODEL=/models/judge OUTPUT_DIR=outputs/results/research_hotpot_score \
+  bash scripts/sh/plain/45_score_hotpotqa.sh
 ```
 
-Hotpot 默认 LLM_JUDGE=1，保留官方 EM/F1/SP/Joint，新增语义正确率；本地 JUDGE_MODEL 必填。BrowseComp-Plus 使用固定官方裁判提示及 parser。BrowseComp 使用 SCORER_URLS、SCORER_MODEL_NAME、SCORER_API_KEY 的兼容服务。三者都使用已有稳定裁判控制流：正反例预检、格式/传输错误有限重试、有效负判不重试；未知判定保留错误信息，不能当作完整有效成绩。完整参数、独立重评分、输出字段、失败分母与九入口表见 59。正式比较保持相同题集、预算、工具环境、生成参数和裁判配置。
+三项 Benchmark 全部输出 EM、F1 和 LLM judge；Hotpot 的 EM/F1 为原官方实现，BrowseComp 两项为补充答案指标。Research 测试的 RUN_DIR 必须属于本次 Research 训练；脱离实验指定模型时，必须同时指定规范化的 Research train.jsonl 作为 PROMPT_DATA。测试只读取 system/schema，不读取训练问题或答案；遇到混合提示配置会明确拒绝。在线与离线的必要工具/格式调整见 68.3。
 
 ## 09.6 验证与后续扩展
 
-新增 `tests/test_research_sft.py` 覆盖输入不变、角色合并、调用解析、observation loss mask/region、原始 HTML 角色、缺观察/缺答案拒绝、reference 追踪。Linux 环境运行：
+`tests/test_research_sft.py` 覆盖输入不变、角色合并、调用解析、observation 的监督 mask/region、HTML 角色、非法轨迹拒绝和 reference 追踪。本次已有 Python 3.12 环境执行这 7 项检查通过，没有真实分词、预处理、GPU 前向或训练。
 
 ```bash
-python -m unittest discover -s tests -p test_research_sft.py
-python -m unittest discover -s tests -p test_browsecomp_sft_and_hotpot_judge.py
-python -m unittest discover -s tests -p test_stable_judging.py
-python -m unittest discover -s tests -p test_render_dataset_html.py
+python -m unittest discover -s tests -p test_research_sft.py -v
+python -m unittest discover -s tests -p test_hotpot_judge.py -v
+python -m unittest discover -s tests -p test_training_benchmark_matrix.py -v
 ```
 
-本次 Windows 的 Python launcher 指向不可启动的安装，因此未执行 Python 测试，不声称通过运行回归；未运行 tokenizer 长度统计、真实预处理或 GPU 任务。应在 Linux 运行上述测试并先用少量数据实际 prepare，再查看 manifest 的 invalid/rejected 与长度分布。未来扩展其他原始角色或工具时，只修改 research 适配器并升级 ADAPTER_VERSION；不得放宽通用 normalize 来容忍非法轨迹。更改计长或 observation 边界时补充 encode/region 回归，并重新预处理。
+未来扩展原始角色或工具时修改 research 适配器并升级 ADAPTER_VERSION，不放宽通用 normalize 的轨迹校验。改变计长或 observation 边界时补充 encode/region 检查，之后在 Linux 用真实 tokenizer 重新预处理。验证边界见 [99](../project/99_validation.md)。

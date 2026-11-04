@@ -304,6 +304,9 @@ def score_browsecomp(root, questions, predictions, output, judge=None, retrieval
     if not retrieval_only:
         metrics.update(accuracy=correct / len(questions), **{"Accuracy (%)": round(100 * correct / len(questions), 2),
                                                            "Recall (%)": round(100 * recalls["evidence_recall"], 2)})
+        from search_comp.evaluation.answer_metrics import answer_metrics
+        metrics.update(answer_metrics(questions, list(predictions.values()), strip_citations=True))
+        metrics['llm_judge_accuracy'] = metrics['accuracy']
     metrics["citation_coverage"] = len(citation_scores) / len(questions)
     for name in ("precision", "recall"):
         metrics["citation_" + name] = (sum(item[name] for item in citation_scores) / len(citation_scores)

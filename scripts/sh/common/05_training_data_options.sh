@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 修改临时实验配置；只覆盖明确设置的变量，不改变原入口默认行为。
-# 被 20_plain_train.sh / 30_beacon_train.sh source，需已定义 PY、CONFIG_FILE。
+# 被各方法的 10/11 独立训练入口 source，需已定义 PY、CONFIG_FILE。
 "$PY" - "$CONFIG_FILE" <<'PY'
 import os
 from pathlib import Path

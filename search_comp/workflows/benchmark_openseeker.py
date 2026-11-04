@@ -40,8 +40,8 @@ def ensure_official(path):
     return revision
 
 
-def require_environment(mode, generate=True):
-    names = ["SCORER_URLS", "SCORER_API_KEY", "SCORER_MODEL_NAME"]
+def require_environment(mode, generate=True, score=True):
+    names = ["SCORER_URLS", "SCORER_API_KEY", "SCORER_MODEL_NAME"] if score else []
     if generate:
         names += ["SUMMARY_API_URL", "SUMMARY_API_KEY", "SUMMARY_MODEL_NAME", "JINA_API_KEYS"]
         provider = os.environ.get("SEARCH_PROVIDER", "serper")
@@ -149,6 +149,8 @@ def align_results(rows, raw_path, destination, suffix=""):
                 raise ValueError("prediction reference differs from benchmark")
             if not isinstance(result.get("final_response"), str):
                 raise ValueError("prediction final_response must be text")
+            if result.get('status', 'completed') != 'completed':
+                result = dict(result, final_response='')
             found[query] = result
             attempts += 1
     missing = empty = 0
@@ -251,6 +253,7 @@ def main():
     parser.add_argument("--benchmark", default="BrowseComp", help="record the actual benchmark name for custom data")
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--predictions", type=Path, help="judge existing query/answer/final_response JSONL")
+    parser.add_argument("--generate-only", action="store_true", help="Generate predictions without loading or contacting a judge")
     parser.add_argument("--run-dir", type=Path)
     parser.add_argument("--prompt-data", type=Path,
                         help="training JSONL supplying original system/tools; overrides RUN_DIR training data")
@@ -310,6 +313,7 @@ def main():
         if args.predictions:
             command = ["import_predictions", str(args.predictions)]
         print(json.dumps(dict(revision=OFFICIAL_REVISION, mode=args.mode, model_origin=args.model_origin, data=str(args.data),
+                              generate_only=args.generate_only,
                               output=str(output), prompt_data=str(args.prompt_data) if args.prompt_data else None,
                               generation=command,
                               judging=dict(policy="stable-judge-v1", workers=args.judge_workers,
@@ -324,7 +328,9 @@ def main():
     if output.exists() and not args.prepare_only:
         parser.error("output directory exists; use a new --output-dir (no overwriting or stale judge cache)")
     if not args.prepare_only:
-        require_environment(args.mode, generate=args.predictions is None)
+        if args.generate_only and args.predictions:
+            parser.error('--generate-only cannot be combined with --predictions')
+        require_environment(args.mode, generate=args.predictions is None, score=not args.generate_only)
         if args.mode == "native" and not args.predictions:
             resolve_checkpoint(args.run_dir, args.model, args.kind)
     revision = ensure_official(args.official_dir)
@@ -344,7 +350,7 @@ def main():
     manifest = dict(benchmark=args.benchmark, mode=args.mode, official_revision=revision,
                     official_url=OFFICIAL_URL, data_sha256=sha256(args.data),
                     selection="first N in source order" if args.limit > 0 else "full source order",
-                    count=len(rows), judge_model=os.environ["SCORER_MODEL_NAME"],
+                    count=len(rows), judge_model=os.environ.get("SCORER_MODEL_NAME") if not args.generate_only else None,
                     search_provider=os.environ.get("SEARCH_PROVIDER", "serper"),
                     arguments={k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
                     created_at=datetime.now(timezone.utc).isoformat())
@@ -380,6 +386,9 @@ def main():
     suffix = boxed_instruction(args.official_dir) if args.mode == "official-v2" else ""
     coverage = align_results(rows, raw, aligned, suffix)
     (output / "coverage.json").write_text(json.dumps(coverage, indent=2) + "\n")
+    if args.generate_only:
+        print(json.dumps(dict(coverage, predictions=str(raw), action='generate-only'), indent=2))
+        return
     # The official assignment is a string literal followed by .strip().
     prompt = judging.load_judge_prompt(args.official_dir / "eval/prompt.py")
     client = judging.ChatJudge(os.environ["SCORER_URLS"], os.environ["SCORER_MODEL_NAME"],
@@ -393,6 +402,9 @@ def main():
                    official_revision=revision, metric="OpenSeeker JUDGE_PROMPT_BC_en with stable judging", judge_policy=judging.POLICY,
                    generation_status_counts=dict(Counter(row.get("status", "unreported") for row in aligned_rows)),
                    judge_preflight_enabled=not args.skip_judge_preflight)
+    from search_comp.evaluation.answer_metrics import answer_metrics
+    summary.update(answer_metrics(aligned_rows, aligned_rows))
+    summary['llm_judge_accuracy'] = scores['accuracy_all_questions']
     (output / "summary.metrics.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary, indent=2))
     if not scores["complete"]:

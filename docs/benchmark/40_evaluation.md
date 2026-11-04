@@ -1,5 +1,7 @@
 # 40 答案提取与 EM/F1
 
+> 当前操作入口以 [68 两数据集、三种方法与独立测试/评分](../project/68_training_benchmark_guide.md) 为准。训练仅使用 OpenSeeker / Research；新入口每种方法均为 10/11 训练、40/42/44 测试、41/43/45 评分。下文旧编号用于兼容或历史实验。
+
 2026-11-03：HotpotQA 在官方 EM/F1/SP/Joint 之外新增 `llm_judge_accuracy`，不是官方分数。三种方法九种组合、默认开关、参数及失败分母见 [59](59_llm_judge_matrix.md)。
 
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
@@ -39,8 +41,8 @@
 | 测试路线 | 主要指标（JSON 字段） | 辅助指标 | 汇总文件 |
 |---|---|---|---|
 | OpenSeeker 数据集诊断（21 / 31 / 基座 71） | 严格 EM：`exact_match`；token F1：`f1`；可选语义裁判 `accuracy`（见 40.4） | `statuses`、`count`、`seconds` | 预测文件同名 `.metrics.json` |
-| 在线 BrowseComp（47 / 基座 72，含 official-v1、official-v2、native） | 语义裁判准确率：`accuracy_all_questions` | `official_accuracy`、`judged`、`judge_unknown_or_error`、生成覆盖率与状态分布 | `summary.metrics.json` |
-| 离线 BrowseComp-Plus（56 / 基座 74） | 语义裁判准确率：`accuracy` / `Accuracy (%)`；检索召回：`evidence_recall` / `Recall (%)` | `gold_recall`、引用指标、校准误差、`avg_tool_stats` | `summary.metrics.json` |
+| 在线 BrowseComp（47 / 基座 72，含 official-v1、official-v2、native） | 语义裁判准确率：`accuracy_all_questions` / `llm_judge_accuracy`；补充 `em` / `f1` | `official_accuracy`、`judged`、`judge_unknown_or_error`、生成覆盖率与状态分布 | `summary.metrics.json` |
+| 离线 BrowseComp-Plus（56 / 基座 74） | 补充 `em` / `f1`；语义裁判准确率：`llm_judge_accuracy` / `accuracy` / `Accuracy (%)`；检索召回：`evidence_recall` / `Recall (%)` | `gold_recall`、引用指标、校准误差、`avg_tool_stats` | `summary.metrics.json` |
 | 离线 HotpotQA（57 / 基座 75） | 官方答案 `em`、`f1` | 答案 `prec` / `recall`，支持事实 `sp_*`，联合 `joint_*` | `summary.metrics.json` |
 
 除明确带 `(%)` 的字段外，上表质量分数均为 0—1 比例，展示百分比时乘 100。耗时单位为秒，数量和平均工具调用数不属于比例指标。`generation.metrics.json` 仅包含生成状态、数量与耗时等信息，不能代替答案评分结果；只执行 `run` 不会得到离线基准的最终质量指标。
@@ -52,18 +54,22 @@
 - 两者均逐题计算后取平均。`status != completed` 或参考答案为空的题目计 0，保留在实际评测题目总数 `count` 中。
 - `replay` 是动作复现诊断，`corpus` / `http` 是不同工具环境；即使指标同名，也需标明后端。此处严格 EM 不等于 HotpotQA 官方 EM，也不等于语义裁判准确率。
 
-### 在线 BrowseComp：裁判准确率
+### 在线 BrowseComp：EM/F1 与裁判准确率
+
+新增补充 `em`、`f1`：对模型最终回答按英文冠词、标点、大小写和空格归一化后计算完整匹配和 token 重合度；不使用裁判提取的答案。`llm_judge_accuracy` 为完整题数分母的语义准确率。
 
 固定 OpenSeeker 的 `JUDGE_PROMPT_BC_en` 对问题、参考答案和生成回答进行语义判定，合法判决转换为 0/1。
 
 - `accuracy_all_questions = 正确题数 / 全部选定题数`，作为完整分母口径。
 - `official_accuracy = 正确题数 / 获得合法判决的题数`。没有合法判决时为 null；仅在 `complete=true` 时与前者相等。
-- 缺失预测经对齐生成空回答，空回答直接判 0。非空回答进入裁判；当前在线评分器不额外按生成 `status` 拒绝非空回答，状态另行记录。
+- 缺失预测经对齐生成空回答；显式非 completed 状态也在对齐时置空，直接判 0。其余非空回答进入裁判。
 - 裁判未知、解析失败或重试耗尽时保留在完整分母中，增加 `judge_unknown_or_error`，并设置 `complete=false`、非零退出。此时不能将已判决子集的准确率报告为完整成绩。
 
 裁判模型、提示词协议、生成模式和是否通过裁判自检应随结果记录；详细规则见 [54](54_stable_judging.md)。
 
 ### BrowseComp-Plus：答案、检索、引用与校准
+
+新增补充 `em`、`f1`：从生成 final answer 移除方括号引用标记，再按已有归一化计算；`llm_judge_accuracy` 等于原 accuracy。它们不替代官方语义或检索指标。
 
 - `accuracy`：本地语义裁判判对题数除以全部选定题数；`Accuracy (%)` 为其百分比，保留两位小数。预测缺失、失败状态或空回答计 0。裁判出错增加 `judge_errors` 并使 `complete=false`，该结果不能作为完整成绩。
 - `evidence_recall`：对每题取全部 search 返回的 docid 并集 R，以官方 evidence 标注文档集合 E 计算 `|R ∩ E| / |E|`，再按全部题目取平均。`Recall (%)` 是其百分比。它不是单次搜索的 Recall@k。

@@ -1,5 +1,7 @@
 # 42 OpenSeeker 官方 Benchmark 对齐评测
 
+> 当前操作入口以 [68 两数据集、三种方法与独立测试/评分](../project/68_training_benchmark_guide.md) 为准。训练仅使用 OpenSeeker / Research；新入口每种方法均为 10/11 训练、40/42/44 测试、41/43/45 评分。下文旧编号用于兼容或历史实验。
+
 跨 benchmark 的指标总表，以及 `official_accuracy` 与 `accuracy_all_questions` 的分母区别，见 [40.3 指标说明](40_evaluation.md#403-当前各-benchmark-指标总表)。
 
 当前模型评分采用 stable-judge-v1：保留固定官方提示，增加空回答判错、自检、严格解析与有限重试；native 默认开启有限工具格式恢复及 bounded visit。完整参数、历史结果审计和协议区别见 [54](54_stable_judging.md)。

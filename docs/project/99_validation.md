@@ -1,75 +1,42 @@
-# 99 本次验证记录
+# 99 验证记录
 
-## BrowseComp-Plus 实验名称与协议分离（2026-11-04）
+## 2026-11-04 数据集完整实验指南补齐
 
-25/39 显式增加 `dataset_name: browsecomp-plus`。实验目录名使用该数据集标识，分别生成 `qwen35_plain_browsecomp-plus_L...`、`qwen35_beacon_browsecomp-plus_L...`；归档 `experiment.json` 记录生效的 dataset_name。未设置该字段的旧配置，从 prepared manifest 的 `arguments.source=browsecomp` 推断；其他来源保留原命名。`data_mode: openseeker` 继续表示轨迹协议，已有实验目录不自动重命名。
+审查发现旧指南存在三处缺口：OpenSeeker 主流程仍依赖旧统一调度示例；Research 只有本地导出适配、缺少正式下载步骤；整体分布报告未明确区分筛选前总体和实际训练/留出数据。
 
-新增 `tests/test_experiment_dataset_name.py`，5 tests 全部通过：Plain manifest 推断、Beacon 显式命名、OpenSeeker 原命名、自定义名称优先级、非法路径名称拒绝。测试在临时目录运行实际 plan 逻辑，使用 JSON 替代 YAML 序列化并隔离模型包的 torch 预导入；不加载权重或训练。25/39 Bash 语法与 git diff 空白检查通过。此前“内联 YAML 与 HEAD 一致”的检查对应上一阶段；本次有意新增命名字段，训练超参数未改变。
+新增 [70 OpenSeeker 全流程](../data/70_openseeker_experiment_guide.md) 与 [71 Research 全流程](../data/71_research_experiment_guide.md)，两者均覆盖来源/下载、原始 HTML/全量审计、预处理、规范化 HTML、整体分布、三方法训练、三项独立生成/评分、预测 HTML 和归档，附输入输出、变量和阶段完成标准。21/32 调整为方法补充说明；README、索引、09/10/11/41/68 同步导航。
 
-```bash
-python -m unittest discover -s tests -p test_experiment_dataset_name.py -v
-```
+补充 Research 下载入口、实际 commit 与 JSONL 输入清单、原始文件不覆盖的 Parquet 导出、Research 全部 shard 输入、原始角色审计，以及单 tokenizer 的筛选前/实际保留/train/validation/test 分布报告。绘图参数显式区分 all/retained/rejected。
 
-## 14 / 25 / 39 BrowseComp-Plus SFT 数据与训练分离（2026-11-04）
-
-本次将预处理统一留在 `scripts/sh/data/14_prepare_browsecomp.sh`；Plain 25、Beacon 39 仅保留已有数据检查、完整训练参数、配置校验和实验启动命令。缺少 manifest 时直接提示先运行 14。训练内联 YAML 默认值与修改前保持一致；三项环境覆盖默认留空，显式非空值优先。新增编号文档 [25](../plain/25_plain_browsecomp_train.md)、[39](../beacon/39_beacon_browsecomp_train.md)，更新 [14](../data/14_browsecomp_sft.md)、总索引、方法指南和自包含训练说明。
-
-验证环境为 Windows、已有 Python 3.12.8 与 Git Bash。没有安装依赖、重新处理真实训练集、下载权重或启动 GPU 训练。
-
-| 检查 | 结果与边界 |
+| 验证 | 结果与边界 |
 |---|---|
-| 现有 `test_browsecomp_sft_and_hotpot_judge.py` | 20 tests 全部通过；含数据适配、边界、长度、评测工具协议及原有九条评测脚本 dry-run |
-| 本次离线检查 | 24 项通过：3 个脚本 Bash 语法、训练缺失 manifest 报错且不创建数据目录、空覆盖保留 YAML 值、显式覆盖、非正长度拒绝、14 的离线开关/含空格参数/非法参数/缺失输入/已有目录处理、训练非法 ACTION 和额外参数拒绝 |
-| 训练默认参数 | 提取 25/39 内联 YAML，与修改前 HEAD 中对应块逐字比较一致 |
-| Python 与 Beacon 校验 | 内嵌 Python AST 通过；环境无 PyYAML/torch，配置读写使用 JSON 替身，并隔离 models 包的 torch 预导入，实际执行 BeaconConfig 校验；不等同于完整训练环境集成检查 |
-| 文档链接 | 修改及新增 Markdown 的相对文件链接目标全部存在；未联网检查外部链接 |
-| `git diff --check` | 通过，无新增空白错误 |
+| 本次新增 unittest | 6 项通过：模拟 Hub 固定 commit/输入清单、Parquet Unicode 导出且源文件不变、Research 缺 shard 提前拒绝、总体与实际 split 分开、多 tokenizer 拒绝混算、Research 原始角色和转换后工具统计 |
+| 合并相关回归 | 38 项通过，含之前训练/测试矩阵、Research、Hotpot judge 和实验身份检查 |
+| Python/Bash 静态检查 | 172 个 Python 文件 AST、86 个 Bash 脚本语法、内嵌 Python 通过 |
+| 新指南命令检查 | 25 个 Bash 代码块仅语法检查通过；未执行下载/预处理/训练命令 |
+| 文档与改动检查 | 全部本地 Markdown 文件链接有效，git diff --check 通过 |
 
-复查基础命令：
+没有下载真实数据/模型，没有运行真实预处理、GPU 训练、真实推理/裁判或全量分布统计。单元检查使用临时小样例、Mock Hub 和 Mock Parquet 批次；不代表真实网络/仓库权限或 Parquet 数据完整性已经验证。当前已有 Python 无 matplotlib，未实际生成 SVG；只检查绘图代码语法。Linux 需具备文档列出的依赖。固定官方 BCP 的既存 `\%` SyntaxWarning 未修改。
 
 ```bash
-bash -n scripts/sh/data/14_prepare_browsecomp.sh
-bash -n scripts/sh/plain/25_plain_browsecomp_train.sh
-bash -n scripts/sh/beacon/39_beacon_browsecomp_train.sh
-python -m unittest discover -s tests -p test_browsecomp_sft_and_hotpot_judge.py -v
-git diff --check
+python -m unittest discover -s tests -p test_dataset_experiment_pipeline.py -v
 ```
 
-真实 tokenizer 预处理、完整 experiment plan 和 GPU 训练需在已安装训练依赖、已有本地模型的服务器执行，顺序与参数见 14、25、39。下方 2026-11-03 的全量数据结构统计为此前验证记录，本次未重跑该全量审计。
 
-## 14 / 59 BrowseComp SFT 与三种方法 LLM-Judge（2026-11-03）
+## 2026-11-04 当前训练与 Benchmark 矩阵
 
-本次只修改代码、脚本、文档和结构审计产物；没有安装环境、下载模型、启动训练或调用真实裁判。执行环境为 Windows PowerShell，使用应用自带 Python 3.12.14 和已安装 Git Bash。该 Python 无 torch、Transformers、tokenizers、PyYAML、pytest，故未运行完整训练回归套件，也未声称验证 Linux/CUDA 行为。
+32 项无模型回归检查通过；171 个 Python 文件 AST、85 个 Bash 文件语法及内嵌 Python 语法检查通过，文档本地文件链接无缺失，git diff --check 通过。固定官方 BCP 参考文件已有的 `\%` SyntaxWarning 保留，不修改其校验指纹。
 
-新增 [14 数据说明](../data/14_browsecomp_sft.md)、[14 结构审计 JSON](../data/14_browsecomp_structure_audit.json)、[59 评测与裁判手册](../benchmark/59_llm_judge_matrix.md)。原 README、索引、数据/长度、Plain/Beacon 完整指南、基座指南、环境、自包含训练和评测手册同步更新。
+本次在 Windows 使用应用已有 Python 3.12 和 Git Bash，只修改代码、脚本和文档。没有执行真实数据预处理、真实训练、模型下载、模型前向或真实裁判请求。
 
-验证结果：
-
-| 检查 | 结果 | 范围与限制 |
+| 检查 | 结果 | 边界 |
 |---|---|---|
-| 标准库 unittest | 20 tests，全部通过 | 覆盖无参考字段适配、源记录不变、边界转义、schema 计长、仅 observation 正文可压缩、loss 屏蔽、长度边界、Dataset 超长拒绝，以及评测工具 schema 切换 |
-| HotpotQA 评分回归 | 通过 | 用真实固定官方 evaluator 验证 EM/F1 与新增语义分数并存；语义标签由 Mock 提供，不代表模型判题质量 |
-| 裁判控制流 | 通过 | 缺题/失败/空 JSON answer 固定计错、完整分母、自检、有效负判不重试、错误标签保留 null/incomplete |
-| 九种组合脚本 dry-run | 9/9 通过 | 真实 Bash 分发到真实 Python CLI，检查 Hotpot llm_judge、BCP judge_model、在线稳定裁判参数；不加载模型、不访问网络 |
-| CLI 兼容与错误参数 | 通过 | Python Hotpot 默认仍仅官方指标；显式裁判缺模型提前报错；BrowseComp 禁止示范数据划作金标准 val/test |
-| 实际输入全量结构/编码边界审计 | 372/372 成功 | 13,021 个 observation 区域全部 labels=-100；1 条轨迹转义 4 个边界标签；使用 UTF-8 字节 tokenizer，仅验证序列/监督边界 |
-| Python AST | 167 个文件通过 | 包含 search_comp、scripts/py、tests；上游固定 BCP prompt 有既存 `invalid escape sequence` SyntaxWarning，不修改官方固定文件 |
-| Bash 语法 | 全部 scripts/sh 脚本通过 bash -n | 使用 Git Bash；不等同于 Linux GPU 执行 |
-| git diff --check | 通过 | 不含新增空白错误 |
+| 新矩阵 unittest | 13 项通过 | 18 个测试/评分入口真实 Bash→Python CLI dry-run；6 个训练脚本仅语法与配置文本检查；答案指标与提示词来源 |
+| Research unittest | 7 项通过 | 内存样例的角色转换、工具参数、监督/观测边界、HTML；没有真实 tokenizer |
+| Hotpot judge unittest | 6 项通过 | 真实固定官方 EM/F1 evaluator + Mock 语义裁判；含缺失、失败、无效标签、校准 |
+| 实验数据身份 unittest | 6 项通过 | 临时数据的实际 plan 控制流，JSON 替身隔离 PyYAML，不启动训练；验证 baseline 独立身份，拒绝已移除来源及 Research 错误身份 |
 
-输入文件为 66,328,875 字节，SHA256 为 `159c62ee086b59fd01973cb8fbe3cb379a6753ee0ec5d260f3526f08824f22ab`。原文件没有修改。数据源有训练示范但无独立参考答案，源记录和 manifest 均明确 training_only；尚未核实与官方 BrowseComp 评测题的独立性。
-
-为支持无训练环境下的检查，仅对 data/utils 包导出和 loss_segments 的 torch 导入做延迟加载，保持原有公开名称及实际张量计算行为。Windows checkout 将固定官方 reference 转成 CRLF，导致原 SHA256 检查失败；已恢复 7 个文件到与固定 provenance 一致的 LF 字节，Git 内容无实质差异。新增 `.gitattributes` 固定 reference 和 shell 的 LF，未降低官方指纹检查标准。
-
-复查命令（在项目根目录）：
-
-```bash
-python -m unittest discover -s tests -p test_browsecomp_sft_and_hotpot_judge.py -v
-find scripts/sh -name '*.sh' -print0 | xargs -0 -n1 bash -n
-git diff --check
-```
-
-需要在现有 Linux 环境补做的步骤：使用真实训练 tokenizer 执行 14 预处理并查看 16K/32K 筛选后数量；分别运行 25/39 的 ACTION=plan 检查解析配置；有需要时执行小规模模型生成和真实裁判自检。没有执行真实 tokenizer 过滤、训练器启动、GPU 前向、蒸馏数值验证、真实 LLM-Judge 或完整 benchmark。具体参数和命令均见 14、59；本次不安装环境、不启动真实训练。
+复查命令见 [68](68_training_benchmark_guide.md#687-修改提示兼容入口与检查)。本环境没有 PyYAML、pytest、torch，未运行完整训练测试套件，未验证 Linux/CUDA 实际训练和模型数值。旧 BrowseComp SFT 专项测试已移除，保留的 Hotpot 裁判测试迁移至 test_hotpot_judge.py。下文为之前阶段的历史记录，不代表当前版本全量测试结果。
 
 ## 54 preflight 提示读取 ast.Call 修复（2026-11-01）
 

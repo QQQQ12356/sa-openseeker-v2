@@ -1,5 +1,7 @@
 # 41 数据和预测 HTML
 
+按实验顺序使用 HTML，见 [70 OpenSeeker](../data/70_openseeker_experiment_guide.md) 或 [71 Research](../data/71_research_experiment_guide.md)：先查原始记录，再查规范化训练行，最后查模型预测。HTML 抽样不能替代全量分布报告。
+
 `40_dataset_html.sh`：修改 INPUT、OUTPUT、SPLIT、LIMIT、OFFSET，一键将原始/规范化数据转换为单文件离线 HTML。可查看问题、独立参考答案、原始 assistant 回答、工具 observation、正确性、长度字段和完整原始记录。LIMIT=0 导出全部，较长数据可按 OFFSET/LIMIT 分批。
 
 `41_predictions_html.sh`：修改 INPUTS、OUTPUT_DIR、TITLE，将多个预测 JSONL 转为各自的 HTML，展示 EM/F1、状态、生成轨迹与原始字段。训练/评测没有生成预测之前应先填写有效文件。

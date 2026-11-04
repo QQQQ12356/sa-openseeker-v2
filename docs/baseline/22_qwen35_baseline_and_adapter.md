@@ -1,5 +1,7 @@
 # 22 Plain adapter 与 Qwen3.5-4B 原始基座对照评测
 
+> 当前操作入口以 [68 两数据集、三种方法与独立测试/评分](../project/68_training_benchmark_guide.md) 为准。训练仅使用 OpenSeeker / Research；新入口每种方法均为 10/11 训练、40/42/44 测试、41/43/45 评分。下文旧编号用于兼容或历史实验。
+
 Hotpot all/score 默认新增本地语义评分，下文运行示例需先设置 JUDGE_MODEL；仅保留官方指标可 LLM_JUDGE=0。三种方法九种组合和裁判参数见 [59](../benchmark/59_llm_judge_matrix.md)。
 
 本指南用于分析训练前后复读、工具调用和答案质量。OpenSeeker 使用 21 的 replay/corpus/http 流程；在线 BrowseComp、离线 BrowseComp-Plus 和 HotpotQA 使用各自原有 benchmark。所有命令从项目根目录执行；本文不会自动启动训练。

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# 39 BrowseComp-Plus SFT Beacon；先单独运行 data/14_prepare_browsecomp.sh。
-# 参数与修改提示：docs/beacon/39_beacon_browsecomp_train.md
-# 修改下方参数后执行：bash scripts/sh/beacon/39_beacon_browsecomp_train.sh
+# beacon / research 独立训练；参数说明：docs/project/68_training_benchmark_guide.md
 set -euo pipefail
 
 # ===== 运行环境 =====
@@ -12,7 +10,12 @@ export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 # 设置可见卡列表，例如 0,1,2,3；NPROC_PER_NODE 默认随可见卡数自动推断。
 export DISTRIBUTED_BACKEND="${DISTRIBUTED_BACKEND:-zero2}"  # ddp / zero2；plain 另支持 zero3
 # export NPROC_PER_NODE=4
-ACTION="${ACTION:-plan}"                       # train：生成新实验并训练；plan：只生成配置
+ACTION="${ACTION:-train}"                       # train：生成新实验并训练；plan：只生成配置
+
+export DATASET_NAME=research  # 固定数据身份；data_mode 仍为轨迹编码协议 openseeker
+export DATASET_DIR="${DATASET_DIR:-outputs/data/research/prepared_16k}"  # 已预处理目录
+export MODEL_PATH="${MODEL_PATH:-Qwen/Qwen3.5-4B}"  # 必须与预处理 tokenizer 相同
+export MAX_LENGTH="${MAX_LENGTH:-16384}"  # 完整轨迹上限，不截断
 
 source "$(dirname "${BASH_SOURCE[0]}")/../common/00_common.sh"
 PY=$(resolve_python)
@@ -21,18 +24,8 @@ if [[ "$ACTION" != "train" && "$ACTION" != "plan" ]]; then
   exit 2
 fi
 
-# ===== 可选训练覆盖：非空环境变量优先于下方 YAML =====
-# 默认留空，直接编辑 YAML 即可；完整说明见 docs/data/14_browsecomp_sft.md。
-export DATASET_DIR="${DATASET_DIR:-}"  # 已处理目录；需先单独运行 data/14_prepare_browsecomp.sh
-export MODEL_PATH="${MODEL_PATH:-}"    # 训练模型；必须与 manifest tokenizer 身份一致
-export MAX_LENGTH="${MAX_LENGTH:-}"    # 正整数；完整训练轨迹上限，不执行截断或重新筛选
-if (( $# > 0 )); then
-  echo '训练入口不接收位置参数；请修改内联 YAML 或设置文档中的环境变量。' >&2
-  exit 2
-fi
-
 # 临时配置会归档到实验目录的 source_config.yaml；结束后删除临时文件。
-CONFIG_FILE=$(mktemp "${TMPDIR:-/tmp}/browsecomp-train.XXXXXX")
+CONFIG_FILE=$(mktemp "${TMPDIR:-/tmp}/research-train.XXXXXX")
 trap 'rm -f -- "$CONFIG_FILE"' EXIT
 
 # ===== 实验参数：直接修改下面的 YAML =====
@@ -41,10 +34,11 @@ cat > "$CONFIG_FILE" <<'YAML'
 # 可选 qwen3 / qwen35；切换后确认数据按对应 tokenizer 计长。
 model_family: qwen35
 kind: beacon
+method: beacon
+dataset_name: research
 data_mode: openseeker
-dataset_name: browsecomp-plus  # 实验名称的数据集标识；与上方轨迹协议独立
 # prepared 目录；训练/验证/测试与 manifest 自动从这里读取。
-dataset: outputs/data/browsecomp-qwen35-sft/prepared_16k
+dataset: outputs/data/research/prepared_16k
 models:
   qwen3: Qwen/Qwen3-4B-Thinking-2507
   qwen35: Qwen/Qwen3.5-4B
@@ -186,44 +180,24 @@ distributed:
 YAML
 
 # 在创建实验前校验 Beacon 参数；实际布局策略由训练配置统一解析。
-# 应用可选覆盖并检查已处理数据；不修改数据文件。
+source scripts/sh/common/05_training_data_options.sh
 "$PY" - "$CONFIG_FILE" <<'PY'
-import os
 from pathlib import Path
 import sys
 import yaml
-
-path = Path(sys.argv[1])
-spec = yaml.safe_load(path.read_text(encoding='utf-8'))
-if os.environ.get('DATASET_DIR'):
-    spec['dataset'] = os.environ['DATASET_DIR']
-if os.environ.get('MODEL_PATH'):
-    spec['models'][spec['model_family']] = os.environ['MODEL_PATH']
-if os.environ.get('MAX_LENGTH'):
-    length = int(os.environ['MAX_LENGTH'])
-    if length < 1:
-        raise SystemExit('MAX_LENGTH 必须为正整数')
-    spec['training']['max_length'] = length
-dataset = Path(spec['dataset'])
-if not (dataset / 'manifest.json').is_file():
-    raise SystemExit(
-        f'缺少 prepared manifest: {dataset / "manifest.json"}。'
-        '请先单独运行 bash scripts/sh/data/14_prepare_browsecomp.sh，'
-        '再将 DATASET_DIR 指向其输出目录；训练入口不会预处理数据。'
-    )
 from search_comp.models.beacon_config import BeaconConfig, configure_sft_layout
 
+spec = yaml.safe_load(Path(sys.argv[1]).read_text())
 if spec.get('kind') != 'beacon' or spec.get('data_mode') != 'openseeker':
     raise SystemExit('此入口仅支持 kind=beacon、data_mode=openseeker；其他路线使用对应脚本')
 cfg = dict(data_mode=spec['data_mode'], beacon_layout_policy=spec['training'].get('beacon_layout_policy', 'whole'),
            beacon=dict(spec['beacon']))
 configure_sft_layout(cfg)
 BeaconConfig.from_dict(cfg['beacon'])
-path.write_text(yaml.safe_dump(spec, sort_keys=False, allow_unicode=True), encoding='utf-8')
 PY
 
-echo "[browsecomp-plus] Python: $PY"
-echo "[browsecomp-plus] GPU: $CUDA_VISIBLE_DEVICES; action: $ACTION"
+echo "[research] Python: $PY"
+echo "[research] GPU: $CUDA_VISIBLE_DEVICES; action: $ACTION"
 # experiment.py 自动创建新实验，保存最终 train.yaml，并记录训练日志和退出码。
 # 无需手动 plan 或复制 run_dir。
-"$PY" scripts/py/51_experiment.py "$ACTION" --config "$CONFIG_FILE"
+"$PY" scripts/py/51_experiment.py "$ACTION" --config "$CONFIG_FILE" "$@"

@@ -1,6 +1,6 @@
 # 53 自包含训练脚本：参数、DeepSpeed 和实验计划
 
-BrowseComp-Plus SFT 先通过 [14](../data/14_browsecomp_sft.md) 独立预处理，再使用 [25 Plain](../plain/25_plain_browsecomp_train.md) / [39 Beacon](../beacon/39_beacon_browsecomp_train.md) 训练。25/39 各自包含完整配置与启动命令，不自动预处理，不转调 20/30；三项可选环境覆盖默认留空，优先级和变量说明见 14.4。
+> 当前操作入口以 [68 两数据集、三种方法与独立测试/评分](../project/68_training_benchmark_guide.md) 为准。训练仅使用 OpenSeeker / Research；新入口每种方法均为 10/11 训练、40/42/44 测试、41/43/45 评分。下文旧编号用于兼容或历史实验。
 
 Plain 和 Beacon 的训练参数、LoRA、损失、Beacon 配置及 DeepSpeed 选项都写在相应 shell 脚本中。日常修改时编辑脚本，不需要打开或修改 `configs/train/*.yaml`、`ds_zero*.json`。模型权重、tokenizer 与数据仍需事先准备；脚本不能让训练器支持尚未实现的功能。
 
@@ -8,18 +8,14 @@ Plain 和 Beacon 的训练参数、LoRA、损失、Beacon 配置及 DeepSpeed �
 
 | 目的 | 编辑哪个脚本 | 运行入口 | 说明 |
 |---|---|---|---|
-| Plain OpenSeeker 正式训练 | `scripts/sh/plain/20_plain_train.sh` | 20；四卡 28 委托 20 | 脚本内 `training`、`distributed` |
-| Plain BrowseComp-Plus SFT | `scripts/sh/plain/25_plain_browsecomp_train.sh` | 25 | 先独立运行 14；训练参数在 25 内 |
+| Plain OpenSeeker 正式训练 | `scripts/sh/plain/10_train_openseeker.sh` | 20；四卡 28 委托 20 | 脚本内 `training`、`distributed` |
 | Plain 显存试验 | `scripts/sh/plain/26_plain_memory_probe.sh` | 26 | 配置独立，不继承 20 |
-| Beacon OpenSeeker 正式训练 | `scripts/sh/beacon/30_beacon_train.sh` | 30；四卡 38 委托 30 | 脚本内 `training`、`beacon`、`distributed` |
-| Beacon BrowseComp-Plus SFT | `scripts/sh/beacon/39_beacon_browsecomp_train.sh` | 39 | 先独立运行 14；训练、压缩与分布式参数在 39 内 |
+| Beacon OpenSeeker 正式训练 | `scripts/sh/beacon/10_train_openseeker.sh` | 30；四卡 38 委托 30 | 脚本内 `training`、`beacon`、`distributed` |
 | Beacon 显存试验 | `scripts/sh/beacon/37_beacon_memory_probe.sh` | 37 | 配置独立，不继承 30 |
-| Plain Search-R1 | `scripts/sh/plain/22_plain_searchr1_train.sh` | 22 | 脚本内平铺训练配置、`distributed` |
-| Beacon Search-R1 | `scripts/sh/beacon/34_beacon_searchr1_train_impl.sh` | 32 或 34 | 32 委托 34；脚本内平铺配置、`beacon`、`distributed` |
 
-20/26/30/37 的 YAML 位于 `cat > "$CONFIG_FILE" <<'YAML'` 和 `YAML` 之间；22/34 位于相同 heredoc 形式的临时配置中。直接修改脚本中的 YAML，保留缩进。Python/conda、GPU 和 `ACTION` 在脚本顶部或环境变量中设置。20/30 与同模型的 28/38 使用同一份参数；26/37 各有自己的配置，需分别修改。
+各方法 10/11 及旧显存试验 26/37 的 YAML 位于 `cat > "$CONFIG_FILE" <<'YAML'` 和 `YAML` 之间。22/32/34 已停用。直接修改脚本中的 YAML，保留缩进。Python/conda、GPU 和 `ACTION` 在脚本顶部或环境变量中设置。20/30 与同模型的 28/38 使用同一份参数；26/37 各有自己的配置，需分别修改。
 
-22/34 仍兼容以首个位置参数传旧外部 YAML，用于旧实验；**不传位置参数**才使用脚本内自包含配置。旧的独立 Python/config 入口也保留兼容性；本文“不依赖外部 config”适用于上表的默认 shell 入口。
+22/32/34 Search-R1 训练入口已停用，运行时直接显示迁移提示；当前使用各方法的 10/11。旧的独立 Python/config 入口也保留兼容性；本文“不依赖外部 config”适用于上表的默认 shell 入口。
 
 ## 53.2 OpenSeeker：先 plan 再训练
 
@@ -27,8 +23,8 @@ Plain 和 Beacon 的训练参数、LoRA、损失、Beacon 配置及 DeepSpeed �
 export CONDA_ENV=search-comp-qwen35-cu126
 export PYTHON="$(command -v python)"
 # 编辑 20 或 30 的 dataset、model_family、models、training；Beacon 再检查 beacon。
-CUDA_VISIBLE_DEVICES=0 ACTION=plan bash scripts/sh/plain/20_plain_train.sh
-CUDA_VISIBLE_DEVICES=0 ACTION=plan bash scripts/sh/beacon/30_beacon_train.sh
+CUDA_VISIBLE_DEVICES=0 ACTION=plan bash scripts/sh/plain/10_train_openseeker.sh
+CUDA_VISIBLE_DEVICES=0 ACTION=plan bash scripts/sh/beacon/10_train_openseeker.sh
 
 # 四卡 plan 示例；NPROC 必须与可见 GPU 数匹配。
 CUDA_VISIBLE_DEVICES=0,1,2,3 NPROC_PER_NODE=4 DISTRIBUTED_BACKEND=zero2 ACTION=plan \

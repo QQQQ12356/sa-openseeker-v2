@@ -68,32 +68,17 @@ def test_beacon_layout_policy_keeps_compatibility_and_explicit_layout():
 
 
 @pytest.mark.parametrize('script', ['scripts/sh/plain/22_plain_searchr1_train.sh',
-                                     'scripts/sh/beacon/32_beacon_searchr1_train.sh'])
-def test_searchr1_default_plan_uses_only_inline_config(tmp_path, script):
-    import os
-    env = {**os.environ, 'PYTHON': sys.executable, 'ACTION': 'plan',
-           'CUDA_VISIBLE_DEVICES': '0,1', 'NPROC_PER_NODE': '2',
-           'DISTRIBUTED_BACKEND': 'zero2', 'TMPDIR': str(tmp_path)}
-    result = subprocess.run(['bash', script], cwd=ROOT, env=env, text=True, capture_output=True)
-    assert result.returncode == 0, result.stderr
-    assert 'deepspeed={' in result.stdout and 'configs/train/ds_zero2.json' not in result.stdout
-    assert not list(tmp_path.glob('searchr1-train.*'))
-
-
-def test_searchr1_data_override_supports_paths_with_spaces(tmp_path):
-    import os
-    path = tmp_path / 'my training.jsonl'
-    env = {**os.environ, 'PYTHON': sys.executable, 'ACTION': 'plan', 'SEARCHR1_DATA': str(path),
-           'CUDA_VISIBLE_DEVICES': '0', 'NPROC_PER_NODE': '1', 'TMPDIR': str(tmp_path)}
-    result = subprocess.run(['bash', 'scripts/sh/plain/22_plain_searchr1_train.sh'],
-                            cwd=ROOT, env=env, text=True, capture_output=True)
-    assert result.returncode == 0, result.stderr
-    assert str(path) in result.stdout
+                                     'scripts/sh/beacon/32_beacon_searchr1_train.sh',
+                                     'scripts/sh/beacon/34_beacon_searchr1_train_impl.sh'])
+def test_searchr1_training_entry_is_retired(script):
+    result = subprocess.run(['bash', script], cwd=ROOT, text=True, capture_output=True)
+    assert result.returncode == 2
+    assert '11_train_research.sh' in result.stderr
 
 
 @pytest.mark.parametrize('kind,script', [
-    ('plain', 'scripts/sh/plain/20_plain_train.sh'),
-    ('beacon', 'scripts/sh/beacon/30_beacon_train.sh'),
+    ('plain', 'scripts/sh/plain/10_train_openseeker.sh'),
+    ('beacon', 'scripts/sh/beacon/10_train_openseeker.sh'),
 ])
 def test_inline_experiment_plan_without_any_external_config(tmp_path, monkeypatch, capsys, kind, script):
     from search_comp.workflows import experiment
@@ -133,8 +118,8 @@ def test_inline_experiment_plan_without_any_external_config(tmp_path, monkeypatc
 
 
 @pytest.mark.parametrize('script', [
-    'scripts/sh/beacon/30_beacon_train.sh', 'scripts/sh/beacon/37_beacon_memory_probe.sh',
-    'scripts/sh/beacon/34_beacon_searchr1_train_impl.sh',
+    'scripts/sh/beacon/10_train_openseeker.sh', 'scripts/sh/beacon/37_beacon_memory_probe.sh',
+    'scripts/sh/beacon/11_train_research.sh',
 ])
 def test_beacon_shell_exposes_all_beacon_config_fields(script):
     from dataclasses import fields

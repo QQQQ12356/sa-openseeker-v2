@@ -1,8 +1,20 @@
 # 00 文档与入口索引
 
-RESEARCH OpenSeeker 本地 JSONL 的完整入口见 [09 数据、长度审计、HTML、Plain/Beacon 训练与三基准裁判](data/09_research_sft.md)。Linux 分阶段一键脚本为 `scripts/sh/tools/09_research_workflow.sh`，默认只展示 20 条原始数据。
+## 00.1 按数据集开始完整实验
 
-新增：[14 BrowseComp SFT 数据、长度、observation 与训练](data/14_browsecomp_sft.md)；[59 三种方法 × 三类基准与 LLM-Judge](benchmark/59_llm_judge_matrix.md)。BrowseComp-Plus SFT 按 [14 数据预处理](data/14_browsecomp_sft.md) → [25 Plain 训练](plain/25_plain_browsecomp_train.md) 或 [39 Beacon 训练](beacon/39_beacon_browsecomp_train.md) 分阶段运行；各文档包含对应脚本变量、参数、示例和修改提示。
+| 训练数据 | 完整指南 | 覆盖阶段 |
+|---|---|---|
+| OpenSeeker | [70 OpenSeeker 完整实验](data/70_openseeker_experiment_guide.md) | 下载/版本固定 → 原始 HTML/审计 → 预处理 → 规范化 HTML → 全量分布 → 三方法训练 → 三项测试/评分 → 归档 |
+| Research | [71 Research 完整实验](data/71_research_experiment_guide.md) | 同样完整流程；增加 Research 下载、全部 shard 输入、角色转换与示范标签边界 |
+
+两份指南各自给出顺序、命令、输入输出、参数和完成条件。**先按数据集走一份指南**，不需要在旧 Plain/Beacon 操作手册间拼接主流程。
+
+## 00.2 按问题查参数与原理
+
+- [68 独立训练/测试/评分脚本变量](project/68_training_benchmark_guide.md)：当前每方法 10/11 训练、40/42/44 测试、41/43/45 评分。
+- [69 训练 YAML 参数逐项说明](project/69_training_parameters.md)：默认值、作用和修改约束。
+- [09 Research 适配说明](data/09_research_sft.md)、[10 OpenSeeker 数据](data/10_data.md)、[11 统计口径](data/11_lengths.md)。
+- [21 Plain 方法说明](plain/21_plain_experiment_guide.md)、[32 Beacon 方法说明](beacon/32_beacon_experiment_guide.md)：训练特性、合并恢复及方法限制。
 
 OpenSeeker 三种模型路线的可选本地语义裁判与独立重评见 [40.4](benchmark/40_evaluation.md#404-openseeker-可选大模型语义评分)。
 
@@ -12,7 +24,7 @@ OpenSeeker 三种模型路线的可选本地语义裁判与独立重评见 [40.4
 
 本地 SUMMARY / SCORER 部署入口与全部参数见 [49 本地辅助模型](benchmark/49_local_aux_models.md)：默认 Qwen3-32B 共用 SGLang，可分别部署或替换为 Qwen3.5。
 
-首次开展 Plain 实验，按 [21 Plain 完整实验指南](plain/21_plain_experiment_guide.md) 执行；Beacon 实验参照 [32 Beacon 完整实验指南](beacon/32_beacon_experiment_guide.md)。下面各文档用于对应阶段的参数与实现细节。
+首次实验优先按上方 70 或 71 执行；下面的旧编号文档用于参数、原理、兼容入口和历史实验说明。
 
 文档保留原有编号，按功能模块存放；本文件是总入口。相关 JSON 资料与对应文档放在同一目录。
 
@@ -34,17 +46,14 @@ OpenSeeker 三种模型路线的可选本地语义裁判与独立重评见 [40.4
 | [01 环境](common/01_environment.md) | Python、依赖、离线缓存、验证边界 |
 | [10 数据](data/10_data.md) | Polar 来源、规范化、长度/质量/观测筛选、产物 |
 | [11 长度口径](data/11_lengths.md) | 提供的分布文件与训练序列实测长度的区别 |
-| [14 BrowseComp SFT](data/14_browsecomp_sft.md) | 独立预处理、长度过滤、observation、数据与训练变量优先级、分阶段运行 |
 | [20 Plain](plain/20_plain.md) | 一键训练、测试与配置快照 |
 | [21 Plain 完整实验指南](plain/21_plain_experiment_guide.md) | OpenSeeker 训练与诊断、BrowseComp 在线及 BrowseComp-Plus / Hotpot 离线数据、生成、评分与归档 |
 | [22 原始基座与 adapter 对照](baseline/22_qwen35_baseline_and_adapter.md) | 21 直接测试 Plain adapter；原始 Qwen3.5-4B 四条基准路线、参数和复读诊断 |
 | [23 Plain / Beacon 解码与重复惩罚](common/23_decoding.md) | 贪心、采样、压缩后可见历史、重复惩罚、随机种子和各 benchmark 参数 |
 | [24 原始 Qwen3.5 独立基线](baseline/24_qwen35_base_benchmark.md) | 独立模型加载、各基准脚本、数据与评分、完整参数和对照 |
-| [25 BrowseComp-Plus Plain 训练](plain/25_plain_browsecomp_train.md) | 25 完整训练参数、LoRA、显存、分布式和归档说明 |
 | [30 Beacon](beacon/30_beacon.md) | 压缩范围、损失、蒸馏与训练入口 |
 | [31 随机压缩](beacon/31_random_compression.md) | fixed/random 模式、候选数组、采样粒度与多卡行为 |
 | [32 Beacon 完整实验指南](beacon/32_beacon_experiment_guide.md) | 按实验顺序：环境、数据、筛选、计划、训练、合并、在线/离线评测与归档 |
-| [39 BrowseComp-Plus Beacon 训练](beacon/39_beacon_browsecomp_train.md) | 39 完整训练、布局、损失、蒸馏、显存与分布式参数 |
 | [40 评测](benchmark/40_evaluation.md) | OpenSeeker 参考实现、答案提取、EM/F1 与工具后端 |
 | [41 HTML](report/41_html.md) | 数据与预测的离线浏览 |
 | [42 官方 Benchmark](benchmark/42_openseeker_benchmark.md) | BrowseComp、固定官方 v1/v2、Beacon native、LLM 裁判、覆盖审计、一键运行 |
@@ -80,8 +89,8 @@ Shell 脚本按功能分目录，保留历史编号；各方案相同 benchmark 
 | `scripts/sh/common/` | 共享环境及日志函数 | `00_common.sh`（被其他脚本 source） |
 | `scripts/sh/tools/` | 总入口、测试和环境探针 | `01_test.sh`、`02_workflow.sh`、`03_check_environment.sh`、`59_check_agent_alignment.sh`、`60_searchagent_probe.sh` |
 | `scripts/sh/data/` | 数据准备、筛选、证据库和审计 | `10_prepare.sh`、`11_select.sh`、`12_select_memory_probe.sh`、`13_filter_observations.sh`、`15_build_corpus.sh` |
-| `scripts/sh/plain/` | Plain 训练、评测、显存和模型合并 | `20_plain_train.sh`、`21_plain_eval.sh`、`26_plain_memory_probe.sh`、`27_plain_workflow.sh`、`28_plain_4xa800.sh`、`29_plain_merge_adapter.sh`；47 在线 BrowseComp、48 模型服务、56 BCP、57 HotpotQA |
-| `scripts/sh/beacon/` | Beacon 训练、评测、合并和显存 | `30_beacon_train.sh`、`31_beacon_eval.sh`、`35_beacon_merge_adapter.sh`、`37_beacon_memory_probe.sh`、`38_beacon_4xa800.sh`；47 在线 BrowseComp、56 BCP、57 HotpotQA |
+| `scripts/sh/plain/` | Plain 训练、评测、显存和模型合并 | `10_train_openseeker.sh`、`21_plain_eval.sh`、`26_plain_memory_probe.sh`、`27_plain_workflow.sh`、`28_plain_4xa800.sh`、`29_plain_merge_adapter.sh`；47 在线 BrowseComp、48 模型服务、56 BCP、57 HotpotQA |
+| `scripts/sh/beacon/` | Beacon 训练、评测、合并和显存 | `10_train_openseeker.sh`、`31_beacon_eval.sh`、`35_beacon_merge_adapter.sh`、`37_beacon_memory_probe.sh`、`38_beacon_4xa800.sh`；47 在线 BrowseComp、56 BCP、57 HotpotQA |
 | `scripts/sh/report/` | HTML、指标汇总和图表 | `40_dataset_html.sh`、`41_predictions_html.sh`、`42_summarize_results.sh`、`43_export_excel.sh`、`44_plot.sh`、`45_report.sh` |
 | `scripts/sh/benchmark/` | 公共数据准备、API 配置与参数映射 | `46_prepare_benchmark.sh`、`49_benchmark_env.example.sh`、`58_offline_common.sh` |
 | `scripts/sh/baseline/` | 原始模型独立评测 | `70_qwen35_base_eval.sh` 总入口；71 OpenSeeker、72 在线 BrowseComp、74 BrowseComp-Plus、75 HotpotQA；73 保留共享配置及兼容入口 |

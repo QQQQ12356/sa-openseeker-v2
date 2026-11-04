@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 保留原入口名称；训练数据统一为 Search-R1 messages，参数透传给脚本 24。
+# 已停用的历史训练入口；当前仅支持 OpenSeeker / Research。
 set -euo pipefail
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-exec bash "$SCRIPT_DIR/34_beacon_searchr1_train_impl.sh" "$@"
+echo 'Search-R1 训练入口已停用。请使用本方法目录下 10_train_openseeker.sh 或 11_train_research.sh；参数见 docs/project/68_training_benchmark_guide.md。' >&2
+exit 2

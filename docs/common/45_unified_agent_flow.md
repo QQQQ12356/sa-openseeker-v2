@@ -1,5 +1,7 @@
 # 45 保留原始 system 的 Plain / Beacon 统一训练与测试
 
+> 当前操作入口以 [68 两数据集、三种方法与独立测试/评分](../project/68_training_benchmark_guide.md) 为准。训练仅使用 OpenSeeker / Research；新入口每种方法均为 10/11 训练、40/42/44 测试、41/43/45 评分。下文旧编号用于兼容或历史实验。
+
 需要按顺序完成 Beacon 实验时，从 [32 完整实验指南](../beacon/32_beacon_experiment_guide.md) 开始；本文解释提示词与协议实现。
 
 ## 45.1 当前规则与适用范围

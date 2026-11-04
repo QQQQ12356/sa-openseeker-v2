@@ -34,7 +34,7 @@ class ExperimentDatasetNameTests(unittest.TestCase):
         for name, content in [('train.jsonl', '{}\n'), ('validation.jsonl', ''), ('test.jsonl', '')]:
             (self.data / name).write_text(content, encoding='utf-8')
 
-    def plan(self, source, dataset_name=None, kind='plain'):
+    def plan(self, source, dataset_name=None, kind='plain', method=None):
         manifest = dict(protocol=self.experiment.VERSION,
                         arguments=dict(source=source, max_length=16384),
                         tokenizers={'local-model': {}})
@@ -44,6 +44,8 @@ class ExperimentDatasetNameTests(unittest.TestCase):
                     training=dict(max_length=16384, learning_rate=5e-5, seed=42))
         if dataset_name is not None:
             spec['dataset_name'] = dataset_name
+        if method is not None:
+            spec['method'] = method
         config = self.root / 'source.json'
         config.write_text(json.dumps(spec), encoding='utf-8')
         # Import actual Beacon config validation without models/__init__ loading torch.
@@ -58,32 +60,35 @@ class ExperimentDatasetNameTests(unittest.TestCase):
         self.assertEqual(len(runs), 1)
         return runs[0], json.loads((runs[0] / 'experiment.json').read_text())
 
-    def test_browsecomp_manifest_sets_dataset_name_without_changing_protocol(self):
-        run, archived = self.plan('browsecomp')
-        self.assertTrue(run.name.startswith('qwen35_plain_browsecomp-plus_L16384_'))
-        self.assertEqual(archived['name'], run.name)
-        self.assertEqual(archived['dataset_name'], 'browsecomp-plus')
+    def test_research_manifest_sets_dataset_name(self):
+        run, archived = self.plan('research')
+        self.assertTrue(run.name.startswith('qwen35_plain_research_L16384_'))
+        self.assertEqual(archived['dataset_name'], 'research')
         self.assertEqual(archived['training_config']['data_mode'], 'openseeker')
-        self.assertTrue((run / 'train.yaml').is_file())
 
-    def test_beacon_uses_browsecomp_dataset_name(self):
-        run, archived = self.plan('browsecomp', 'browsecomp-plus', kind='beacon')
-        self.assertTrue(run.name.startswith('qwen35_beacon_browsecomp-plus_L16384_'))
-        self.assertEqual(archived['training_config']['data_mode'], 'openseeker')
+    def test_removed_training_source_rejected(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            self.plan('browsecomp')
+        self.assertFalse((self.root / 'outputs').exists())
+
+    def test_research_wrong_identity_rejected(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            self.plan('research', 'openseeker')
+
+    def test_baseline_identity_uses_plain_trainer(self):
+        run, archived = self.plan('research', kind='plain', method='baseline')
+        self.assertTrue(run.name.startswith('qwen35_baseline_research_L16384_'))
+        self.assertEqual(archived['kind'], 'plain')
+        self.assertEqual(archived['method'], 'baseline')
 
     def test_openseeker_source_keeps_original_naming(self):
         run, archived = self.plan('polar')
         self.assertTrue(run.name.startswith('qwen35_plain_openseeker_L16384_'))
         self.assertEqual(archived['dataset_name'], 'openseeker')
 
-    def test_explicit_dataset_name_overrides_inferred_source(self):
-        run, archived = self.plan('browsecomp', 'browsecomp-custom')
-        self.assertTrue(run.name.startswith('qwen35_plain_browsecomp-custom_L16384_'))
-        self.assertEqual(archived['dataset_name'], 'browsecomp-custom')
-
     def test_invalid_dataset_name_does_not_create_run(self):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-            self.plan('browsecomp', '../outside')
+            self.plan('polar', '../outside')
         self.assertFalse((self.root / 'outputs').exists())
 
 
