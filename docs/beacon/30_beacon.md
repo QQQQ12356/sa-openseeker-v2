@@ -1,5 +1,7 @@
 # 30 Beacon 训练与评测
 
+新增 BrowseComp SFT 一键入口 `39_beacon_browsecomp_train.sh`，默认只做计划；与 Plain 共用完整轨迹长度过滤、仅压缩 observation 正文，见 [14](../data/14_browsecomp_sft.md)。三类基准裁判见 [59](../benchmark/59_llm_judge_matrix.md)。
+
 从数据准备到训练、合并、评测的顺序操作见 [32 完整实验指南](32_beacon_experiment_guide.md)；本文侧重参数和算法入口。
 
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。

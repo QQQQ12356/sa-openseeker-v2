@@ -1,12 +1,14 @@
 # sa-openseeker-v2
 
+新增 BrowseComp Qwen3.5 SFT 数据适配、一键预处理与 Plain/Beacon 计划/训练入口见 [14](docs/data/14_browsecomp_sft.md)。三种方法在 HotpotQA、BrowseComp、BrowseComp-Plus 的统一入口及 LLM-Judge 参数见 [59](docs/benchmark/59_llm_judge_matrix.md)：Hotpot 保留官方 EM/F1，新增语义评分，shell 的 all/score 默认需 JUDGE_MODEL。
+
 模型评分现使用 stable-judge-v1：空回答固定计错、裁判正反例自检、有限重试与完整分母；历史评分离线审计、重评命令和所有参数见 [54 评分稳定性](docs/benchmark/54_stable_judging.md)。
 
 在线 Benchmark 的摘要与裁判可用 Qwen3-32B 共用本地 SGLang 服务：`DRY_RUN=1 bash scripts/sh/benchmark/49_serve_aux_models.sh` 审查命令，正式部署去掉 DRY_RUN。Qwen3.5 替换、独立双服务、全部变量及联调见 [49 本地辅助模型](docs/benchmark/49_local_aux_models.md)。
 
 以 `../sa-qwen-openseeker` 为骨架，保留 Qwen3 / Qwen3.5、Plain / Beacon、Search-R1、多工具轨迹处理、LoRA、蒸馏算法和原有测试。OpenSeeker 训练保留原始回答，不追加参考答案；原有评测使用模型最后一轮回答计算 EM/F1；新增固定官方版本的 BrowseComp 在线生成与 LLM 裁判评测，见 [42 Benchmark](docs/benchmark/42_openseeker_benchmark.md)。
 
-只迁移 Polar 原始快照；本目录中的规范化数据由新代码重新生成，没有复制其他数据集、模型权重、旧训练结果或实验日志。本次没有启动真实模型训练。
+原有 Polar 规范化流程继续保留；新增读取本目录已有 BrowseComp Qwen3.5 SFT 文件的独立适配入口，源文件不覆盖。本次没有复制模型权重或启动真实模型训练。
 
 Plain 完整实验优先阅读 [21 从数据到评测](docs/plain/21_plain_experiment_guide.md)，Beacon 参照 [32 从数据到评测](docs/beacon/32_beacon_experiment_guide.md)，再按阶段查阅 [文档索引](docs/00_index.md) 和 [45 统一训练与测试](docs/common/45_unified_agent_flow.md)。训练保留每条轨迹的原始 system；Plain/Beacon 的 native 在线测试复用对应训练提示，离线仅调整必要的工具能力和格式要求。当前使用原始 v3 数据协议，已有原始 v3 数据可直接复用。常用入口如下，参数直接修改各 shell 脚本顶部，然后运行，无需传命令行参数：
 

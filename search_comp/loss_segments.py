@@ -32,9 +32,10 @@ from __future__ import annotations
 import re
 import math
 from dataclasses import dataclass, field, fields
-from typing import Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
-import torch
+if TYPE_CHECKING:
+    import torch
 
 #: 片段类别名（下标即 token 的类别 id）。
 SEGMENT_NAMES: tuple = (
@@ -152,6 +153,8 @@ class LossSegmentConfig:
 
     def weight_table(self) -> torch.Tensor:
         """返回 ``(num_segments,)`` 的 float32 权重表，下标为类别 id。"""
+        import torch
+
         return torch.tensor(
             [getattr(self, name).effective_weight for name in SEGMENT_NAMES],
             dtype=torch.float32,

@@ -1,5 +1,7 @@
 # 10 Polar 数据处理与细粒度筛选
 
+新增 BrowseComp Qwen3.5 SFT 来源使用专用 14 入口，完整数据结构、reference-free 处理、长度/observation 和训练参数见 [14](14_browsecomp_sft.md)。原 Polar 默认流程不变。
+
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
 
 原始数据位于 `outputs/data/raw/polar/`，包括原始快照目录和 `openseeker_v1_data.jsonl`。只从 `../sa-qwen-openseeker/outputs/data/raw/polar/` 复制这一份数据；不依赖源项目的派生数据。重新下载入口保留为 16，默认只下载 Polar，当前迁移无需运行下载。

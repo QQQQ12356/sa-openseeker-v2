@@ -270,21 +270,25 @@ def score_phase(args, output, rows, manifest, prediction_path):
             raise ValueError("prediction provenance differs from prepared questions")
         if source.get("selected_ids") != [row["id"] for row in rows]:
             raise ValueError("prediction selection differs; set the same --limit as the original run")
-    if args.benchmark == "hotpotqa":
-        summary = score_hotpot(args.root, rows, predictions, output)
+    judge = None
+    needs_judge = (args.benchmark == 'browsecomp-plus' and not args.retrieval_only
+                   or args.benchmark == 'hotpotqa' and (getattr(args, 'llm_judge', False) or args.judge_model))
+    if needs_judge:
+        if not args.judge_model or not args.judge_model.is_dir():
+            raise ValueError("LLM answer scoring needs --judge-model pointing to a local model directory")
+        # Lazy load: failed/empty generation needs no judge invocation.
+        loaded = []
+
+        def judge(prompt):
+            if not loaded:
+                loaded.append(LocalJudge(args.judge_model, args.judge_max_tokens, args.judge_max_context,
+                                         args.judge_temperature, args.judge_top_p, args.judge_top_k, args.seed,
+                                         args.judge_enable_thinking))
+            return loaded[0](prompt)
+    if args.benchmark == 'hotpotqa':
+        summary = score_hotpot(args.root, rows, predictions, output, judge,
+                               args.judge_attempts, not args.skip_judge_preflight)
     else:
-        judge = None
-        if not args.retrieval_only:
-            if not args.judge_model or not args.judge_model.is_dir():
-                raise ValueError("BrowseComp-Plus answer scoring needs --judge-model pointing to local Qwen3-32B (or an explicitly recorded alternative)")
-            # Lazy load: failed/empty generation needs no judge invocation.
-            loaded = []
-            def judge(prompt):
-                if not loaded:
-                    loaded.append(LocalJudge(args.judge_model, args.judge_max_tokens, args.judge_max_context,
-                                             args.judge_temperature, args.judge_top_p, args.judge_top_k, args.seed,
-                                             args.judge_enable_thinking))
-                return loaded[0](prompt)
         summary = score_browsecomp(args.root, rows, predictions, output, judge, args.retrieval_only,
                                    args.judge_attempts, not args.skip_judge_preflight)
     summary.update(benchmark=args.benchmark, prediction_count=len(predictions),
@@ -338,6 +342,7 @@ def make_parser():
     parser.add_argument("--max-new-tokens", type=int, default=8192)
     parser.add_argument("--max-tool-tokens", type=int, default=32768)
     parser.add_argument("--judge-model", type=Path)
+    parser.add_argument('--llm-judge', action='store_true', help='Add HotpotQA semantic judging alongside official EM/F1')
     parser.add_argument("--retrieval-only", action="store_true")
     parser.add_argument("--judge-max-tokens", type=int, default=4096)
     parser.add_argument("--judge-max-context", type=int, default=32768)
@@ -389,6 +394,9 @@ def main():
         parser.error("score requires --predictions")
     if args.tool_call_retries < 0:
         parser.error("--tool-call-retries must be nonnegative")
+    if (args.action in {'all', 'score'} and args.llm_judge and not args.judge_model
+            and not args.dry_run):
+        parser.error('--llm-judge requires --judge-model (local directory)')
     if args.action in {"all", "score"} and args.benchmark == "browsecomp-plus" and not args.retrieval_only and not args.judge_model and not args.dry_run:
         parser.error("BrowseComp-Plus needs --judge-model; use --retrieval-only only for retrieval diagnostics")
     if args.dry_run:

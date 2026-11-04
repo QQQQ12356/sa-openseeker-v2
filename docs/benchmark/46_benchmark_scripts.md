@@ -1,5 +1,7 @@
 # 46 各方案独立 Benchmark 脚本与参数手册
 
+新增统一分发 `59_run_benchmark.sh`：METHOD=plain/beacon/base，BENCHMARK=browsecomp/browsecomp-plus/hotpotqa；完整变量和示例见 [59](59_llm_judge_matrix.md)。Hotpot all/score 现默认需要 JUDGE_MODEL。
+
 评分/工具恢复公共参数由 `54_judge_options.sh` 映射；历史审计与裁判自检入口为 `54_check_judge.sh`，完整参数、行为变化和各方法覆盖表见 [54](54_stable_judging.md)。
 
 本地摘要/裁判部署入口：`scripts/sh/benchmark/49_serve_aux_models.sh`；默认 Qwen3-32B 共用服务，支持 DRY_RUN 与分角色启动。全部部署变量、客户端 URL 和修改提示见 [49 本地辅助模型](49_local_aux_models.md)。
@@ -61,7 +63,7 @@ DRY_RUN=1 bash scripts/sh/baseline/74_qwen35_browsecomp_plus.sh
 
 Plain 的 `27_plain_workflow.sh` 支持 `TARGET=browsecomp|browsecomp-plus|hotpotqa`，继续使用 `ACTION` 选择阶段，已改为本目录独立入口。Baseline `70_qwen35_base_eval.sh` 同理。Beacon 直接运行表中的脚本即可。
 
-Plain/Beacon 离线脚本默认 `ACTION=all`，Baseline 默认 `ACTION=run`，与原有行为一致；建议命令中显式写阶段。在线 Plain/Beacon 默认生成并评分；设置 `PREDICTIONS` 后仅评分。Baseline 在线通过 `ACTION=run|score` 区分。BrowseComp-Plus 的 `all/score` 需要本地 `JUDGE_MODEL`；HotpotQA 使用官方 EM/F1，无需裁判。`RETRIEVAL_ONLY=1` 只用于检索诊断，不能报告答案准确率。
+Plain/Beacon 离线脚本默认 `ACTION=all`，Baseline 默认 `ACTION=run`，与原有行为一致；建议命令中显式写阶段。在线 Plain/Beacon 默认生成并评分；设置 `PREDICTIONS` 后仅评分。Baseline 在线通过 `ACTION=run|score` 区分。BrowseComp-Plus 的 `all/score` 需要本地 `JUDGE_MODEL`；HotpotQA 保留官方 EM/F1 并默认增加本地 LLM-Judge，all/score 需 JUDGE_MODEL；LLM_JUDGE=0 可仅运行官方指标。`RETRIEVAL_ONLY=1` 只用于检索诊断，不能报告答案准确率。
 
 ## 46.3 配置优先级和修改位置
 

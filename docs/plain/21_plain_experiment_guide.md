@@ -1,5 +1,7 @@
 # 21 Plain 完整实验指南：数据、训练、测试与评分
 
+2026-11-03 更新：BrowseComp SFT 接入见 [14](../data/14_browsecomp_sft.md)；三类基准 LLM-Judge 见 [59](../benchmark/59_llm_judge_matrix.md)。下文 Hotpot all/score 示例需先 `export JUDGE_MODEL=/path/to/local/judge`；只复现官方指标则设 `LLM_JUDGE=0`。
+
 在线/BCP 模型评分默认启用空回答保护、裁判自检与有限重试；原有 EM/F1 不变。历史结果审计及重评见 [54](../benchmark/54_stable_judging.md)。
 
 本文按实际实验顺序组织，以 **OpenSeeker Polar + Qwen3.5-4B + Plain + LoRA** 为基线，训练后分别在 OpenSeeker 留出轨迹、在线 BrowseComp、离线 BrowseComp-Plus 和 HotpotQA 上评测。Plain 使用完整上下文，不进行 Beacon 压缩。本文命令需要在项目根目录执行；真实训练和评测需在有相应资源的目标服务器执行。
@@ -22,7 +24,7 @@
 | BrowseComp-Plus | 固定网页语料、离线检索及本地裁判 | 56 |
 | HotpotQA fullwiki dev | 独立 Wikipedia 摘要语料、离线检索及官方指标 | 57 |
 
-以上三种 benchmark 题集是评测集，不要作为训练数据。当前仓库支持用 OpenSeeker 轨迹训练 Plain，尚无 BrowseComp 或 Hotpot 专用训练集的轨迹采集、转换和训练流程；仅有问题与参考答案不能等同于可训练的搜索轨迹。若要做数据集专门训练，需要独立、可用的训练划分与真实或经审核的工具轨迹，并先实现相应的数据适配与去重，不能将本文的 benchmark dev/test 当训练集。
+本文 benchmark 题集用于评测，不应直接当作训练集。新增独立 BrowseComp Qwen3.5 SFT messages 文件适配和 Plain/Beacon 训练入口见 [14](../data/14_browsecomp_sft.md)；源文件无独立参考答案，必须核查与测试题的重叠。仅有问题和答案仍不等同于可训练工具轨迹，Hotpot 专用轨迹采集不在本次范围。
 
 `27_plain_workflow.sh` 是可选的统一入口，按 `TARGET` 和 `ACTION` 转发到现有脚本；也可以直接使用各编号脚本。它固定 `KIND=plain`，在线 BrowseComp 固定 `MODE=native`。支持的组合：
 
@@ -250,7 +252,7 @@ JUDGE_MODEL=/models/Qwen3-32B LIMIT=8 bash scripts/sh/plain/27_plain_workflow.sh
 | CORPUS_LIMIT | 空 | 正数只用于小语料 smoke，不是全量基准 |
 | OUTPUT_DIR | 自动 | 新目录，不能覆盖生成或先前评分结果 |
 
-例如四卡生成：`CUDA_VISIBLE_DEVICES=0,1,2,3 NUM_WORKERS=4 TARGET=hotpotqa ACTION=run RUN_DIR="$RUN_DIR" LIMIT=8 bash scripts/sh/plain/27_plain_workflow.sh`。检查 `predictions.jsonl`、`generation.metrics.json`、`manifest.json`，评分后检查 `summary.metrics.json`、`per_question.json`；Hotpot 另有官方格式文件，BCP 另有 `judge.jsonl`。不同模型应共享同一索引和评测配置。
+例如四卡生成：`CUDA_VISIBLE_DEVICES=0,1,2,3 NUM_WORKERS=4 TARGET=hotpotqa ACTION=run RUN_DIR="$RUN_DIR" LIMIT=8 bash scripts/sh/plain/27_plain_workflow.sh`。检查 `predictions.jsonl`、`generation.metrics.json`、`manifest.json`，评分后检查 `summary.metrics.json`、`per_question.json`；Hotpot 另有官方格式文件；Hotpot/BCP 的语义评分均生成 `judge.jsonl`。不同模型应共享同一索引和评测配置。
 
 ## 21.9 在线 BrowseComp 准备、生成和裁判
 

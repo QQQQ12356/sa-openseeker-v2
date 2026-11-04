@@ -1,5 +1,7 @@
 # 43 固定语料离线评测：BrowseComp-Plus 与 HotpotQA
 
+2026-11-03：Hotpot all/score 默认增加本地 LLM-Judge，需 `JUDGE_MODEL`；`LLM_JUDGE=0` 仅执行官方指标。下文历史示例执行前设置相应变量。统一九种组合、参数表和结果解释见 [59](59_llm_judge_matrix.md)。
+
 跨 benchmark 的指标总表、公式、分母与结果文件见 [40.3 指标说明](40_evaluation.md#403-当前各-benchmark-指标总表)。
 
 BrowseComp-Plus 裁判默认改为贪心、关闭思考，并增加正反例自检、有限重试和严格字段校验；HotpotQA 仍使用官方确定性指标。详细参数和旧配置迁移见 [54 评分稳定性](54_stable_judging.md)。
@@ -405,7 +407,7 @@ SQLite FTS5 的 BM25 使用固定 k1=1.2、b=0.75，分词为 `unicode61 remove_
 
 对应 Python 参数为 `--judge-model`、`--retrieval-only`、`--judge-max-tokens`、`--judge-max-context`、`--judge-temperature`、`--judge-top-p`、`--judge-top-k`、`--seed`。官方使用 vLLM，本实现使用 Transformers，保留模型 chat template，但默认显式关闭 thinking、temperature=0，并在官方 parser 之上增加字段校验；提示仍是固定官方版本，采样默认与上游不同。不同引擎、配置或随机数实现不保证逐 token 一致。替换成更小裁判可用于资源受限测试，必须在报告中注明，不能视为官方 Qwen3-32B 裁判成绩。
 
-Hotpot 不需要这些参数；裁判大模型只影响 BCP。完整 Hotpot EM/F1 计算不使用任何 API 或辅助生成模型。
+Hotpot 默认新增 llm_judge_accuracy，复用这些本地裁判参数，all/score 需设置 JUDGE_MODEL。官方 EM/F1 继续独立计算；LLM_JUDGE=0 可仅运行官方指标。详见 [59](59_llm_judge_matrix.md)。
 
 ### 43.7.4 Beacon 多卡测试：56 与 31 的能力不同
 

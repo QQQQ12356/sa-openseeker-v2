@@ -17,5 +17,17 @@ add_judge_options() {
     JUDGE_TIMEOUT="${JUDGE_TIMEOUT:-120}"       # 单次 HTTP 超时秒数
     TOOL_POLICY="${TOOL_POLICY:-stable}"       # native visit：stable / official
     COMMAND+=(--judge-max-tokens "$JUDGE_MAX_TOKENS" --judge-timeout "$JUDGE_TIMEOUT" --tool-policy "$TOOL_POLICY")
+  elif [[ "${BENCHMARK:-${TARGET:-}}" == hotpotqa ]]; then
+    # 三种模型共用；默认增加语义裁判，同时保留官方 EM/F1。
+    # ACTION=run 只生成，ACTION=score/all 才加载裁判。
+    LLM_JUDGE="${LLM_JUDGE:-1}"           # 0 恢复仅官方评分（兼容旧实验）
+    [[ "$LLM_JUDGE" == 0 || "$LLM_JUDGE" == 1 ]] || { echo 'LLM_JUDGE 必须为 0 或 1' >&2; exit 2; }
+    if [[ "$LLM_JUDGE" == 1 ]]; then
+      COMMAND+=(--llm-judge)
+      [[ -z "${JUDGE_MODEL:-}" ]] || COMMAND+=(--judge-model "$JUDGE_MODEL")
+      COMMAND+=(--judge-max-tokens "${JUDGE_MAX_TOKENS:-4096}"
+        --judge-max-context "${JUDGE_MAX_CONTEXT:-32768}" --judge-temperature "${JUDGE_TEMPERATURE:-0}"
+        --judge-top-p "${JUDGE_TOP_P:-0.8}" --judge-top-k "${JUDGE_TOP_K:-20}" --seed "${SEED:-42}")
+    fi
   fi
 }

@@ -13,6 +13,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from search_comp.data.openseeker import normalize, encode, parse_calls, VERSION
+from search_comp.data.browsecomp import normalize_browsecomp
 
 MODELS = ['Qwen/Qwen3-4B-Thinking-2507', 'Qwen/Qwen3.5-4B']
 
@@ -25,7 +26,7 @@ def rows(path):
         for batch in pq.ParquetFile(path).iter_batches(batch_size=32):
             yield from batch.to_pylist()
     else:
-        with path.open() as f:
+        with path.open(encoding='utf-8') as f:
             for line in f:
                 if line.strip():
                     yield json.loads(line)
@@ -51,7 +52,8 @@ def initialize(models, offline):
 def measure(item):
     source, index, raw = item
     try:
-        row = normalize(raw, source, index)
+        adapter = normalize_browsecomp if source.startswith('browsecomp/') else normalize
+        row = adapter(raw, source, index)
         lengths = {}
         for name, tok in TOKENIZERS.items():
             encoded = encode(row['messages'], tok, tools=row.get('tools'))
@@ -77,7 +79,7 @@ def dump(f, obj):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--input', type=Path, action='append', required=True)
-    p.add_argument('--source', required=True, choices=['polar', 'zephyr', 'combined'])
+    p.add_argument('--source', required=True, choices=['polar', 'zephyr', 'combined', 'browsecomp'])
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--models', nargs='+', default=MODELS)
     p.add_argument('--offline', action='store_true')
@@ -90,6 +92,14 @@ def main():
     p.add_argument('--limit', type=int)
     add_selection_arguments(p)
     args = p.parse_args()
+    if args.workers < 1 or args.max_length < 1:
+        p.error('workers and max-length must be positive')
+    if args.source == 'browsecomp':
+        if args.correctness not in (None, 'any'):
+            p.error('BrowseComp SFT has no verified correctness labels; use --correctness any')
+        args.require_correct = False
+        if args.val_fraction or args.test_fraction:
+            p.error('BrowseComp SFT requires --val-fraction 0 --test-fraction 0')
     selection = selection_from_args(args)
     if not 0 <= args.val_fraction + args.test_fraction < 1 or min(args.val_fraction, args.test_fraction) < 0:
         p.error('invalid split fractions')
@@ -163,6 +173,9 @@ def main():
                     counts=dict(counters), roles=dict(roles), tools=dict(tools), correctness=dict(correctness),
                     distributions={k:stats(v) for k,v in metrics.items()}, inputs=[])
     manifest['arguments']['input'] = [str(p.resolve()) for p in args.input]
+    if args.source == 'browsecomp':
+        manifest.update(training_only=True, answer_source='reference_or_demonstration_final_response',
+                        note='Demonstration targets are not independent evaluation references.')
     for path in args.input:
         h = hashlib.sha256()
         with path.open('rb') as f:

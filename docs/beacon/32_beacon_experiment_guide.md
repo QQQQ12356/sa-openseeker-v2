@@ -1,5 +1,7 @@
 # 32 Beacon 完整实验指南：数据准备、训练、合并与评测
 
+2026-11-03 更新：BrowseComp SFT 数据与 39 入口见 [14](../data/14_browsecomp_sft.md)。Hotpot all/score 现默认增加语义裁判，下文示例需先 `export JUDGE_MODEL=/path/to/local/judge`，或 `LLM_JUDGE=0` 仅复现官方指标；完整矩阵见 [59](../benchmark/59_llm_judge_matrix.md)。
+
 在线/BCP 模型评分默认启用空回答保护、裁判自检与有限重试；原有 EM/F1 不变。历史结果审计及重评见 [54](../benchmark/54_stable_judging.md)。
 
 本文按实际实验顺序组织，以 **OpenSeeker Polar + Qwen3.5-4B + Beacon + LoRA + 固定压缩比 16** 为基线。照本文依次执行即可，不必先读完所有算法文档。文中的真实训练和模型评测命令由使用者在目标服务器执行，本次整理没有启动这些任务。
@@ -373,7 +375,7 @@ RUN_DIR="$RUN_DIR" SPLIT=test LIMIT=2 BACKEND=replay \
 
 详细准备细节、下载失败回退和 corpus 来源必须阅读 43/44。这里给出阶段顺序。两个基准各用独立 ROOT_DIR；数据下载与索引通常只做一次，同一索引可比较多个模型。
 
-### 32.11.1 HotpotQA：先跑不需要裁判模型的流程
+### 32.11.1 HotpotQA：官方指标与本地语义裁判
 
 ```bash
 # 联网准备机执行；后续阶段不联网。

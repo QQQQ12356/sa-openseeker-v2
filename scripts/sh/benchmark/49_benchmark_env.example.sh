@@ -67,4 +67,5 @@ export E2B_API_KEY="${E2B_API_KEY:-YOUR_E2B_KEY}"
 # 不要把真实密钥提交到 Git；示例中的所有 URL/模型名都需要对应真实运行的服务。
 
 # 完全离线的固定语料评测请用 plain/ 或 beacon/ 的 56/57，或 baseline/74/75；它们不读取本文件，也不需要上述在线 API。
-# BrowseComp-Plus 使用本地 JUDGE_MODEL；HotpotQA 使用官方 EM/F1，不需要裁判模型。
+# BrowseComp-Plus 和 HotpotQA 默认语义评分均使用本地 JUDGE_MODEL；Hotpot 可 LLM_JUDGE=0 仅算官方指标。
+# 九种组合统一入口与裁判变量：docs/benchmark/59_llm_judge_matrix.md。

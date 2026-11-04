@@ -1,5 +1,7 @@
 # 20 Plain 训练与评测
 
+新增数据路线：`25_plain_browsecomp_train.sh`，默认 ACTION=plan，复用本章 20 的训练配置；变量和修改提示见 [14](../data/14_browsecomp_sft.md)。三类基准统一入口与裁判见 [59](../benchmark/59_llm_judge_matrix.md)。
+
 从数据准备到训练、OpenSeeker 测试、BrowseComp 与 Hotpot 测试和评分的完整执行顺序见 [21 Plain 完整实验指南](21_plain_experiment_guide.md)。
 
 训练与 DeepSpeed 参数均可在各自 shell 内修改；配置来源、约束和计划审查见 [53 自包含训练配置](../tools/53_self_contained_training.md)。

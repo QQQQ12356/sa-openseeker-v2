@@ -1,5 +1,7 @@
 # 53 自包含训练脚本：参数、DeepSpeed 和实验计划
 
+新增 BrowseComp SFT 25/39 入口复用原自包含 20/30；DATASET_DIR、MODEL_PATH、MAX_LENGTH 的共享覆盖与完整变量表见 [14](../data/14_browsecomp_sft.md)，未复制训练器或改变分布式配置。
+
 Plain 和 Beacon 的训练参数、LoRA、损失、Beacon 配置及 DeepSpeed 选项都写在相应 shell 脚本中。日常修改时编辑脚本，不需要打开或修改 `configs/train/*.yaml`、`ds_zero*.json`。模型权重、tokenizer 与数据仍需事先准备；脚本不能让训练器支持尚未实现的功能。
 
 ## 53.1 入口与配置位置

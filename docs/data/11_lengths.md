@@ -1,5 +1,7 @@
 # 11 长度统计口径
 
+BrowseComp SFT 的完整序列长度、超长过滤、真实 tokenizer 与测试字节 tokenizer 的区别见 [14.2](14_browsecomp_sft.md#142-长度监督与压缩口径)。
+
 当前保留训练原始 system、测试提示词来源选择、必要的离线适配及全部入口的保留范围见 [45 统一流程](../common/45_unified_agent_flow.md)。
 
 用户提供的源文件位于 `../sa-qwen-openseeker/tmp/openseeker_v1_length_distribution.tokens.json`。其 identity 中的 method 是 `sum_content_tokens;add_special_tokens=False;no_truncation`，即逐消息正文分词后相加，未包含 ChatML role 边界和消息结束符。此文件的身份信息、总数、分位数和阈值累计数量已整理在 [11_reference_length_summary.json](11_reference_length_summary.json)，没有将旧长度缓存当作当前数据的精确筛选依据。

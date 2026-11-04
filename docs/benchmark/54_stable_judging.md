@@ -1,5 +1,7 @@
 # 54 模型评分稳定性：历史审计、裁判自检、重评与工具恢复
 
+2026-11-03：离线 HotpotQA 新增本地答案语义裁判，复用本章自检、标签校验与有限重试；保留官方指标，新增 `llm_judge_accuracy`。全部变量和九种组合见 [59](59_llm_judge_matrix.md)。
+
 ## 54.1 本次远端结果说明与处理顺序
 
 提供的 `tmp/benchmark_native_20261101T091822637884Z` 是导入预测后重新评分的 12 题子集。已对齐 12 条预测、12 个唯一 item_index，无缺失预测；11 条最终回答为空。原生成状态为 completed=1、invalid_call=10、turn_limit=1。原裁判把 item_index=8（第 9 题，参考答案 White Mischief）的空回答判成 A，导致 1/12=8.33%。唯一正常回答为 1985–1986，当前参考答案是 1988–96，按现有标签应判错。
@@ -15,7 +17,7 @@
 | 在线 BrowseComp / 导入兼容 query-answer-final_response 数据 | Plain/Beacon 47、原始 Qwen3.5 72 | 共用 stable-judge-v1：空回答 0、正反例自检、严格标签、超时/截断校验、有限重试、完整分母 |
 | official-v1/v2 在线 BrowseComp | Plain 47，显式 MODE | 官方生成脚本不变；评分改为固定官方提示 + 本项目稳定评分器，不能再称裁判请求与上游完全相同 |
 | 离线 BrowseComp-Plus | Plain/Beacon 56、原始基座 73/74 | 本地 HF 裁判，空/失败预测 0；默认贪心、关闭思考；自检、有限重试、严格字段验证 |
-| 离线 HotpotQA | Plain/Beacon 57、原始基座 73/75 | 保留官方 EM/F1 / supporting-fact 指标；不加载模型裁判，不做裁判自检 |
+| 离线 HotpotQA | Plain/Beacon 57、原始基座 73/75 | 保留官方 EM/F1 / supporting-fact 指标；默认增加本地语义裁判、自检与有界重试，见 [59](59_llm_judge_matrix.md) |
 | 原有 OpenSeeker 21/31 与原始基座 70/71 的 EM/F1 | Plain/Beacon/基座 | 确定性评分保持不变，没有凭空引入模型裁判 |
 | 后续 native 在线/离线生成 | 47/72、56/57/73/74/75 | 默认每题最多一次工具调用格式反馈；在线 native 另有可诊断的 bounded visit |
 

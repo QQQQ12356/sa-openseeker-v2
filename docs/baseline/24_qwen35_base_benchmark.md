@@ -1,5 +1,7 @@
 # 24 原始 Qwen3.5-4B 独立基线：数据、测试、评分和对照
 
+2026-11-03：原始模型与 Plain/Beacon 共用新增 HotpotQA 语义裁判，all/score 需要 JUDGE_MODEL；只算官方分数可 LLM_JUDGE=0。统一分发入口、九种组合和全部裁判参数见 [59](../benchmark/59_llm_judge_matrix.md)。
+
 OpenSeeker 三种模型路线的可选本地语义裁判与独立重评见 [40.4](../benchmark/40_evaluation.md#404-openseeker-可选大模型语义评分)。
 
 原始基座与 Plain/Beacon 共用 stable-judge-v1 评分保护；72 在线裁判默认并发 1，73/74 本地裁判默认温度 0。自检、重评、工具恢复和全部新参数见 [54](../benchmark/54_stable_judging.md)。
@@ -177,7 +179,7 @@ TARGET=hotpotqa ACTION=score LIMIT=8 PREDICTIONS="$GEN_DIR/predictions.jsonl" \
   bash scripts/sh/baseline/73_qwen35_offline.sh
 ```
 
-Hotpot 默认开启本地 search/visit；评分为官方 EM/F1、支持事实和 Joint，不需要裁判模型。模型需输出自己识别的支持句才能得到有意义的 SP/Joint；标注不输入模型。
+Hotpot 默认开启本地 search/visit；评分保留官方 EM/F1、支持事实和 Joint，并增加 llm_judge_accuracy。all/score 默认需 JUDGE_MODEL，LLM_JUDGE=0 可仅运行官方指标。模型需输出自己识别的支持句才能得到有意义的 SP/Joint；标注不输入模型。
 
 ### BrowseComp-Plus
 

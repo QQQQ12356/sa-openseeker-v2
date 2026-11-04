@@ -161,6 +161,7 @@ distributed:
 YAML
 
 # 防止误把 Plain 入口改成其他算法或数据协议。
+source scripts/sh/common/05_training_data_options.sh
 "$PY" - "$CONFIG_FILE" <<'PY'
 import sys, yaml
 with open(sys.argv[1], encoding='utf-8') as source:

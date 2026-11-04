@@ -1,5 +1,7 @@
 # 22 Plain adapter 与 Qwen3.5-4B 原始基座对照评测
 
+Hotpot all/score 默认新增本地语义评分，下文运行示例需先设置 JUDGE_MODEL；仅保留官方指标可 LLM_JUDGE=0。三种方法九种组合和裁判参数见 [59](../benchmark/59_llm_judge_matrix.md)。
+
 本指南用于分析训练前后复读、工具调用和答案质量。OpenSeeker 使用 21 的 replay/corpus/http 流程；在线 BrowseComp、离线 BrowseComp-Plus 和 HotpotQA 使用各自原有 benchmark。所有命令从项目根目录执行；本文不会自动启动训练。
 
 ## 22.1 支持范围和对照关系
@@ -160,7 +162,7 @@ TARGET=hotpotqa ACTION=score LIMIT=8 PREDICTIONS="$GEN_DIR/predictions.jsonl" \
   bash scripts/sh/baseline/70_qwen35_base_eval.sh
 ```
 
-Hotpot 默认可 search+visit，使用官方答案 EM/F1、支持事实与 Joint 指标，无本地裁判模型。离线其他参数（ROOT_DIR、TOPK、ALLOW_VISIT、SNIPPET_TOKENS、READ_TOKENS、NUM_WORKERS 等）和准备来源见 [43](../benchmark/43_offline_benchmarks.md)。两个离线 benchmark 的 `LIMIT=-1` 表示全量；21 不接受 -1。
+Hotpot 默认可 search+visit，保留官方答案 EM/F1、支持事实与 Joint 指标，并默认增加本地 LLM-Judge；all/score 需设置 JUDGE_MODEL，LLM_JUDGE=0 可仅运行官方指标。离线其他参数（ROOT_DIR、TOPK、ALLOW_VISIT、SNIPPET_TOKENS、READ_TOKENS、NUM_WORKERS 等）和准备来源见 [43](../benchmark/43_offline_benchmarks.md)。两个离线 benchmark 的 `LIMIT=-1` 表示全量；21 不接受 -1。
 
 ### 22.4.1 基线入口变量
 

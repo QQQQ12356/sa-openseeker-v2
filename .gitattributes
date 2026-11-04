@@ -1,0 +1,3 @@
+# Linux launchers and checksum-pinned upstream references must keep LF on Windows too.
+*.sh text eol=lf
+search_comp/offline/reference/** text eol=lf

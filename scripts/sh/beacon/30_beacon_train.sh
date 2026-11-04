@@ -173,6 +173,7 @@ distributed:
 YAML
 
 # 在创建实验前校验 Beacon 参数；实际布局策略由训练配置统一解析。
+source scripts/sh/common/05_training_data_options.sh
 "$PY" - "$CONFIG_FILE" <<'PY'
 from pathlib import Path
 import sys

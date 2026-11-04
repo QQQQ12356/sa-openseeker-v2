@@ -8,6 +8,8 @@
 # OUTPUT_DIR：本次结果的新目录；默认按方案、数据集和 UTC 时间命名。
 # LIMIT=-1：全量；正数仅用于小规模验证；DRY_RUN=1：只解析配置。
 # 其他检索、生成、裁判变量统一在本目录 73 的顶部配置，或以环境变量覆盖。
+# Hotpot 默认 LLM_JUDGE=1，all/score 需 JUDGE_MODEL；LLM_JUDGE=0 仅算官方指标。
+# 裁判全部变量见 docs/benchmark/59_llm_judge_matrix.md。
 set -euo pipefail
 export TARGET=hotpotqa
 export ACTION="${ACTION:-run}"

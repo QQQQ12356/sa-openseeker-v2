@@ -1,5 +1,39 @@
 # 99 本次验证记录
 
+## 14 / 59 BrowseComp SFT 与三种方法 LLM-Judge（2026-11-03）
+
+本次只修改代码、脚本、文档和结构审计产物；没有安装环境、下载模型、启动训练或调用真实裁判。执行环境为 Windows PowerShell，使用应用自带 Python 3.12.14 和已安装 Git Bash。该 Python 无 torch、Transformers、tokenizers、PyYAML、pytest，故未运行完整训练回归套件，也未声称验证 Linux/CUDA 行为。
+
+新增 [14 数据说明](../data/14_browsecomp_sft.md)、[14 结构审计 JSON](../data/14_browsecomp_structure_audit.json)、[59 评测与裁判手册](../benchmark/59_llm_judge_matrix.md)。原 README、索引、数据/长度、Plain/Beacon 完整指南、基座指南、环境、自包含训练和评测手册同步更新。
+
+验证结果：
+
+| 检查 | 结果 | 范围与限制 |
+|---|---|---|
+| 标准库 unittest | 20 tests，全部通过 | 覆盖无参考字段适配、源记录不变、边界转义、schema 计长、仅 observation 正文可压缩、loss 屏蔽、长度边界、Dataset 超长拒绝，以及评测工具 schema 切换 |
+| HotpotQA 评分回归 | 通过 | 用真实固定官方 evaluator 验证 EM/F1 与新增语义分数并存；语义标签由 Mock 提供，不代表模型判题质量 |
+| 裁判控制流 | 通过 | 缺题/失败/空 JSON answer 固定计错、完整分母、自检、有效负判不重试、错误标签保留 null/incomplete |
+| 九种组合脚本 dry-run | 9/9 通过 | 真实 Bash 分发到真实 Python CLI，检查 Hotpot llm_judge、BCP judge_model、在线稳定裁判参数；不加载模型、不访问网络 |
+| CLI 兼容与错误参数 | 通过 | Python Hotpot 默认仍仅官方指标；显式裁判缺模型提前报错；BrowseComp 禁止示范数据划作金标准 val/test |
+| 实际输入全量结构/编码边界审计 | 372/372 成功 | 13,021 个 observation 区域全部 labels=-100；1 条轨迹转义 4 个边界标签；使用 UTF-8 字节 tokenizer，仅验证序列/监督边界 |
+| Python AST | 167 个文件通过 | 包含 search_comp、scripts/py、tests；上游固定 BCP prompt 有既存 `invalid escape sequence` SyntaxWarning，不修改官方固定文件 |
+| Bash 语法 | 全部 scripts/sh 脚本通过 bash -n | 使用 Git Bash；不等同于 Linux GPU 执行 |
+| git diff --check | 通过 | 不含新增空白错误 |
+
+输入文件为 66,328,875 字节，SHA256 为 `159c62ee086b59fd01973cb8fbe3cb379a6753ee0ec5d260f3526f08824f22ab`。原文件没有修改。数据源有训练示范但无独立参考答案，源记录和 manifest 均明确 training_only；尚未核实与官方 BrowseComp 评测题的独立性。
+
+为支持无训练环境下的检查，仅对 data/utils 包导出和 loss_segments 的 torch 导入做延迟加载，保持原有公开名称及实际张量计算行为。Windows checkout 将固定官方 reference 转成 CRLF，导致原 SHA256 检查失败；已恢复 7 个文件到与固定 provenance 一致的 LF 字节，Git 内容无实质差异。新增 `.gitattributes` 固定 reference 和 shell 的 LF，未降低官方指纹检查标准。
+
+复查命令（在项目根目录）：
+
+```bash
+python -m unittest discover -s tests -p test_browsecomp_sft_and_hotpot_judge.py -v
+find scripts/sh -name '*.sh' -print0 | xargs -0 -n1 bash -n
+git diff --check
+```
+
+需要在现有 Linux 环境补做的步骤：使用真实训练 tokenizer 执行 14 预处理并查看 16K/32K 筛选后数量；分别运行 25/39 的 ACTION=plan 检查解析配置；有需要时执行小规模模型生成和真实裁判自检。没有执行真实 tokenizer 过滤、训练器启动、GPU 前向、蒸馏数值验证、真实 LLM-Judge 或完整 benchmark。具体参数和命令均见 14、59；本次不安装环境、不启动真实训练。
+
 ## 54 preflight 提示读取 ast.Call 修复（2026-11-01）
 
 远端 `tmp/log.txt` 的 ast.literal_eval 错误源于官方提示赋值以无参 `.strip()` 结尾；异常发生在 API 调用之前。新增安全共享 load_judge_prompt，只解析字符串字面量及无参 strip，统一替换 preflight 和在线正式评分中的重复读取代码，不修改上游提示，不执行上游 Python 源码。之前测试替身遗漏真实 strip 结构，此次已更新正式评分测试并增加 preflight CLI 测试。

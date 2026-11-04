@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 57 HotpotQA dev + 官方 2017 Wikipedia 摘要语料 + 持久化 BM25 + 官方 EM/F1。
+# 57 HotpotQA dev + 官方 2017 Wikipedia 摘要语料 + 持久化 BM25 + 官方 EM/F1 + 本地 LLM-Judge。
 # 修改下方参数或设置同名环境变量，直接运行；详见 docs/benchmark/43_offline_benchmarks.md。
 set -euo pipefail
 BENCHMARK="hotpotqa"
@@ -36,6 +36,9 @@ GENERATION_SEED="${GENERATION_SEED:-42}"
 LIMIT="${LIMIT:--1}"
 OUTPUT_DIR="${OUTPUT_DIR:-}"
 PREDICTIONS="${PREDICTIONS:-}"
+LLM_JUDGE="${LLM_JUDGE:-1}"          # 1 增加语义评分；0 仅官方指标
+JUDGE_MODEL="${JUDGE_MODEL:-}"       # all/score 语义评分必填：本地完整裁判目录
+# 其他 JUDGE_* 参数映射在 benchmark/54_judge_options.sh；完整说明见 docs/benchmark/59_llm_judge_matrix.md。
 DRY_RUN="${DRY_RUN:-0}"
 
 # 各方案入口独立；参数表和修改提示见 docs/benchmark/46_benchmark_scripts.md。

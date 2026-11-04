@@ -1,5 +1,7 @@
 # 00 文档与入口索引
 
+新增：[14 BrowseComp SFT 数据、长度、observation 与训练](data/14_browsecomp_sft.md)；[59 三种方法 × 三类基准与 LLM-Judge](benchmark/59_llm_judge_matrix.md)。所有新增脚本变量、完整示例、修改提示和验证边界均在这两份文档。
+
 OpenSeeker 三种模型路线的可选本地语义裁判与独立重评见 [40.4](benchmark/40_evaluation.md#404-openseeker-可选大模型语义评分)。
 
 各 benchmark 当前指标、字段名、计算方式与失败样本分母见 [40.3 指标总表](benchmark/40_evaluation.md#403-当前各-benchmark-指标总表)。
@@ -30,6 +32,7 @@ OpenSeeker 三种模型路线的可选本地语义裁判与独立重评见 [40.4
 | [01 环境](common/01_environment.md) | Python、依赖、离线缓存、验证边界 |
 | [10 数据](data/10_data.md) | Polar 来源、规范化、长度/质量/观测筛选、产物 |
 | [11 长度口径](data/11_lengths.md) | 提供的分布文件与训练序列实测长度的区别 |
+| [14 BrowseComp SFT](data/14_browsecomp_sft.md) | 已有 messages 数据适配、长度过滤、observation、25/39 一键计划与训练、全部变量 |
 | [20 Plain](plain/20_plain.md) | 一键训练、测试与配置快照 |
 | [21 Plain 完整实验指南](plain/21_plain_experiment_guide.md) | OpenSeeker 训练与诊断、BrowseComp 在线及 BrowseComp-Plus / Hotpot 离线数据、生成、评分与归档 |
 | [22 原始基座与 adapter 对照](baseline/22_qwen35_baseline_and_adapter.md) | 21 直接测试 Plain adapter；原始 Qwen3.5-4B 四条基准路线、参数和复读诊断 |
@@ -42,6 +45,7 @@ OpenSeeker 三种模型路线的可选本地语义裁判与独立重评见 [40.4
 | [41 HTML](report/41_html.md) | 数据与预测的离线浏览 |
 | [42 官方 Benchmark](benchmark/42_openseeker_benchmark.md) | BrowseComp、固定官方 v1/v2、Beacon native、LLM 裁判、覆盖审计、一键运行 |
 | [43 离线基准](benchmark/43_offline_benchmarks.md) | BrowseComp-Plus / HotpotQA、持久化 BM25、断网构建与评测、参数和修改提示 |
+| [59 三种方法与 LLM-Judge](benchmark/59_llm_judge_matrix.md) | 九种组合统一入口、Hotpot 语义评分、裁判参数、重评、分母和结果解释 |
 | [44 离线来源](benchmark/44_offline_sources.md) | 固定官方代码、数据版本、许可证与升级规则 |
 | [45 统一训练与测试](common/45_unified_agent_flow.md) | 保留原始 system、训练提示来源、离线能力适配、算法一致性、在线/离线入口、变量和修改说明 |
 | [50 多卡](tools/50_multigpu.md) | torchrun、DDP、ZeRO-2/3、每卡日志、Beacon 与固定语料多卡测试 |
