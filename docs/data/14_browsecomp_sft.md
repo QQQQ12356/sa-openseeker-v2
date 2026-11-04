@@ -34,7 +34,7 @@
 | observation 正文 | 否，label=-100 | 是 |
 | observation 开闭标签 | 否 | 否 |
 
-Plain 使用完整序列；Beacon 只对 `regions` 指定的 observation 正文压缩。`beacon_doc_region_split` 应保持 false。Beacon 的 CE、输出蒸馏、续写损失等仍由 `30_beacon_train.sh` 配置，未因增加数据源而改变默认训练算法。
+Plain 使用完整序列；Beacon 只对 `regions` 指定的 observation 正文压缩。`beacon_doc_region_split` 应保持 false。Beacon 的 CE、输出蒸馏、续写损失等由 `39_beacon_browsecomp_train.sh` 的内联 YAML 配置，未因增加数据源而改变默认训练算法。
 
 真实 Qwen3.5 tokenizer 尚未在当前环境执行，因此不能预报 16K 过滤后保留多少条，也不能把字节级测试统计当作 Qwen token 分布。运行预处理后以 manifest 的 `counts`、`distributions` 和 `measurements.jsonl` 为准。
 
@@ -56,7 +56,7 @@ MODEL_PATH=/data/models/Qwen3.5-4B ACTION=plan \
   bash scripts/sh/beacon/39_beacon_browsecomp_train.sh
 ```
 
-25/39 在 prepared 目录缺少 manifest 时先执行 14；存在时复用，不自动覆盖。首次 plan 可能进行 CPU 分词，但不会启动训练。单独执行 14 时，输出目录必须不存在。
+25/39 在 prepared 目录缺少 manifest 时直接执行预处理 Python 命令；存在时复用，不自动覆盖。两个入口均包含完整训练配置和启动命令，不转调其他训练脚本。首次 plan 可能进行 CPU 分词，但不会启动训练。单独执行 14 时，输出目录必须不存在。
 
 准备正式训练时，将上述 `ACTION=plan` 改成 `ACTION=train`。多卡示例为 `CUDA_VISIBLE_DEVICES=0,1,2,3 DISTRIBUTED_BACKEND=zero2 ACTION=train ...`；进程数默认按可见卡数推断，可用 `NPROC_PER_NODE` 覆盖。本次没有执行这些训练命令。
 
@@ -92,7 +92,7 @@ ACTION=plan bash scripts/sh/plain/25_plain_browsecomp_train.sh
 
 若复用旧目录而更换 tokenizer，实验计划会因 manifest tokenizer 不匹配报错；更小训练上限也会被拒绝。改变 observation 筛选、输入文件或 tokenizer 后应使用新目录重新处理，不手动修改 manifest 绕过验证。
 
-学习率、LoRA、累积步数、保存频率等仍在 `20_plain_train.sh` / `30_beacon_train.sh` 的内联 YAML 中修改；25/39 只覆盖数据目录、模型和最大长度。共享覆盖逻辑在 `common/05_training_data_options.sh`，避免两套训练配置漂移。当前 20/30 不解析额外训练 CLI 参数；应使用这里的变量或修改内联 YAML。
+学习率、LoRA、累积步数、保存频率、分布式配置及 Beacon 压缩参数，直接在对应的 `25_plain_browsecomp_train.sh` / `39_beacon_browsecomp_train.sh` 内联 YAML 中修改。两个脚本各自包含数据预处理、环境变量覆盖、参数校验和 `51_experiment.py` 启动命令；仅加载 `common/00_common.sh` 提供项目路径和 Python 选择等基础函数。20/30 继续用于 OpenSeeker 训练。25/39 不解析额外训练 CLI 参数；应使用这里的变量或修改内联 YAML。
 
 ## 14.5 产物、追溯与评测边界
 
