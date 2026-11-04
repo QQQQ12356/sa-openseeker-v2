@@ -1,6 +1,6 @@
 # 21 Plain 完整实验指南：数据、训练、测试与评分
 
-2026-11-03 更新：BrowseComp SFT 接入见 [14](../data/14_browsecomp_sft.md)；三类基准 LLM-Judge 见 [59](../benchmark/59_llm_judge_matrix.md)。下文 Hotpot all/score 示例需先 `export JUDGE_MODEL=/path/to/local/judge`；只复现官方指标则设 `LLM_JUDGE=0`。
+2026-11-03 更新：BrowseComp-Plus SFT 先通过 [14](../data/14_browsecomp_sft.md) 独立预处理，再使用 [25](25_plain_browsecomp_train.md) 计划或训练，各阶段均一条命令运行；三类基准 LLM-Judge 见 [59](../benchmark/59_llm_judge_matrix.md)。下文 Hotpot all/score 示例需先 `export JUDGE_MODEL=/path/to/local/judge`；只复现官方指标则设 `LLM_JUDGE=0`。
 
 在线/BCP 模型评分默认启用空回答保护、裁判自检与有限重试；原有 EM/F1 不变。历史结果审计及重评见 [54](../benchmark/54_stable_judging.md)。
 
@@ -307,3 +307,5 @@ LIMIT=2 ENV_FILE="$HOME/.config/searchagent/benchmark.env.sh" \
 Plain 专属 Benchmark 入口：`47_plain_browsecomp.sh`（在线）、`56_plain_browsecomp_plus.sh`、`57_plain_hotpotqa.sh`（离线），均位于 `scripts/sh/plain/`。27 工作流已分发到这些脚本。完整变量、运行示例和路径迁移见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。
 
 Plain checkpoint 的独立 Conda 环境（`search-comp-sglang`）、SGLang 安装、架构兼容检查、单卡/多卡服务启动与联调见 [48 部署手册](48_sglang_deployment.md)。Qwen3.5 纯文本训练产物需要单独验证后端兼容性。
+
+RESEARCH OpenSeeker 导出新增来源入口与本指南共用 Plain 训练实现；预处理、HTML、plan/train 以及三类裁判命令见 [09](../data/09_research_sft.md)。

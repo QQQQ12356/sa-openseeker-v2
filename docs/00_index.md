@@ -1,6 +1,8 @@
 # 00 文档与入口索引
 
-新增：[14 BrowseComp SFT 数据、长度、observation 与训练](data/14_browsecomp_sft.md)；[59 三种方法 × 三类基准与 LLM-Judge](benchmark/59_llm_judge_matrix.md)。所有新增脚本变量、完整示例、修改提示和验证边界均在这两份文档。
+RESEARCH OpenSeeker 本地 JSONL 的完整入口见 [09 数据、长度审计、HTML、Plain/Beacon 训练与三基准裁判](data/09_research_sft.md)。Linux 分阶段一键脚本为 `scripts/sh/tools/09_research_workflow.sh`，默认只展示 20 条原始数据。
+
+新增：[14 BrowseComp SFT 数据、长度、observation 与训练](data/14_browsecomp_sft.md)；[59 三种方法 × 三类基准与 LLM-Judge](benchmark/59_llm_judge_matrix.md)。BrowseComp-Plus SFT 按 [14 数据预处理](data/14_browsecomp_sft.md) → [25 Plain 训练](plain/25_plain_browsecomp_train.md) 或 [39 Beacon 训练](beacon/39_beacon_browsecomp_train.md) 分阶段运行；各文档包含对应脚本变量、参数、示例和修改提示。
 
 OpenSeeker 三种模型路线的可选本地语义裁判与独立重评见 [40.4](benchmark/40_evaluation.md#404-openseeker-可选大模型语义评分)。
 
@@ -32,20 +34,22 @@ OpenSeeker 三种模型路线的可选本地语义裁判与独立重评见 [40.4
 | [01 环境](common/01_environment.md) | Python、依赖、离线缓存、验证边界 |
 | [10 数据](data/10_data.md) | Polar 来源、规范化、长度/质量/观测筛选、产物 |
 | [11 长度口径](data/11_lengths.md) | 提供的分布文件与训练序列实测长度的区别 |
-| [14 BrowseComp SFT](data/14_browsecomp_sft.md) | 已有 messages 数据适配、长度过滤、observation、25/39 一键计划与训练、全部变量 |
+| [14 BrowseComp SFT](data/14_browsecomp_sft.md) | 独立预处理、长度过滤、observation、数据与训练变量优先级、分阶段运行 |
 | [20 Plain](plain/20_plain.md) | 一键训练、测试与配置快照 |
 | [21 Plain 完整实验指南](plain/21_plain_experiment_guide.md) | OpenSeeker 训练与诊断、BrowseComp 在线及 BrowseComp-Plus / Hotpot 离线数据、生成、评分与归档 |
 | [22 原始基座与 adapter 对照](baseline/22_qwen35_baseline_and_adapter.md) | 21 直接测试 Plain adapter；原始 Qwen3.5-4B 四条基准路线、参数和复读诊断 |
 | [23 Plain / Beacon 解码与重复惩罚](common/23_decoding.md) | 贪心、采样、压缩后可见历史、重复惩罚、随机种子和各 benchmark 参数 |
 | [24 原始 Qwen3.5 独立基线](baseline/24_qwen35_base_benchmark.md) | 独立模型加载、各基准脚本、数据与评分、完整参数和对照 |
+| [25 BrowseComp-Plus Plain 训练](plain/25_plain_browsecomp_train.md) | 25 完整训练参数、LoRA、显存、分布式和归档说明 |
 | [30 Beacon](beacon/30_beacon.md) | 压缩范围、损失、蒸馏与训练入口 |
 | [31 随机压缩](beacon/31_random_compression.md) | fixed/random 模式、候选数组、采样粒度与多卡行为 |
 | [32 Beacon 完整实验指南](beacon/32_beacon_experiment_guide.md) | 按实验顺序：环境、数据、筛选、计划、训练、合并、在线/离线评测与归档 |
+| [39 BrowseComp-Plus Beacon 训练](beacon/39_beacon_browsecomp_train.md) | 39 完整训练、布局、损失、蒸馏、显存与分布式参数 |
 | [40 评测](benchmark/40_evaluation.md) | OpenSeeker 参考实现、答案提取、EM/F1 与工具后端 |
 | [41 HTML](report/41_html.md) | 数据与预测的离线浏览 |
 | [42 官方 Benchmark](benchmark/42_openseeker_benchmark.md) | BrowseComp、固定官方 v1/v2、Beacon native、LLM 裁判、覆盖审计、一键运行 |
 | [43 离线基准](benchmark/43_offline_benchmarks.md) | BrowseComp-Plus / HotpotQA、持久化 BM25、断网构建与评测、参数和修改提示 |
-| [59 三种方法与 LLM-Judge](benchmark/59_llm_judge_matrix.md) | 九种组合统一入口、Hotpot 语义评分、裁判参数、重评、分母和结果解释 |
+| [59 三种方法与 LLM-Judge](benchmark/59_llm_judge_matrix.md) | 九种组合独立脚本、Hotpot 语义评分、裁判参数、重评、分母和结果解释 |
 | [44 离线来源](benchmark/44_offline_sources.md) | 固定官方代码、数据版本、许可证与升级规则 |
 | [45 统一训练与测试](common/45_unified_agent_flow.md) | 保留原始 system、训练提示来源、离线能力适配、算法一致性、在线/离线入口、变量和修改说明 |
 | [50 多卡](tools/50_multigpu.md) | torchrun、DDP、ZeRO-2/3、每卡日志、Beacon 与固定语料多卡测试 |

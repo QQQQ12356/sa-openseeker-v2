@@ -1,6 +1,6 @@
 # 24 原始 Qwen3.5-4B 独立基线：数据、测试、评分和对照
 
-2026-11-03：原始模型与 Plain/Beacon 共用新增 HotpotQA 语义裁判，all/score 需要 JUDGE_MODEL；只算官方分数可 LLM_JUDGE=0。统一分发入口、九种组合和全部裁判参数见 [59](../benchmark/59_llm_judge_matrix.md)。
+2026-11-03：原始模型与 Plain/Beacon 共用新增 HotpotQA 语义裁判，all/score 需要 JUDGE_MODEL；只算官方分数可 LLM_JUDGE=0。各方法目录下的独立脚本、九种组合和全部裁判参数见 [59](../benchmark/59_llm_judge_matrix.md)。
 
 OpenSeeker 三种模型路线的可选本地语义裁判与独立重评见 [40.4](../benchmark/40_evaluation.md#404-openseeker-可选大模型语义评分)。
 
@@ -19,7 +19,7 @@ OpenSeeker 三种模型路线的可选本地语义裁判与独立重评见 [40.4
 | `scripts/sh/baseline/75_qwen35_hotpotqa.sh` | 固定语料 HotpotQA 独立入口 | download、prepare、index、run、score、all |
 | `scripts/sh/baseline/73_qwen35_offline.sh` | 74/75 的共享配置与兼容入口 | 同上，TARGET 选择数据集 |
 
-70 仅分发到同目录的 71/72/74/75（74/75 共用 73）；它们不调用 `scripts/sh/plain/` 下的训练或评测脚本。原始模型通过 `search_comp/models/base_qwen35.py` 检查原始多模态 Qwen3.5 配置，再使用文本主干加载器；不挂载 LoRA，不调用 Plain SFT 模型加载器。模型运行时使用的 `kind=plain` 仅表示无 Beacon 压缩的 agent 模式，并非选择 Plain 训练模型。
+70 仅分发到同目录的 71/72/74/75（74/75 各自独立配置）；它们不调用 `scripts/sh/plain/` 下的训练或评测脚本。原始模型通过 `search_comp/models/base_qwen35.py` 检查原始多模态 Qwen3.5 配置，再使用文本主干加载器；不挂载 LoRA，不调用 Plain SFT 模型加载器。模型运行时使用的 `kind=plain` 仅表示无 Beacon 压缩的 agent 模式，并非选择 Plain 训练模型。
 
 为确保实验可比，数据适配、序列化、search/visit 执行、预算、预测和评分仍与训练模型评测共用通用实现：`scripts/py/50_evaluate.py`、`47_benchmark.py`、`52_offline_benchmark.py`。运行时传 `--model-origin base-qwen35`，结果的生成配置记录 `model_origin` 和 `base_model_path`。共享评测器不等于加载训练模型。
 
@@ -230,4 +230,4 @@ JUDGE_MODEL=/models/Qwen3-32B bash scripts/sh/baseline/73_qwen35_offline.sh
 
 各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。
 
-离线基准现有数据集专属入口：`scripts/sh/baseline/74_qwen35_browsecomp_plus.sh`、`scripts/sh/baseline/75_qwen35_hotpotqa.sh`。它们固定 TARGET 并复用本目录 73 的配置；下文/原有 `TARGET=... 73` 命令仍兼容，70 总入口已使用专属入口。完整变量与修改提示见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。
+离线基准现有数据集专属入口：`scripts/sh/baseline/74_qwen35_browsecomp_plus.sh`、`scripts/sh/baseline/75_qwen35_hotpotqa.sh`。它们各自固定数据集并包含完整配置，不转调 73；下文/原有 `TARGET=... 73` 命令仍兼容，70 总入口已使用专属入口。完整变量与修改提示见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。

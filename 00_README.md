@@ -1,6 +1,6 @@
 # sa-openseeker-v2
 
-新增 BrowseComp Qwen3.5 SFT 数据适配、一键预处理与 Plain/Beacon 计划/训练入口见 [14](docs/data/14_browsecomp_sft.md)。三种方法在 HotpotQA、BrowseComp、BrowseComp-Plus 的统一入口及 LLM-Judge 参数见 [59](docs/benchmark/59_llm_judge_matrix.md)：Hotpot 保留官方 EM/F1，新增语义评分，shell 的 all/score 默认需 JUDGE_MODEL。
+新增 BrowseComp Qwen3.5 SFT 数据适配、一键预处理与 Plain/Beacon 计划/训练入口见 [14](docs/data/14_browsecomp_sft.md)。三种方法在各自目录下的 HotpotQA、BrowseComp、BrowseComp-Plus 独立脚本及 LLM-Judge 参数见 [59](docs/benchmark/59_llm_judge_matrix.md)：Hotpot 保留官方 EM/F1，新增语义评分，shell 的 all/score 默认需 JUDGE_MODEL。
 
 模型评分现使用 stable-judge-v1：空回答固定计错、裁判正反例自检、有限重试与完整分母；历史评分离线审计、重评命令和所有参数见 [54 评分稳定性](docs/benchmark/54_stable_judging.md)。
 
@@ -57,3 +57,5 @@ Plain 四卡长轨迹训练：`ACTION=plan bash scripts/sh/plain/28_plain_4xa800
 各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](docs/benchmark/46_benchmark_scripts.md)。
 
 Plain checkpoint 的独立 Conda 环境（`search-comp-sglang`）、SGLang 安装、架构兼容检查、单卡/多卡服务启动与联调见 [48 部署手册](docs/plain/48_sglang_deployment.md)。Qwen3.5 纯文本训练产物需要单独验证后端兼容性。
+
+本地 RESEARCH OpenSeeker 数据新增适配见 [09 完整指南](docs/data/09_research_sft.md)：原始 HTML 小样本、完整长度审计、Plain/Beacon 分阶段入口与 LLM-Judge 测试矩阵。

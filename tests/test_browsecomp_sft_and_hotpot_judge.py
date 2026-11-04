@@ -205,13 +205,18 @@ class HotpotJudgeTests(unittest.TestCase):
 class EntryPointTests(unittest.TestCase):
     @unittest.skipUnless(BASH and Path(BASH).is_file(), 'Bash is unavailable')
     def test_all_nine_shell_routes_with_real_python_dry_run(self):
+        entries = {
+            'plain': ('plain/47_plain_browsecomp.sh', 'plain/56_plain_browsecomp_plus.sh', 'plain/57_plain_hotpotqa.sh'),
+            'beacon': ('beacon/47_beacon_browsecomp.sh', 'beacon/56_beacon_browsecomp_plus.sh', 'beacon/57_beacon_hotpotqa.sh'),
+            'base': ('baseline/72_qwen35_browsecomp.sh', 'baseline/74_qwen35_browsecomp_plus.sh', 'baseline/75_qwen35_hotpotqa.sh'),
+        }
         for method in ('plain', 'beacon', 'base'):
-            for benchmark in ('browsecomp', 'browsecomp-plus', 'hotpotqa'):
+            for benchmark, entry in zip(('browsecomp', 'browsecomp-plus', 'hotpotqa'), entries[method]):
                 with self.subTest(method=method, benchmark=benchmark):
                     env = dict(os.environ, PYTHON=Path(sys.executable).as_posix(), PYTHONUTF8='1',
-                               DRY_RUN='1', METHOD=method, BENCHMARK=benchmark, JUDGE_MODEL='local-judge',
+                               DRY_RUN='1', JUDGE_MODEL='local-judge',
                                ACTION='run' if benchmark == 'browsecomp' else 'all')
-                    result = subprocess.run([BASH, 'scripts/sh/benchmark/59_run_benchmark.sh'], cwd=ROOT,
+                    result = subprocess.run([BASH, 'scripts/sh/' + entry], cwd=ROOT,
                                             env=env, capture_output=True, text=True, encoding='utf-8')
                     self.assertEqual(result.returncode, 0, result.stderr)
                     value = json.loads(result.stdout)

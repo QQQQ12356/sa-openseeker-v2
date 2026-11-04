@@ -1,4 +1,4 @@
-# 14 BrowseComp Qwen3.5 SFT 数据、长度与训练入口
+# 14 BrowseComp-Plus SFT 数据预处理、参数与运行说明
 
 本次接入的是项目目录内已有的 `outputs/data/browsecomp-qwen35-sft/train.jsonl`。Windows 绝对路径为 `E:\HZJ\研究生\学习资料\SearchAgent\代码\sa-openseeker-v2\outputs\data\browsecomp-qwen35-sft\train.jsonl`。Linux 上保留项目内的相对路径即可，不把 Windows 盘符写入配置。本次未安装依赖、未加载模型权重、未启动训练。
 
@@ -38,7 +38,7 @@ Plain 使用完整序列；Beacon 只对 `regions` 指定的 observation 正文�
 
 真实 Qwen3.5 tokenizer 尚未在当前环境执行，因此不能预报 16K 过滤后保留多少条，也不能把字节级测试统计当作 Qwen token 分布。运行预处理后以 manifest 的 `counts`、`distributions` 和 `measurements.jsonl` 为准。
 
-## 14.3 Linux 上运行
+## 14.3 分阶段一键运行（Linux / Bash）
 
 使用已有训练环境；不需要新增环境。默认 `OFFLINE=1`，要求本地 tokenizer 可读取。
 
@@ -56,45 +56,97 @@ MODEL_PATH=/data/models/Qwen3.5-4B ACTION=plan \
   bash scripts/sh/beacon/39_beacon_browsecomp_train.sh
 ```
 
-25/39 在 prepared 目录缺少 manifest 时直接执行预处理 Python 命令；存在时复用，不自动覆盖。两个入口均包含完整训练配置和启动命令，不转调其他训练脚本。首次 plan 可能进行 CPU 分词，但不会启动训练。单独执行 14 时，输出目录必须不存在。
+14 是唯一的数据预处理入口，只加载 tokenizer，在 CPU 上规范化和计长；25/39 只读取已经准备好的数据，不调用 14，也不调用 20/30。每个阶段均可通过一条命令运行。无需添加“先预处理再训练”的包装训练脚本。
 
-准备正式训练时，将上述 `ACTION=plan` 改成 `ACTION=train`。多卡示例为 `CUDA_VISIBLE_DEVICES=0,1,2,3 DISTRIBUTED_BACKEND=zero2 ACTION=train ...`；进程数默认按可见卡数推断，可用 `NPROC_PER_NODE` 覆盖。本次没有执行这些训练命令。
+首次使用按顺序运行上面三条命令中的预处理和所需方法的计划命令。预处理输出目录必须不存在；已有数据可以直接运行 25/39。缺少 manifest 时，训练入口报错并提示先运行 14，不会创建 prepared 数据。`ACTION=plan` 也不会预处理、加载模型权重或训练，但会读取已有数据、校验配置并创建实验归档。
 
-## 14.4 全部新增入口变量
-
-环境变量应使用 `VAR=value bash ...` 或提前 `export`；仅在 shell 中赋值但不 export 的变量不会传给子脚本。
-
-| 变量 | 默认 | 作用与修改提示 |
-|---|---|---|
-| INPUT | outputs/data/browsecomp-qwen35-sft/train.jsonl | 原始输入文件，仅 14 或首次自动预处理读取 |
-| DATASET_DIR | outputs/data/browsecomp-qwen35-sft/prepared_16k | 独立输出目录；25/39 将其写入实验 dataset |
-| MODEL_PATH | Qwen/Qwen3.5-4B | 同时用于长度测量与训练模型；推荐本地绝对路径；两阶段字符串必须相同 |
-| MAX_LENGTH | 16384 | 正整数，完整序列 token 上限；同步覆盖训练 max_length |
-| WORKERS | 4 | CPU tokenizer 进程数，正整数；内存紧张可设 1 |
-| SEED | 42 | 数据流程种子；不自动覆盖原训练入口的训练 seed |
-| OBSERVATIONS | with | with 至少一个非空正文；any 不筛；without 无正文对照 |
-| OFFLINE | 1 | 1 仅本地 tokenizer；0 允许现有库下载 tokenizer，不安装软件 |
-| ACTION | plan | 25/39 接受 plan 或 train；14 本身总是处理数据 |
-| PYTHON | 空 | 现有 Python 可执行文件；具体选择规则见 common/00_common.sh |
-| CONDA_ENV | search-comp-qwen35-cu126 | Python 选择所用已有环境名，不创建环境 |
-| CUDA_VISIBLE_DEVICES | 原训练脚本默认 0 | 训练可见卡列表；预处理不用 GPU |
-| NPROC_PER_NODE | 可见卡数 | 训练进程数；单进程直接启动，多进程走原 launcher |
-| DISTRIBUTED_BACKEND | zero2 | 原训练分布式参数；ddp/zero2，Plain 还支持 zero3 |
-
-修改长度应同时换目录，例如：
+正式训练设置 `ACTION=train`：
 
 ```bash
+# 下面两条按实验需要选择运行，每次创建独立实验。
+MODEL_PATH=/data/models/Qwen3.5-4B ACTION=train \
+  bash scripts/sh/plain/25_plain_browsecomp_train.sh
+MODEL_PATH=/data/models/Qwen3.5-4B ACTION=train \
+  bash scripts/sh/beacon/39_beacon_browsecomp_train.sh
+```
+
+多卡设置 `CUDA_VISIBLE_DEVICES=0,1,2,3 DISTRIBUTED_BACKEND=zero2 ACTION=train`；进程数默认按可见卡数推断，可用 `NPROC_PER_NODE=4` 显式指定。完整训练参数和调参示例分别见 [25 Plain](../plain/25_plain_browsecomp_train.md)、[39 Beacon](../beacon/39_beacon_browsecomp_train.md)，共有训练及分布式参数见 [53](../tools/53_self_contained_training.md)。
+
+## 14.4 脚本变量、优先级与修改提示
+
+参数有三个位置：14 顶部的数据变量、25/39 的可选训练覆盖变量、25/39 各自完整的内联 YAML。数据变量不会自动跨两次脚本调用传递；跨阶段要么提前 `export`，要么在每条命令上重复传入。脚本均自动切换到项目根目录，数据相对路径按项目根目录解释；在项目外启动时须使用脚本的绝对路径。
+
+### 14.4.1 预处理入口变量（只用于 14）
+
+| 变量 | 默认 | 作用、约束与修改提示 |
+|---|---|---|
+| `INPUT` | `outputs/data/browsecomp-qwen35-sft/train.jsonl` | 必须存在的原始 JSONL 文件；只读，不接受 benchmark 问答表代替工具轨迹 |
+| `DATASET_DIR` | `outputs/data/browsecomp-qwen35-sft/prepared_16k` | 必须不存在的输出目录；运行成功后交给 25/39。重新处理用新目录，脚本不覆盖旧产物 |
+| `MODEL_PATH` | `Qwen/Qwen3.5-4B` | tokenizer 来源；建议本地绝对路径。训练时使用完全相同的身份字符串，不能一阶段用 Hub 名、一阶段换本地路径 |
+| `MAX_LENGTH` | `16384` | 正整数；完整轨迹 token 上限，超长拒绝，不截断。改变长度同时改输出目录 |
+| `WORKERS` | `4` | 正整数；CPU 分词进程数，内存不足设 1；不影响 GPU 数 |
+| `SEED` | `42` | 数据分组/划分随机种子；该来源不划分 val/test，也不自动设置训练 seed |
+| `OBSERVATIONS` | `with` | `with` 至少一个非空 observation 正文；`any` 不筛；`without` 无正文对照，改变时使用新目录 |
+| `OFFLINE` | `1` | 仅接受 0/1；1 仅用本地 tokenizer 缓存，缺失则报错；0 允许库下载 tokenizer，不安装依赖 |
+| `PYTHON` | 空 | 已有 Python 可执行文件；留空按 `00_common.sh` 选择，建议通过 `PYTHON=/absolute/path/bin/python` 显式指定 |
+| `CONDA_ENV` | `search-comp-qwen35-cu126` | 选择已有 conda 环境，不创建、不安装；有效的显式 `PYTHON` 优先 |
+
+14 不使用 `ACTION`、GPU、LoRA 或训练超参数。脚本拒绝额外位置参数或 CLI 选项，避免变量与命令行重复覆盖；需扩展预处理功能时修改 14 中的命令数组。固定协议参数为 `--source browsecomp --correctness any --val-fraction 0 --test-fraction 0`，不得改成有正确性金标签或 held-out 示范评测。
+
+### 14.4.2 训练入口变量（25/39）
+
+| 变量 | 默认/来源 | 作用与修改提示 |
+|---|---|---|
+| `DATASET_DIR` | 空，回退 YAML `dataset` | 非空才覆盖；只选择已有 prepared 目录，不生成、不筛选数据 |
+| `MODEL_PATH` | 空，回退 YAML `models[model_family]` | 非空覆盖当前模型族路径；不改变 `model_family`，不重新分词 |
+| `MAX_LENGTH` | 空，回退 YAML `training.max_length` | 非空正整数覆盖训练上限；不重做过滤，应与 prepared 长度设置一致 |
+| `ACTION` | `plan` | 只接受 `plan` / `train`。plan 创建实验归档；train 创建新实验并启动训练 |
+| `PYTHON` / `CONDA_ENV` | 与 14 相同 | 使用已安装训练依赖的环境；14 能运行不代表 GPU 训练依赖齐全 |
+| `CUDA_VISIBLE_DEVICES` | `0` | 可见 GPU 列表，如 `0,1,2,3` |
+| `NPROC_PER_NODE` | 按可见 GPU 数推断 | 可显式设正整数，需与分布式资源一致 |
+| `DISTRIBUTED_BACKEND` | `zero2` | 多进程可选 ddp/zero2；Plain 另支持 zero3；单进程配置见 53 |
+| `TMPDIR` | `/tmp` | 临时 YAML 所在目录，需存在且可写；文件退出时删除，正式配置保存在实验目录 |
+
+25/39 不读取 `INPUT`、`WORKERS`、`SEED`、`OBSERVATIONS`、`OFFLINE` 来处理数据；训练 seed 直接修改各自 YAML 的 `training.seed`。训练脚本不接受位置参数。`MODEL_PATH` 等环境覆盖仅对当前调用生效，建议先 `ACTION=plan` 检查归档配置。
+
+覆盖优先级为：**非空环境变量 > 对应训练脚本内联 YAML**。三项可选覆盖默认留空，因此直接修改 YAML 的 `dataset`、模型路径或 `training.max_length` 就会生效。如果曾 `export` 同名变量，编辑 YAML 前执行 `unset DATASET_DIR MODEL_PATH MAX_LENGTH`，或明确保留所需覆盖。20/30 的参数修改不会传递到 25/39。
+
+### 14.4.3 修改长度和模型的完整示例
+
+```bash
+# 一个 shell 会话中设置共同参数，两个阶段使用完全相同的值。
 export MODEL_PATH=/data/models/Qwen3.5-4B
 export MAX_LENGTH=32768
 export DATASET_DIR=outputs/data/browsecomp-qwen35-sft/prepared_32k
+
+# 只执行一次；该目录必须尚不存在。
+WORKERS=4 OFFLINE=1 bash scripts/sh/data/14_prepare_browsecomp.sh
+
+# 选择所需训练方法；均只读取上一步的结果。
 ACTION=plan bash scripts/sh/plain/25_plain_browsecomp_train.sh
+ACTION=plan bash scripts/sh/beacon/39_beacon_browsecomp_train.sh
+# 检查归档配置后正式训练。
+ACTION=train bash scripts/sh/plain/25_plain_browsecomp_train.sh
 ```
 
-若复用旧目录而更换 tokenizer，实验计划会因 manifest tokenizer 不匹配报错；更小训练上限也会被拒绝。改变 observation 筛选、输入文件或 tokenizer 后应使用新目录重新处理，不手动修改 manifest 绕过验证。
+不要仅在 25/39 中改 `MAX_LENGTH` 就认为完成了数据重新过滤。改变原始输入、tokenizer、长度或 observation 筛选时，用新目录重新运行 14，再将训练 `DATASET_DIR` 指向它。训练上限小于 manifest 准备上限或 tokenizer 身份不匹配时，实验入口拒绝继续；不要手改 manifest 绕过验证。
 
-学习率、LoRA、累积步数、保存频率、分布式配置及 Beacon 压缩参数，直接在对应的 `25_plain_browsecomp_train.sh` / `39_beacon_browsecomp_train.sh` 内联 YAML 中修改。两个脚本各自包含数据预处理、环境变量覆盖、参数校验和 `51_experiment.py` 启动命令；仅加载 `common/00_common.sh` 提供项目路径和 Python 选择等基础函数。20/30 继续用于 OpenSeeker 训练。25/39 不解析额外训练 CLI 参数；应使用这里的变量或修改内联 YAML。
+### 14.4.4 常见问题
+
+| 提示或现象 | 检查与处理 |
+|---|---|
+| 原始文件不存在 | 在 14 设置 `INPUT`，相对路径按项目根目录解释 |
+| 输出目录已存在 | 成功的 prepared 直接用于训练；失败留下的目录先检查，改用新目录重新处理 |
+| 离线 tokenizer 加载失败 | 指定本地 `MODEL_PATH` 或在允许联网的环境设置 `OFFLINE=0` |
+| 训练缺少 `manifest.json` | 先独立运行 14，确认成功，再给 25/39 设置相同 `DATASET_DIR` |
+| tokenizer 身份不匹配 | 两阶段 `MODEL_PATH` 必须一致；更换模型后重新准备数据 |
+| 修改 YAML 未生效 | 检查已 export 的三项覆盖变量，以及是否在查看旧实验归档 |
+| 没有验证 loss | 本来源 val/test 为空是既定设计；使用独立 benchmark 评估 |
+| 没有可用训练样本 | 查看 manifest 计数及 rejected.jsonl；不要通过截断或修改标签伪造可用数据 |
 
 ## 14.5 产物、追溯与评测边界
+
+实验目录名称使用数据集标识，与训练轨迹协议分开：25/39 内联 YAML 设置 `dataset_name: browsecomp-plus`，生成 `qwen35_plain_browsecomp-plus_L16384_...` 或 `qwen35_beacon_browsecomp-plus_L16384_...`。`data_mode: openseeker` 保持为实际使用的编码协议。`dataset_name` 只影响新实验命名与归档，修改时使用字母、数字、下划线、连字符，首字符为字母或数字，不包含路径分隔符。旧配置未指定时，manifest 的 `arguments.source=browsecomp` 自动识别为 `browsecomp-plus`，其他来源保留原协议名称。已有实验目录及其 `--run-dir` 身份不自动改名。
 
 | 文件 | 内容 |
 |---|---|
@@ -121,4 +173,6 @@ ACTION=plan bash scripts/sh/plain/25_plain_browsecomp_train.sh
 python -m unittest discover -s tests -p test_browsecomp_sft_and_hotpot_judge.py -v
 ```
 
-全量源文件已完成规范化和字节 tokenizer 编码边界检查：372/372 成功，13,021 个 observation 区域均被 loss 屏蔽，4 个字面边界标签转义。输入指纹及审计结果保存在 [14 结构审计 JSON](14_browsecomp_structure_audit.json)。字节 tokenizer 只证明边界和监督规则，不证明真实模型 token 长度、GPU 行为或训练效果。完整检查范围见 [99 验证记录](../project/99_validation.md)。
+2026-11-04 数据与训练分离后的脚本验证及环境限制见 [99 最新记录](../project/99_validation.md)。下述全量审计为此前记录，本次未重新处理真实数据。
+
+此前全量源文件已完成规范化和字节 tokenizer 编码边界检查：372/372 成功，13,021 个 observation 区域均被 loss 屏蔽，4 个字面边界标签转义。输入指纹及审计结果保存在 [14 结构审计 JSON](14_browsecomp_structure_audit.json)。字节 tokenizer 只证明边界和监督规则，不证明真实模型 token 长度、GPU 行为或训练效果。完整检查范围见 [99 验证记录](../project/99_validation.md)。

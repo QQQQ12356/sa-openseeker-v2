@@ -1,6 +1,6 @@
 # 32 Beacon 完整实验指南：数据准备、训练、合并与评测
 
-2026-11-03 更新：BrowseComp SFT 数据与 39 入口见 [14](../data/14_browsecomp_sft.md)。Hotpot all/score 现默认增加语义裁判，下文示例需先 `export JUDGE_MODEL=/path/to/local/judge`，或 `LLM_JUDGE=0` 仅复现官方指标；完整矩阵见 [59](../benchmark/59_llm_judge_matrix.md)。
+2026-11-03 更新：BrowseComp-Plus SFT 先通过 [14](../data/14_browsecomp_sft.md) 独立预处理，再使用 [39](39_beacon_browsecomp_train.md) 计划或训练，各阶段均一条命令运行。Hotpot all/score 现默认增加语义裁判，下文示例需先 `export JUDGE_MODEL=/path/to/local/judge`，或 `LLM_JUDGE=0` 仅复现官方指标；完整矩阵见 [59](../benchmark/59_llm_judge_matrix.md)。
 
 在线/BCP 模型评分默认启用空回答保护、裁判自检与有限重试；原有 EM/F1 不变。历史结果审计及重评见 [54](../benchmark/54_stable_judging.md)。
 
@@ -539,3 +539,5 @@ bash scripts/sh/report/41_predictions_html.sh
 真正开始训练前，优先确认数据路径、tokenizer 身份、max_length、训练步数与模型资源；真正报告成绩前，优先确认生成是否完成、评测来源和失败覆盖率。
 
 各方案独立 Benchmark 入口、完整变量表、配置优先级与路径迁移见 [46 脚本手册](../benchmark/46_benchmark_scripts.md)。
+
+RESEARCH OpenSeeker 导出新增来源入口与本指南共用 Beacon 训练实现；observation 压缩区域、长度审计、plan/train 以及三类裁判命令见 [09](../data/09_research_sft.md)。

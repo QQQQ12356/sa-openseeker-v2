@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 39 BrowseComp-Plus SFT Beacon；先单独运行 data/14_prepare_browsecomp.sh。
+# 参数与修改提示：docs/beacon/39_beacon_browsecomp_train.md
 # 修改下方参数后执行：bash scripts/sh/beacon/39_beacon_browsecomp_train.sh
 set -euo pipefail
 
@@ -19,24 +21,14 @@ if [[ "$ACTION" != "train" && "$ACTION" != "plan" ]]; then
   exit 2
 fi
 
-# ===== BrowseComp-Plus SFT 数据与预处理 =====
-# 缺少 manifest 时直接执行预处理命令；已有数据复用。
-INPUT="${INPUT:-outputs/data/browsecomp-qwen35-sft/train.jsonl}" # 原始文件，只读
-export DATASET_DIR="${DATASET_DIR:-outputs/data/browsecomp-qwen35-sft/prepared_16k}"
-export MODEL_PATH="${MODEL_PATH:-Qwen/Qwen3.5-4B}" # 必须与训练路径完全相同，用于分词和 manifest
-export MAX_LENGTH="${MAX_LENGTH:-16384}" # 完整序列 token 上限；不截断
-WORKERS="${WORKERS:-4}"           # CPU 分词进程数
-SEED="${SEED:-42}"               # 分组去重/划分种子
-OBSERVATIONS="${OBSERVATIONS:-with}" # with / any / without
-OFFLINE="${OFFLINE:-1}"          # 默认仅使用本地 tokenizer；0 允许下载
-[[ "$OFFLINE" == 0 || "$OFFLINE" == 1 ]] || { echo 'OFFLINE 必须为 0 或 1' >&2; exit 2; }
-if [[ ! -f "$DATASET_DIR/manifest.json" ]]; then
-  COMMAND=("$PY" scripts/py/10_prepare.py --source browsecomp --input "$INPUT"
-    --output "$DATASET_DIR" --models "$MODEL_PATH" --max-length "$MAX_LENGTH"
-    --workers "$WORKERS" --seed "$SEED" --correctness any --observations "$OBSERVATIONS"
-    --val-fraction 0 --test-fraction 0)
-  [[ "$OFFLINE" != 1 ]] || COMMAND+=(--offline)
-  "${COMMAND[@]}"
+# ===== 可选训练覆盖：非空环境变量优先于下方 YAML =====
+# 默认留空，直接编辑 YAML 即可；完整说明见 docs/data/14_browsecomp_sft.md。
+export DATASET_DIR="${DATASET_DIR:-}"  # 已处理目录；需先单独运行 data/14_prepare_browsecomp.sh
+export MODEL_PATH="${MODEL_PATH:-}"    # 训练模型；必须与 manifest tokenizer 身份一致
+export MAX_LENGTH="${MAX_LENGTH:-}"    # 正整数；完整训练轨迹上限，不执行截断或重新筛选
+if (( $# > 0 )); then
+  echo '训练入口不接收位置参数；请修改内联 YAML 或设置文档中的环境变量。' >&2
+  exit 2
 fi
 
 # 临时配置会归档到实验目录的 source_config.yaml；结束后删除临时文件。
@@ -50,6 +42,7 @@ cat > "$CONFIG_FILE" <<'YAML'
 model_family: qwen35
 kind: beacon
 data_mode: openseeker
+dataset_name: browsecomp-plus  # 实验名称的数据集标识；与上方轨迹协议独立
 # prepared 目录；训练/验证/测试与 manifest 自动从这里读取。
 dataset: outputs/data/browsecomp-qwen35-sft/prepared_16k
 models:
@@ -193,7 +186,7 @@ distributed:
 YAML
 
 # 在创建实验前校验 Beacon 参数；实际布局策略由训练配置统一解析。
-# 将上述数据、模型和长度参数写入本次完整实验配置。
+# 应用可选覆盖并检查已处理数据；不修改数据文件。
 "$PY" - "$CONFIG_FILE" <<'PY'
 import os
 from pathlib import Path
@@ -211,21 +204,22 @@ if os.environ.get('MAX_LENGTH'):
     if length < 1:
         raise SystemExit('MAX_LENGTH 必须为正整数')
     spec['training']['max_length'] = length
-path.write_text(yaml.safe_dump(spec, sort_keys=False, allow_unicode=True), encoding='utf-8')
-PY
-"$PY" - "$CONFIG_FILE" <<'PY'
-from pathlib import Path
-import sys
-import yaml
+dataset = Path(spec['dataset'])
+if not (dataset / 'manifest.json').is_file():
+    raise SystemExit(
+        f'缺少 prepared manifest: {dataset / "manifest.json"}。'
+        '请先单独运行 bash scripts/sh/data/14_prepare_browsecomp.sh，'
+        '再将 DATASET_DIR 指向其输出目录；训练入口不会预处理数据。'
+    )
 from search_comp.models.beacon_config import BeaconConfig, configure_sft_layout
 
-spec = yaml.safe_load(Path(sys.argv[1]).read_text())
 if spec.get('kind') != 'beacon' or spec.get('data_mode') != 'openseeker':
     raise SystemExit('此入口仅支持 kind=beacon、data_mode=openseeker；其他路线使用对应脚本')
 cfg = dict(data_mode=spec['data_mode'], beacon_layout_policy=spec['training'].get('beacon_layout_policy', 'whole'),
            beacon=dict(spec['beacon']))
 configure_sft_layout(cfg)
 BeaconConfig.from_dict(cfg['beacon'])
+path.write_text(yaml.safe_dump(spec, sort_keys=False, allow_unicode=True), encoding='utf-8')
 PY
 
 echo "[browsecomp-plus] Python: $PY"

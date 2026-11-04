@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -83,11 +84,16 @@ def main():
         spec['code_fingerprints']={str(p.relative_to(ROOT)):digest(p) for folder in ('search_comp','scripts')
             for p in sorted((ROOT/folder).rglob('*.py'))}
         taghash=hashlib.sha256(json.dumps(dict(spec=spec,cfg=cfg),sort_keys=True).encode()).hexdigest()[:10]
-        tag=f"{family}_{kind}_{spec['data_mode']}_L{cfg['max_length']}_r{cfg['beacon'].get('beacon_ratio',16)}_lr{cfg['learning_rate']}_s{cfg['seed']}_{taghash}"
+        # Dataset identity is separate from its trajectory encoding protocol.
+        source=spec.get('dataset_manifest',{}).get('arguments',{}).get('source')
+        dataset_name=spec.get('dataset_name') or ('browsecomp-plus' if source=='browsecomp' else spec['data_mode'])
+        if not isinstance(dataset_name,str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]*',dataset_name):
+            p.error('dataset_name must contain only letters, digits, underscores or hyphens, starting with a letter or digit')
+        tag=f"{family}_{kind}_{dataset_name}_L{cfg['max_length']}_r{cfg['beacon'].get('beacon_ratio',16)}_lr{cfg['learning_rate']}_s{cfg['seed']}_{taghash}"
         name=tag+'_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
         run=(ROOT/'outputs/experiments'/name).resolve();run.mkdir(parents=True)
         cfg.update(output_dir=str(run),exp_name='model')
-        spec.update(name=name,training_config=cfg,created_at=datetime.now(timezone.utc).isoformat(),
+        spec.update(name=name,dataset_name=dataset_name,training_config=cfg,created_at=datetime.now(timezone.utc).isoformat(),
                     python=sys.version,platform=platform.platform())
         (run/'experiment.json').write_text(json.dumps(spec,ensure_ascii=False,indent=2)+'\n')
         (run/'train.yaml').write_text(yaml.safe_dump(cfg,sort_keys=False,allow_unicode=True))

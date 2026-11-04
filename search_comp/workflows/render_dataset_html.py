@@ -23,7 +23,7 @@ def prepare_record(row, source, line_number):
         content = message.get('content') or ''
         if not isinstance(content, str):
             continue  # Non-text content is preserved in the raw message view.
-        if role == 'tool' and content:
+        if role in ('tool', 'tool_output') and content:
             observations.append(dict(message=index, kind='raw_tool', text=content))
         elif role == 'user':
             for match in OBSERVATION.finditer(content):
@@ -33,7 +33,7 @@ def prepare_record(row, source, line_number):
                             seen_assistant and match.group(0).strip() == content.strip())
                 if eligible and match[2]:
                     observations.append(dict(message=index, kind=match[1], text=match[2]))
-        if role == 'assistant':
+        if role in ('assistant', 'reasoning', 'tool_call', 'answer'):
             seen_assistant = True
     question = row.get('question') or next(
         (m.get('content', '') for m in messages if m.get('role') == 'user'), '')

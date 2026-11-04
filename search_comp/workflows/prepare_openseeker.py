@@ -14,6 +14,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from search_comp.data.openseeker import normalize, encode, parse_calls, VERSION
 from search_comp.data.browsecomp import normalize_browsecomp
+from search_comp.data.research import normalize_research, ADAPTER_VERSION
 
 MODELS = ['Qwen/Qwen3-4B-Thinking-2507', 'Qwen/Qwen3.5-4B']
 
@@ -52,7 +53,8 @@ def initialize(models, offline):
 def measure(item):
     source, index, raw = item
     try:
-        adapter = normalize_browsecomp if source.startswith('browsecomp/') else normalize
+        adapter = (normalize_research if source.startswith('research/') else
+                   normalize_browsecomp if source.startswith('browsecomp/') else normalize)
         row = adapter(raw, source, index)
         lengths = {}
         for name, tok in TOKENIZERS.items():
@@ -79,7 +81,7 @@ def dump(f, obj):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--input', type=Path, action='append', required=True)
-    p.add_argument('--source', required=True, choices=['polar', 'zephyr', 'combined', 'browsecomp'])
+    p.add_argument('--source', required=True, choices=['polar', 'zephyr', 'combined', 'browsecomp', 'research'])
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--models', nargs='+', default=MODELS)
     p.add_argument('--offline', action='store_true')
@@ -100,6 +102,10 @@ def main():
         args.require_correct = False
         if args.val_fraction or args.test_fraction:
             p.error('BrowseComp SFT requires --val-fraction 0 --test-fraction 0')
+    if args.source == 'research':
+        if args.correctness not in (None, 'any'):
+            p.error('RESEARCH correctness is unverified; use --correctness any')
+        args.require_correct = False
     selection = selection_from_args(args)
     if not 0 <= args.val_fraction + args.test_fraction < 1 or min(args.val_fraction, args.test_fraction) < 0:
         p.error('invalid split fractions')
@@ -115,7 +121,8 @@ def main():
         if path.stem in ('val', 'validation', 'test'):
             for i, raw in enumerate(rows(path)):
                 try:
-                    key = normalize(raw, args.source, i)['question_id']
+                    adapter = normalize_research if args.source == 'research' else normalize
+                    key = adapter(raw, args.source, i)['question_id']
                     known_splits[key] = 'test' if path.stem == 'test' else 'validation'
                 except (ValueError, KeyError, TypeError):
                     pass
@@ -176,6 +183,10 @@ def main():
     if args.source == 'browsecomp':
         manifest.update(training_only=True, answer_source='reference_or_demonstration_final_response',
                         note='Demonstration targets are not independent evaluation references.')
+    if args.source == 'research':
+        manifest.update(adapter_version=ADAPTER_VERSION, training_only=True,
+                        dataset_id='AmanPriyanshu/tool-reasoning-sft-RESEARCH-OpenSeeker-v1-Data',
+                        note='Held-out demonstrations are not independent benchmark gold answers.')
     for path in args.input:
         h = hashlib.sha256()
         with path.open('rb') as f:

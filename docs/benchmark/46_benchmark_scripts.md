@@ -1,6 +1,6 @@
 # 46 各方案独立 Benchmark 脚本与参数手册
 
-新增统一分发 `59_run_benchmark.sh`：METHOD=plain/beacon/base，BENCHMARK=browsecomp/browsecomp-plus/hotpotqa；完整变量和示例见 [59](59_llm_judge_matrix.md)。Hotpot all/score 现默认需要 JUDGE_MODEL。
+Plain、Beacon、原始模型分别直接运行 plain/、beacon/、baseline/ 目录下对应 benchmark 的独立脚本，不使用统一分发入口；九个脚本的完整路径、变量和示例见 [59](59_llm_judge_matrix.md)。Hotpot all/score 现默认需要 JUDGE_MODEL。
 
 评分/工具恢复公共参数由 `54_judge_options.sh` 映射；历史审计与裁判自检入口为 `54_check_judge.sh`，完整参数、行为变化和各方法覆盖表见 [54](54_stable_judging.md)。
 
@@ -17,7 +17,7 @@
 | BrowseComp-Plus | `plain/56_plain_browsecomp_plus.sh` | `beacon/56_beacon_browsecomp_plus.sh` | `baseline/74_qwen35_browsecomp_plus.sh` |
 | HotpotQA | `plain/57_plain_hotpotqa.sh` | `beacon/57_beacon_hotpotqa.sh` | `baseline/75_qwen35_hotpotqa.sh` |
 
-表中路径均相对 `scripts/sh/`。脚本有序号前缀；同一 benchmark 在 Plain/Beacon 使用相同编号，并以方案名区分。Plain 和 Beacon 各有完整配置入口，直接调用公共 Python 工作流，不互相转发，也不转发到 benchmark 下的评测入口。Baseline 74/75 固定数据集并调用本目录 73 的原始模型配置与参数映射；73 保留兼容旧命令，70 总入口已转向 74/75。
+表中路径均相对 `scripts/sh/`。脚本有序号前缀；同一 benchmark 在 Plain/Beacon 使用相同编号，并以方案名区分。Plain 和 Beacon 各有完整配置入口，直接调用公共 Python 工作流，不互相转发，也不转发到 benchmark 下的评测入口。Baseline 74/75 各自固定数据集，独立包含原始模型配置与参数映射；直接运行对应脚本。73 和 70 仅保留兼容旧命令。
 
 `benchmark/` 只保留共享内容：46 下载在线基准及官方代码、49 私有 API 配置示例、58 离线参数到 CLI 的映射。Plain 模型服务入口迁到 `plain/48_serve_checkpoint.sh`。已有 Python 47/48/52 的文件名和命令行接口保持不变。
 
@@ -67,7 +67,7 @@ Plain/Beacon 离线脚本默认 `ACTION=all`，Baseline 默认 `ACTION=run`，�
 
 ## 46.3 配置优先级和修改位置
 
-1. 单次实验优先在命令前写 `变量=值`；长期默认值可修改相应独立脚本顶部 `${VAR:-默认值}` 中的默认值。Baseline 两个离线入口共享的默认值在 73 顶部修改，也可在 74/75 中增加 `export VAR="${VAR:-默认值}"` 为某个数据集单独配置。
+1. 单次实验优先在命令前写 `变量=值`；长期默认值可修改相应独立脚本顶部 `${VAR:-默认值}` 中的默认值。Baseline 的两个离线入口分别在 74/75 顶部修改各自默认值。
 2. 在线脚本的 `ENV_FILE` 在顶部默认值赋值之后加载，文件中直接赋值会覆盖已有变量；49 示例采用 `${VAR:-默认值}`，已有非空环境变量优先。密钥留在仓库外，不提交真实配置。
 3. 命令末尾支持额外 Python CLI 参数，重复标量参数通常最后一个生效；推荐使用同名 Shell 环境变量，避免两处设置冲突。不要通过 `--kind`、`--mode` 或 `--model-origin` 改变入口对应的实验方案。
 4. Plain/Beacon `KIND` 分别固定为 plain/beacon；错误环境变量立即报错。Beacon 仅支持 `MODE=native` 和 greedy，保留压缩逻辑；Plain 支持 native 以及通过已部署模型服务执行 official-v1/v2。官方模式使用上游提示及解码，不接受自定义 native 解码配置。
@@ -205,7 +205,7 @@ Plain/Beacon 离线脚本默认 `ACTION=all`，Baseline 默认 `ACTION=run`，�
 
 ### Baseline 离线共享配置（74/75 固定 TARGET）
 
-配置源：`scripts/sh/baseline/73_qwen35_offline.sh`。
+配置源：`scripts/sh/baseline/74_qwen35_browsecomp_plus.sh` 和 `scripts/sh/baseline/75_qwen35_hotpotqa.sh`，各自独立配置。
 
 | 变量 | 默认值 | 说明与修改提示 |
 |---|---|---|
@@ -282,4 +282,4 @@ Plain/Beacon 离线脚本默认 `ACTION=all`，Baseline 默认 `ACTION=run`，�
 
 旧的 benchmark 路径不保留执行转发，批处理、个人笔记和集群作业请更新路径。文档中的公共离线数据准备示例采用 Plain 入口，仅执行 download/prepare/index 时不会加载 Plain 模型；Beacon 入口相同阶段生成兼容的共享数据。
 
-新增参数时：在各相关方案脚本顶部添加带默认值的变量及用途注释；离线公共 CLI 映射只改 benchmark/58；Baseline 离线映射改 baseline/73。需要改变实际推理/评分功能时再修改 Python 工作流，并同步本表和对应协议文档。不要把测试入口重新放回 benchmark 目录。
+新增参数时：在各相关方案脚本顶部添加带默认值的变量及用途注释；离线公共 CLI 映射只改 benchmark/58；Baseline 离线映射分别修改 baseline/74 和 baseline/75。需要改变实际推理/评分功能时再修改 Python 工作流，并同步本表和对应协议文档。不要把测试入口重新放回 benchmark 目录。

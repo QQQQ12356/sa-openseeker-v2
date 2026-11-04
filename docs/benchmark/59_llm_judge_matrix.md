@@ -4,15 +4,15 @@
 
 ## 59.1 九种组合与入口
 
-统一入口为 `scripts/sh/benchmark/59_run_benchmark.sh`。它只分发到既有脚本，不自动重复运行九次。
+每种方法、每个 benchmark 均直接运行其所在目录的独立脚本，见下表；不使用 METHOD/BENCHMARK 统一分发接口。
 
-| METHOD | BENCHMARK=browsecomp | BENCHMARK=browsecomp-plus | BENCHMARK=hotpotqa |
+| 方法目录 | BrowseComp | BrowseComp-Plus | HotpotQA |
 |---|---|---|---|
 | plain | plain/47_plain_browsecomp.sh | plain/56_plain_browsecomp_plus.sh | plain/57_plain_hotpotqa.sh |
 | beacon | beacon/47_beacon_browsecomp.sh | beacon/56_beacon_browsecomp_plus.sh | beacon/57_beacon_hotpotqa.sh |
 | base | baseline/72_qwen35_browsecomp.sh | baseline/74_qwen35_browsecomp_plus.sh | baseline/75_qwen35_hotpotqa.sh |
 
-`METHOD` 默认 plain，`BENCHMARK` 默认 hotpotqa。其余环境变量和命令尾部 CLI 参数透传具体入口。Plain/Beacon 用 `RUN_DIR` 自动解析训练结果；也可 `MODEL_PATH` 显式指定模型。原始模型使用 `BASE_CHECKPOINT`，保持独立模型加载逻辑。Beacon 应走 native 推理以保留压缩行为。
+脚本路径直接确定方法和 benchmark，在对应脚本顶部修改参数，或通过同名环境变量覆盖。Plain/Beacon 用 `RUN_DIR` 自动解析训练结果；也可 `MODEL_PATH` 显式指定模型。原始模型使用 `BASE_CHECKPOINT`，保持独立模型加载逻辑。Beacon 应走 native 推理以保留压缩行为。
 
 BrowseComp SFT 训练后的 RUN_DIR 会定位其 prepared 训练提示，并将原历史工具 schema 适配为 benchmark 实际提供的 search/visit；保留原研究说明、声明历史工具不可用。原始模型要使用相同提示时，以 `PROMPT_DATA` 指向同一份 prepared/train.jsonl。此行为仅作用于带 browsecomp 来源和 training_only 标记的 prepared 数据；其他训练提示沿用原处理。训练与评测的能力差别及边界见 [14.5](../data/14_browsecomp_sft.md#145-产物追溯与评测边界)。
 
@@ -29,27 +29,27 @@ HotpotQA 的语义正确性只比较回答与参考答案的事实含义，不�
 以下命令在已配置的 Linux 环境中运行。`DRY_RUN=1` 只解析输出参数，不加载待测模型和裁判，不请求 API，也不构建索引。
 
 ```bash
-METHOD=plain BENCHMARK=hotpotqa ACTION=all DRY_RUN=1 \
+ACTION=all DRY_RUN=1 \
   RUN_DIR=outputs/experiments/YOUR_RUN JUDGE_MODEL=/data/models/Qwen3-32B \
-  bash scripts/sh/benchmark/59_run_benchmark.sh
+  bash scripts/sh/plain/57_plain_hotpotqa.sh
 
 # 已准备 Hotpot 官方数据/索引时，生成并评分；LIMIT=8 为小规模检查。
-METHOD=plain BENCHMARK=hotpotqa ACTION=all LIMIT=8 \
+ACTION=all LIMIT=8 \
   RUN_DIR=outputs/experiments/YOUR_RUN JUDGE_MODEL=/data/models/Qwen3-32B \
-  bash scripts/sh/benchmark/59_run_benchmark.sh
+  bash scripts/sh/plain/57_plain_hotpotqa.sh
 
-METHOD=beacon BENCHMARK=browsecomp-plus ACTION=all LIMIT=8 \
+ACTION=all LIMIT=8 \
   RUN_DIR=outputs/experiments/YOUR_BEACON_RUN JUDGE_MODEL=/data/models/Qwen3-32B \
-  bash scripts/sh/benchmark/59_run_benchmark.sh
+  bash scripts/sh/beacon/56_beacon_browsecomp_plus.sh
 
-METHOD=base BENCHMARK=hotpotqa ACTION=all LIMIT=8 \
+ACTION=all LIMIT=8 \
   BASE_CHECKPOINT=/data/models/Qwen3.5-4B JUDGE_MODEL=/data/models/Qwen3-32B \
-  bash scripts/sh/benchmark/59_run_benchmark.sh
+  bash scripts/sh/baseline/75_qwen35_hotpotqa.sh
 
 # 在线 BrowseComp：ENV_FILE 提供搜索、网页摘要和 SCORER 服务配置。
-METHOD=plain BENCHMARK=browsecomp LIMIT=8 \
+LIMIT=8 \
   RUN_DIR=outputs/experiments/YOUR_RUN ENV_FILE=/private/benchmark_env.sh \
-  bash scripts/sh/benchmark/59_run_benchmark.sh
+  bash scripts/sh/plain/47_plain_browsecomp.sh
 ```
 
 对所有组合使用统一题集、LIMIT、生成预算、检索索引、解码和裁判配置。正式全量使用 `LIMIT=-1`。原始模型离线脚本默认 `ACTION=run`，Plain/Beacon 离线默认 all，因此比较时显式指定 ACTION。BrowseComp 在线脚本不沿用离线 ACTION 定义：Plain/Beacon 通过 PREDICTIONS 切换仅评分，原始模型用 ACTION=run/score。
@@ -73,7 +73,7 @@ HotpotQA 的 shell 入口默认 `LLM_JUDGE=1`，因此 all/score 必须提供本
 | SKIP_JUDGE_PREFLIGHT | 0 | 默认先校准正反例；1 跳过，报告中需说明原因 |
 | RETRIEVAL_ONLY | BCP 为 0 | BCP 设 1 仅检查检索，不产生答案 accuracy；不等于完成语义评分 |
 
-Hotpot 参数在共享 `54_judge_options.sh` 中映射；Plain/Beacon 通过 `58_offline_common.sh` 调用，原始模型通过 73 调用。BCP 原有参数映射保持原位置，避免重复传入。
+Hotpot 参数在共享 `54_judge_options.sh` 中映射；Plain/Beacon 通过 `58_offline_common.sh` 调用，原始模型通过本目录的 75 独立脚本调用。BCP 参数由对应独立脚本映射，避免重复传入。
 
 本地 HF 裁判按需加载：先完成并释放待测模型，再评分；空回答/生成失败不会触发裁判调用。`NUM_WORKERS` 控制待测模型按题多卡并行，本地裁判本身串行调用并用 `device_map=auto` 分配可见 GPU。显存不足时可先生成、再在合适的卡上单独 score，不需要重做生成。
 
@@ -97,11 +97,11 @@ Hotpot 参数在共享 `54_judge_options.sh` 中映射；Plain/Beacon 通过 `58
 ## 59.5 仅重评分已有预测
 
 ```bash
-METHOD=beacon BENCHMARK=hotpotqa ACTION=score LIMIT=8 \
+ACTION=score LIMIT=8 \
   PREDICTIONS=outputs/results/YOUR_GENERATION/predictions.jsonl \
   OUTPUT_DIR=outputs/results/YOUR_NEW_SCORE \
   JUDGE_MODEL=/data/models/Qwen3-32B \
-  bash scripts/sh/benchmark/59_run_benchmark.sh
+  bash scripts/sh/beacon/57_beacon_hotpotqa.sh
 ```
 
 使用与原生成一致的 ROOT_DIR、LIMIT 和题集；默认 provenance 校验会拒绝题目 checksum、ID 选择不同的预测。输出目录须为新目录，避免覆盖旧评分。仅评分通常无需 RUN_DIR 或 MODEL_PATH。
@@ -127,8 +127,10 @@ METHOD=beacon BENCHMARK=hotpotqa ACTION=score LIMIT=8 \
 
 ## 59.7 修改提示与验证范围
 
-变更判定原则时修改 `offline/scoring.py::score_hotpot_judge` 并升级提示版本；不覆盖官方 evaluator。变更共享裁判参数时修改 54；变更模型或 benchmark 路由时修改 59，不复制九套评分实现。
+变更判定原则时修改 `offline/scoring.py::score_hotpot_judge` 并升级提示版本；不覆盖官方 evaluator。变更共享裁判参数时修改 54；变更方法或 benchmark 参数时修改对应方法目录下的独立脚本；底层评分函数继续复用。
 
 为保持官方 SHA256，`.gitattributes` 固定 `search_comp/offline/reference/**` 使用 LF，同时固定 shell 脚本 LF。Windows 如果已有 CRLF 旧副本，必须恢复与固定指纹一致的原文件；不要修改 provenance 来通过检查。
 
 本次标准库测试验证数据适配与裁判控制流，使用模拟标签；不宣称已经验证真实裁判质量、Linux GPU 模型加载、CUDA 兼容性或端到端 benchmark 成绩。没有安装环境，没有启动训练或真实 LLM-Judge 推理。验证命令和结果见 [99](../project/99_validation.md)。
+
+RESEARCH OpenSeeker SFT 的九种评测组合分别使用本页所列方法目录下的脚本；Plain/Beacon 的 RUN_DIR 会解析其 prepared 训练提示，原始模型需要相同提示时显式设置 PROMPT_DATA。来源适配与训练/推理边界见 [09](../data/09_research_sft.md)。

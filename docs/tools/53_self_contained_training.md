@@ -1,6 +1,6 @@
 # 53 自包含训练脚本：参数、DeepSpeed 和实验计划
 
-新增 BrowseComp SFT 25/39 入口复用原自包含 20/30；DATASET_DIR、MODEL_PATH、MAX_LENGTH 的共享覆盖与完整变量表见 [14](../data/14_browsecomp_sft.md)，未复制训练器或改变分布式配置。
+BrowseComp-Plus SFT 先通过 [14](../data/14_browsecomp_sft.md) 独立预处理，再使用 [25 Plain](../plain/25_plain_browsecomp_train.md) / [39 Beacon](../beacon/39_beacon_browsecomp_train.md) 训练。25/39 各自包含完整配置与启动命令，不自动预处理，不转调 20/30；三项可选环境覆盖默认留空，优先级和变量说明见 14.4。
 
 Plain 和 Beacon 的训练参数、LoRA、损失、Beacon 配置及 DeepSpeed 选项都写在相应 shell 脚本中。日常修改时编辑脚本，不需要打开或修改 `configs/train/*.yaml`、`ds_zero*.json`。模型权重、tokenizer 与数据仍需事先准备；脚本不能让训练器支持尚未实现的功能。
 
@@ -9,8 +9,10 @@ Plain 和 Beacon 的训练参数、LoRA、损失、Beacon 配置及 DeepSpeed �
 | 目的 | 编辑哪个脚本 | 运行入口 | 说明 |
 |---|---|---|---|
 | Plain OpenSeeker 正式训练 | `scripts/sh/plain/20_plain_train.sh` | 20；四卡 28 委托 20 | 脚本内 `training`、`distributed` |
+| Plain BrowseComp-Plus SFT | `scripts/sh/plain/25_plain_browsecomp_train.sh` | 25 | 先独立运行 14；训练参数在 25 内 |
 | Plain 显存试验 | `scripts/sh/plain/26_plain_memory_probe.sh` | 26 | 配置独立，不继承 20 |
 | Beacon OpenSeeker 正式训练 | `scripts/sh/beacon/30_beacon_train.sh` | 30；四卡 38 委托 30 | 脚本内 `training`、`beacon`、`distributed` |
+| Beacon BrowseComp-Plus SFT | `scripts/sh/beacon/39_beacon_browsecomp_train.sh` | 39 | 先独立运行 14；训练、压缩与分布式参数在 39 内 |
 | Beacon 显存试验 | `scripts/sh/beacon/37_beacon_memory_probe.sh` | 37 | 配置独立，不继承 30 |
 | Plain Search-R1 | `scripts/sh/plain/22_plain_searchr1_train.sh` | 22 | 脚本内平铺训练配置、`distributed` |
 | Beacon Search-R1 | `scripts/sh/beacon/34_beacon_searchr1_train_impl.sh` | 32 或 34 | 32 委托 34；脚本内平铺配置、`beacon`、`distributed` |

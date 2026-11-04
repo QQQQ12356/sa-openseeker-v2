@@ -56,3 +56,5 @@
 ## 独立离线 Benchmark 数据
 
 新增 BrowseComp-Plus 与 HotpotQA 的数据适配独立于 Polar 训练准备。56 使用官方 BCP 加密问题、独立 corpus 和 qrels；57 使用有标注 dev 与官方 2017 Wikipedia 摘要库，丢弃 dev 候选 context。结果、明文问题、规范化 corpus 与持久化索引都放在 outputs，不混入训练 split。首次下载与离线导入、字段映射和版本校验见 [43](../benchmark/43_offline_benchmarks.md)，来源和许可证见 [44](../benchmark/44_offline_sources.md)。
+
+RESEARCH 角色导出请使用新增的 source=research，格式映射、审计口径及 Linux 入口见 [09](09_research_sft.md)。不要将原始 reasoning/tool_call/tool_output 角色直接作为既有规范化轨迹训练。

@@ -11,3 +11,5 @@ BrowseComp SFT 的完整序列长度、超长过滤、真实 tokenizer 与测试
 长度是压缩前的序列长度。Beacon 压缩比、observation 占比、工具轮次、思考段长度、模型、LoRA 和辅助蒸馏配置都会影响显存，因此相同 total 不保证相同峰值。更换 tokenizer、模板或轨迹正文后应重新运行 10；只改变长度筛选或损失权重可以运行 11。
 
 以新生成的 `measurements.jsonl` 为准，运行 `44_plot.sh` 生成长度图，运行 `45_report.sh` 输出按正确性分组的长度与质量报告。区间内可能没有样本，精确长度尤其如此；先检查新 manifest 的 counts 再运行训练。
+
+RESEARCH 数据同样按转换后的完整 encode 序列计长，保留筛选前分布与逐条 measurements；具体产物和修改 MAX_LENGTH 的步骤见 [09](09_research_sft.md)。

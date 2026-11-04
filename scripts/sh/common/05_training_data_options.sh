@@ -9,6 +9,8 @@ import yaml
 
 path = Path(sys.argv[1])
 spec = yaml.safe_load(path.read_text(encoding='utf-8'))
+if os.environ.get('DATASET_NAME'):
+    spec['dataset_name'] = os.environ['DATASET_NAME']
 if os.environ.get('DATASET_DIR'):
     spec['dataset'] = os.environ['DATASET_DIR']
 if os.environ.get('MODEL_PATH'):

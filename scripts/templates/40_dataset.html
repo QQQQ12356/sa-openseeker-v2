@@ -9,7 +9,7 @@
 </head>
 <body>
 <header><small>DATASET INSPECTOR · OFFLINE</small><h1 id="title"></h1><div id="source" class="muted"></div><div class="note">绿色块为观测正文；字符数不是 token 数。此页面不运行 tokenizer，也不替代训练数据校验。</div><details id="manifest"><summary>数据集 Manifest</summary><pre id="manifestText"></pre></details></header>
-<div class="workspace"><div id="stats"></div><div class="toolbar"><input id="search" type="search" aria-label="全文搜索" placeholder="搜索 ID、问题、答案或完整轨迹…"><select id="observation" aria-label="观测筛选"><option value="all">全部观测情况</option><option value="zero">无非空观测正文</option><option value="some">包含观测正文</option></select><select id="role" aria-label="消息角色"><option value="all">显示全部角色</option><option value="user">仅 user</option><option value="assistant">仅 assistant</option><option value="tool">仅原始 tool</option><option value="system">仅 system</option></select></div>
+<div class="workspace"><div id="stats"></div><div class="toolbar"><input id="search" type="search" aria-label="全文搜索" placeholder="搜索 ID、问题、答案或完整轨迹…"><select id="observation" aria-label="观测筛选"><option value="all">全部观测情况</option><option value="zero">无非空观测正文</option><option value="some">包含观测正文</option></select><select id="role" aria-label="消息角色"><option value="all">显示全部角色</option><option value="user">仅 user</option><option value="assistant">仅 assistant</option><option value="tool">仅原始 tool</option><option value="system">仅 system</option><option value="reasoning">仅 reasoning</option><option value="tool_call">仅 tool_call</option><option value="tool_output">仅 tool_output</option><option value="answer">仅 answer</option></select></div>
 <main><aside><div id="count" class="muted"></div><div id="list"></div><div id="listpage" class="nav"><button id="pagePrev">上一页</button><span id="page"></span><button id="pageNext">下一页</button></div></aside><article><div class="nav"><button id="prev">上一条</button><button id="next">下一条</button><button id="expand">展开消息</button><button id="collapse">折叠消息</button><span id="position" class="muted"></span></div><div id="detail"></div></article></main></div>
 <script id="dataset-data" type="application/json">__DATASET_DATA__</script>
 <script>
@@ -33,13 +33,13 @@ function part(parent,label,value,kind=''){const n=el('section','part '+kind);n.a
 function messageBody(parent,m,index,r){const content=text(m.content??'');
   // Parse tags only in their appropriate role; quoted tags in system prompts
   // and retrieved pages stay literal text. All dataset values use textContent.
-  if(m.role==='assistant'){
+  if(['assistant','reasoning','tool_call','answer'].includes(m.role)){
     const pattern=/<(think|thinking|tool_call|search|answer)>([\s\S]*?)<\/\1>/g;let end=0,match;
     while((match=pattern.exec(content))!==null){if(content.slice(end,match.index).trim())part(parent,'正文',content.slice(end,match.index));const tag=match[1],kind=['think','thinking'].includes(tag)?'think':['tool_call','search'].includes(tag)?'call':'answer';part(parent,tag,tag==='tool_call'?pretty(match[2]):match[2],kind);end=pattern.lastIndex;}if(content.slice(end).trim())part(parent,'正文',content.slice(end));
     if(m.reasoning_content||m.reasoning)part(parent,'reasoning',m.reasoning_content||m.reasoning,'think');
     if(m.tool_calls)part(parent,'结构化工具调用',pretty(m.tool_calls),'call');
   }else if(r.observations.some(o=>o.message===index)){
-    if(m.role==='tool'){part(parent,'原始 tool 结果（未运行归一化）',content,'observation');}
+    if(['tool','tool_output'].includes(m.role)){part(parent,'原始 tool 结果（未运行归一化）',content,'observation');}
     else{const pattern=/<(tool_response|information)>([\s\S]*?)<\/\1>/g;let end=0,match;while((match=pattern.exec(content))!==null){if(content.slice(end,match.index).trim())part(parent,'正文',content.slice(end,match.index));part(parent,`${match[1]} · ${Array.from(match[2]).length} 字符`,match[2],'observation');end=pattern.lastIndex;}if(content.slice(end).trim())part(parent,'正文',content.slice(end));}
   }else{parent.append(el('div','content',content));}
   const raw=el('details');raw.append(el('summary','','原始消息 JSON'),el('pre','',JSON.stringify(m,null,2)));parent.append(raw);

@@ -1,5 +1,42 @@
 # 99 本次验证记录
 
+## BrowseComp-Plus 实验名称与协议分离（2026-11-04）
+
+25/39 显式增加 `dataset_name: browsecomp-plus`。实验目录名使用该数据集标识，分别生成 `qwen35_plain_browsecomp-plus_L...`、`qwen35_beacon_browsecomp-plus_L...`；归档 `experiment.json` 记录生效的 dataset_name。未设置该字段的旧配置，从 prepared manifest 的 `arguments.source=browsecomp` 推断；其他来源保留原命名。`data_mode: openseeker` 继续表示轨迹协议，已有实验目录不自动重命名。
+
+新增 `tests/test_experiment_dataset_name.py`，5 tests 全部通过：Plain manifest 推断、Beacon 显式命名、OpenSeeker 原命名、自定义名称优先级、非法路径名称拒绝。测试在临时目录运行实际 plan 逻辑，使用 JSON 替代 YAML 序列化并隔离模型包的 torch 预导入；不加载权重或训练。25/39 Bash 语法与 git diff 空白检查通过。此前“内联 YAML 与 HEAD 一致”的检查对应上一阶段；本次有意新增命名字段，训练超参数未改变。
+
+```bash
+python -m unittest discover -s tests -p test_experiment_dataset_name.py -v
+```
+
+## 14 / 25 / 39 BrowseComp-Plus SFT 数据与训练分离（2026-11-04）
+
+本次将预处理统一留在 `scripts/sh/data/14_prepare_browsecomp.sh`；Plain 25、Beacon 39 仅保留已有数据检查、完整训练参数、配置校验和实验启动命令。缺少 manifest 时直接提示先运行 14。训练内联 YAML 默认值与修改前保持一致；三项环境覆盖默认留空，显式非空值优先。新增编号文档 [25](../plain/25_plain_browsecomp_train.md)、[39](../beacon/39_beacon_browsecomp_train.md)，更新 [14](../data/14_browsecomp_sft.md)、总索引、方法指南和自包含训练说明。
+
+验证环境为 Windows、已有 Python 3.12.8 与 Git Bash。没有安装依赖、重新处理真实训练集、下载权重或启动 GPU 训练。
+
+| 检查 | 结果与边界 |
+|---|---|
+| 现有 `test_browsecomp_sft_and_hotpot_judge.py` | 20 tests 全部通过；含数据适配、边界、长度、评测工具协议及原有九条评测脚本 dry-run |
+| 本次离线检查 | 24 项通过：3 个脚本 Bash 语法、训练缺失 manifest 报错且不创建数据目录、空覆盖保留 YAML 值、显式覆盖、非正长度拒绝、14 的离线开关/含空格参数/非法参数/缺失输入/已有目录处理、训练非法 ACTION 和额外参数拒绝 |
+| 训练默认参数 | 提取 25/39 内联 YAML，与修改前 HEAD 中对应块逐字比较一致 |
+| Python 与 Beacon 校验 | 内嵌 Python AST 通过；环境无 PyYAML/torch，配置读写使用 JSON 替身，并隔离 models 包的 torch 预导入，实际执行 BeaconConfig 校验；不等同于完整训练环境集成检查 |
+| 文档链接 | 修改及新增 Markdown 的相对文件链接目标全部存在；未联网检查外部链接 |
+| `git diff --check` | 通过，无新增空白错误 |
+
+复查基础命令：
+
+```bash
+bash -n scripts/sh/data/14_prepare_browsecomp.sh
+bash -n scripts/sh/plain/25_plain_browsecomp_train.sh
+bash -n scripts/sh/beacon/39_beacon_browsecomp_train.sh
+python -m unittest discover -s tests -p test_browsecomp_sft_and_hotpot_judge.py -v
+git diff --check
+```
+
+真实 tokenizer 预处理、完整 experiment plan 和 GPU 训练需在已安装训练依赖、已有本地模型的服务器执行，顺序与参数见 14、25、39。下方 2026-11-03 的全量数据结构统计为此前验证记录，本次未重跑该全量审计。
+
 ## 14 / 59 BrowseComp SFT 与三种方法 LLM-Judge（2026-11-03）
 
 本次只修改代码、脚本、文档和结构审计产物；没有安装环境、下载模型、启动训练或调用真实裁判。执行环境为 Windows PowerShell，使用应用自带 Python 3.12.14 和已安装 Git Bash。该 Python 无 torch、Transformers、tokenizers、PyYAML、pytest，故未运行完整训练回归套件，也未声称验证 Linux/CUDA 行为。
@@ -254,3 +291,16 @@ OMP_NUM_THREADS=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
 - 使用现有真实 prepared 数据分别运行 30 的单卡 ACTION=plan 和 38 的四卡 ACTION=plan：生成配置与启动命令成功，四卡命令包含 nproc_per_node=4 和 ds_zero2.json。日志分别为 `beacon_guide_single_plan.log`、`beacon_guide_four_gpu_plan.log`，均位于 `outputs/reports/verification/`。
 
 plan 仅创建新的配置目录，没有加载真实训练模型或执行日志中的 next 训练命令。没有执行本指南中的真实训练、显存训练探针、模型合并、在线 API 请求或真实 checkpoint 评测，也未重建数据或索引。已有数据、模型和评测结果保持不变。
+
+## 99. RESEARCH OpenSeeker 增量适配检查（2026-11-04）
+
+新增来源适配器、原始 HTML 角色、Linux 分阶段入口与测试，说明见 [09](../data/09_research_sft.md)。本次保留工作区原有未提交修改。
+
+已通过 Git Bash 的 bash -n：新增 data/09、tools/09，共享 common/05、benchmark/54、benchmark/59，以及九个方法/基准脚本、58_offline_common 和 73_qwen35_offline。git diff --check 通过（仅提示现有文档的 Git 换行配置）。LLM-Judge 九组合原本已实现，本次检查路由、共享参数和调用关系，沿用该实现并补充 RESEARCH 使用文档。
+
+未执行 Python 测试：当前 Windows 没有可用的 python 命令，py -3.8 的安装目标无法启动。因此新增 tests/test_research_sft.py 及现有相关回归仅提供 Linux 执行命令，不能标为测试通过。未安装环境、下载数据、运行 tokenizer 预处理、真实训练或真实 LLM-Judge；没有产生新的长度分布结果。实际全量审计由 Linux prepare 输出 manifest/measurements/rejected，必须以这些运行产物为准。
+## 99. 各方法独立 benchmark 脚本（2026-11-04）
+
+按用户要求删除跨方法评测统一分发入口。九种组合直接运行 plain/、beacon/、baseline/ 中的对应 benchmark 脚本。Baseline 74/75 已各自展开完整参数与执行逻辑，不再转调 73；Plain/Beacon 的独立脚本继续复用底层参数映射与评分实现。文档示例和九入口回归测试均改为直接指定脚本路径。历史验证记录保留，当前入口以 46/59 文档为准。
+
+本次对九个独立脚本逐一执行 bash -n，未运行模型、训练或真实评分。Python 运行环境限制仍存在，更新后的 Python 测试未运行。
