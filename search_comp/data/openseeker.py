@@ -250,7 +250,7 @@ class OpenSeekerDataset:
             row = json.loads(f.readline())
         if row.get('protocol') != VERSION:
             raise ValueError('OpenSeeker training requires current original-answer data; '
-                             'run scripts/sh/data/10_prepare.sh using original raw/v3 data')
+                             'run scripts/data/sh/20_prepare_openseeker.sh 或 21_prepare_research.py using original raw/v3 data')
         row = normalize(row, index=index)
         validate(row)
         sample = encode(row['messages'], self.tokenizer, loss_segments=self.loss_segments,

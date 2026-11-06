@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """Download pinned HF snapshots, retain originals and export every split as JSONL."""
-import argparse
 import hashlib
 import json
 import os
@@ -22,13 +21,11 @@ def export_parquet(path, target):
         temporary.unlink(missing_ok=True)
 
 
-def main():
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--source', choices=['polar','zephyr','research','all'], default='polar')
-    p.add_argument('--endpoint', default=os.getenv('HF_ENDPOINT','https://huggingface.co'))
-    p.add_argument('--revision', default='main')
-    p.add_argument('--output', type=Path, default=Path('outputs/data/raw'))
-    args = p.parse_args()
+
+
+def run(args):
+    from search_comp.experiments.validation import ConfigError
+    p = ConfigError()
     os.environ['HF_ENDPOINT'] = args.endpoint
     from huggingface_hub import HfApi, snapshot_download
     repos = dict(polar='PolarSeeker/OpenSeeker-v1-Data', zephyr='Zephyr271828/openseeker_v1_sft',
@@ -66,6 +63,3 @@ def main():
         (directory/'download_manifest.json').write_text(json.dumps(dict(repo=repo,revision=info.sha,
             endpoint=args.endpoint,files=files,jsonl_inputs=jsonl_inputs),indent=2)+'\n', encoding='utf-8')
         print(directory)
-
-
-if __name__=='__main__': main()

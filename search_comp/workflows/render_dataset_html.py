@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Render dataset JSONL files or prepared dataset directories as offline HTML."""
-import argparse
 import json
 import re
 from pathlib import Path
@@ -98,25 +97,3 @@ def render_report(source, destination, *, split='train', limit=0, offset=0,
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(markup.replace('__DATASET_DATA__', payload), encoding='utf-8')
     return len(records)
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('input', type=Path, help='JSONL file or prepared dataset directory')
-    parser.add_argument('-o', '--output', type=Path, default=Path('outputs/reports/dataset.html'))
-    parser.add_argument('--split', choices=['train', 'validation', 'test', 'rejected', 'all'], default='train')
-    parser.add_argument('--limit', type=int, default=0, help='0: include all records')
-    parser.add_argument('--offset', type=int, default=0, help='Skip this many nonempty records')
-    parser.add_argument('--title', default='数据集轨迹浏览器')
-    parser.add_argument('--template', type=Path, default=DEFAULT_TEMPLATE)
-    args = parser.parse_args()
-    try:
-        count = render_report(args.input, args.output, split=args.split, limit=args.limit,
-                              offset=args.offset, title=args.title, template=args.template)
-    except (OSError, ValueError, TypeError) as exc:
-        parser.exit(1, f'Error: {exc}\n')
-    print(f'{args.input} -> {args.output.resolve()} ({count} records)')
-
-
-if __name__ == '__main__':
-    main()

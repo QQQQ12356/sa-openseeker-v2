@@ -1,20 +1,4 @@
-"""Qwen3 / Qwen3.5 Beacon 搜索轨迹 SFT 训练入口（transformers.Trainer，实时进度）。
-
-在交互式搜索轨迹上训练 Beacon 压缩模型：
-
-- 只压缩检索到的 ``<information>`` 文档块（``regions``），文档 K/V 压缩为 beacon。
-- 损失只在模型生成片段（think / <search> / <answer>）上计算，不含检索内容。
-- 用 ``transformers.Trainer`` 驱动训练：实时 tqdm 进度条、按 ``logging_steps`` 打印
-  损失/学习率/耗时，``max_steps`` 天然支持"按训练步数训练"。
-
-注意：Trainer 默认保存只写 LoRA adapter，无法被 ``load_beacon_qwen3_5`` 直接加载，
-因此关闭 Trainer 自带保存（``save_strategy="no"``），改由自定义 callback 合并保存为
-标准 ``BeaconQwen3_5ForCausalLM`` checkpoint（``checkpoint-<N>`` / ``final``）。
-
-用法::
-
-    python -m search_comp.trainer.beacon_trainer --config configs/train/beacon_qwen35_whole_searchr1.yaml
-"""
+"""Beacon SFT：工具观测压缩、蒸馏与自动合并；由独立方法脚本生成配置。"""
 
 from __future__ import annotations
 

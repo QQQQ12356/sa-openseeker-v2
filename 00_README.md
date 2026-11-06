@@ -1,28 +1,60 @@
-# 00 sa-openseeker-v2
+# 00 SearchAgent 实验工程
 
-当前训练数据集为 **OpenSeeker** 和 **Research**。BrowseComp Qwen3.5 SFT 的预处理、适配器、训练脚本已移除；BrowseComp、BrowseComp-Plus、HotpotQA 三项独立 benchmark 继续保留。原始数据与已有输出未改动。
+本项目从 `sa-openseeker-v2` 的 `tmp` 分支重构，运行目标为 **Linux / Python 3.11 / NVIDIA CUDA**。Windows 用于编辑代码和无模型验证。
 
-完整实验先按数据集选择 [70 OpenSeeker 全流程](docs/data/70_openseeker_experiment_guide.md) 或 [71 Research 全流程](docs/data/71_research_experiment_guide.md)，两者均包含下载、预处理、原始/规范化 HTML、全量分布分析、三方法训练、三项测试与独立评分。脚本变量查 [68](docs/project/68_training_benchmark_guide.md)；训练参数逐项说明见 [69 训练配置参数](docs/project/69_training_parameters.md)；全部文档见 [00 索引](docs/00_index.md)。所有预处理、训练、真实推理和评分均在 Linux 执行。Windows 仅修改代码并做无模型静态/单元检查。
+## 支持矩阵
 
-| 方法目录 | 训练入口 | 测试入口 | 评分入口 |
-|---|---|---|---|
-| `scripts/sh/plain/` | `10_train_openseeker.sh`、`11_train_research.sh` | `40_test_browsecomp.sh`、`42_test_browsecomp_plus.sh`、`44_test_hotpotqa.sh` | `41_score_browsecomp.sh`、`43_score_browsecomp_plus.sh`、`45_score_hotpotqa.sh` |
-| `scripts/sh/beacon/` | 同上，配置独立 | 同上，Beacon 推理 | 同上，独立进程 |
-| `scripts/sh/baseline/` | 同上，全参数 SFT | 同上，使用训练后的模型 | 同上，独立进程 |
+| 方法 | OpenSeeker 训练 | Research 训练 | BrowseComp | BrowseComp-Plus | HotpotQA |
+|---|---|---|---|---|---|
+| Plain | 支持 | 支持 | 测试 + 评分 | 测试 + 评分 | 测试 + 评分 |
+| Beacon | 支持 | 支持 | 测试 + 评分 | 测试 + 评分 | 测试 + 评分 |
+| Baseline | — | — | 测试 + 评分 | 测试 + 评分 | 测试 + 评分 |
 
-每个方法有自己的脚本及参数，直接修改对应文件或设置其环境变量。底层复用已有 Python 实现。Plain 默认 LoRA；Beacon 使用已有压缩训练；baseline 新训练入口采用标准全参数 SFT。Baseline 的旧 `70`–`75` 入口仍表示**未训练原始 Qwen3.5 基座**，供历史结果复现，不能用于替代新训练模型的测试。
+Baseline 指未训练的原始 Qwen3.5 基座。Plain 默认使用 LoRA；Beacon 使用工具观测压缩及 LoRA。两种训练方法均沿用原分支的训练与损失默认配置。
 
-Linux 最小示例（先完成预处理、模型缓存与 benchmark 准备）：
+## 阅读与执行顺序
 
-```bash
-# 修改对应训练脚本 YAML 或设置路径；plan 不加载模型，但要求预处理数据存在。
-ACTION=plan bash scripts/sh/plain/11_train_research.sh
-bash scripts/sh/plain/11_train_research.sh
+| 顺序 | 文档 | 内容 |
+|---|---|---|
+| 1 | [10 环境准备](docs/10_environment.md) | Linux 环境、依赖安装、镜像、GPU 和在线服务 |
+| 2 | [20 数据准备](docs/20_data.md) | 模型、两种训练数据、筛选、三项 benchmark 的准备 |
+| 3 | [30 Plain 指南](docs/30_plain.md) | 数据选择、训练计划、训练、三项测试与评分 |
+| 3 | [31 Beacon 指南](docs/31_beacon.md) | 压缩参数、训练计划、训练、三项测试与评分 |
+| 3 | [32 Baseline 指南](docs/32_baseline.md) | 基座与提示词配置、三项测试与评分 |
+| 4 | [60 参数手册](docs/60_parameters.md) | SH 脚本变量、训练参数、压缩参数及修改提示 |
+| 5 | [70 产物规范](docs/70_artifacts.md) | 目录、命名、运行身份、来源校验、失败归档 |
+| 参考 | [90 迁移说明](docs/90_migration.md) | 来源提交、架构决策、旧目录迁移边界 |
+| 验证 | [99 验证记录](docs/99_validation.md) | 已执行检查和 Linux 后续验证范围 |
 
-# RUN_DIR 使用训练输出的具体实验目录。
-RUN_DIR=/path/to/research_run bash scripts/sh/plain/44_test_hotpotqa.sh
-PREDICTIONS=/path/to/test/predictions.jsonl JUDGE_MODEL=/models/judge \
-  bash scripts/sh/plain/45_score_hotpotqa.sh
+## 脚本使用约定
+
+1. 先编辑待执行 SH 文件中的 `SA_*` 参数与环境变量；必改项有中文注释。
+2. 激活环境后直接运行该文件，例如 `bash scripts/plain/sh/10_train_openseeker.sh`。不需要追加参数或设置命令行覆盖。
+3. 方法 SH 各自包含完整配置，仅调用同目录体系内的同名 PY，不调用其他方法的 SH。公共数据和 benchmark 版本可以复用。
+4. 训练完成后，将终端输出的实验目录复制到对应测试脚本的 `SA_TRAINING_RUN`。
+5. 测试完成后，将测试目录复制到对应评分脚本的 `SA_EVALUATION_DIR`。评分自动沿用数据版本与题目范围。
+6. 所有运行产物写入 `artifacts/`。每次运行创建独立目录；失败保留清单和日志，修正后重新运行。
+
+## 代码结构
+
+```text
+scripts/                  按 sh/、py/ 分离的独立运行文件
+  data/sh/、data/py/       模型下载、数据处理、筛选和 benchmark 准备
+  plain/sh/               两个训练入口 + 三项测试/评分（编辑与运行）
+  plain/py/               同名 Python 执行适配器（不维护参数默认值）
+  beacon/sh/、beacon/py/   Beacon 独立入口与执行适配器
+  baseline/sh/、baseline/py/  Baseline 独立入口与执行适配器
+  tools/sh/、tools/py/     环境安装、HTML 检查与验证
+  templates/              离线 HTML 模板
+search_comp/
+  experiments/            统一流程、参数校验和归档接口
+  workflows/              数据预处理及 benchmark 实现
+  data/ models/ trainer/  协议、模型和训练算法
+  evaluation/ offline/    Agent、打分及本地检索
+  utils/ milestones/      运行工具及必要的模型适配
+artifacts/                运行时创建，不纳入代码版本控制
 ```
 
-测试和评分分开执行，三个 benchmark 均提供 EM、F1、LLM judge。训练与测试共用原始 system/schema 和轨迹序列化；离线测试仅调整工具能力和答案格式。Research 评测必须读取其对应训练实验或规范化训练 JSONL。完整参数、离线准备步骤、失败样本口径、脚本兼容说明与修改提示见 68/69。
+当前交付没有执行真实数据下载、预处理、训练、模型推理或远程裁判请求。检查结果见 [99 验证记录](docs/99_validation.md)。
+
+脚本职责、类型规则和调用方式见 [05 脚本结构](docs/05_script_layout.md)，每份 SH 的完整变量表见 [61 脚本参数清单](docs/61_script_inventory.md)。

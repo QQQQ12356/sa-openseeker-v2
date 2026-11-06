@@ -1,38 +1,4 @@
-"""Search-R1 SFT 数据集（messages 格式）与 collator。
-
-从搜索/检索增强模型的 SFT 轨迹（``messages`` 对话格式）直接构造
-beacon 训练样本，**不再**用规则生成轨迹。数据来源为 Search-R1 官方发布的
-``{backbone}-instruct-sft.jsonl``（见 :data:`SEARCH_R1_DATA_HINT`），默认放在：
-
-    outputs/data/searchr1/{backbone}-instruct-sft.jsonl
-
-该文件不在本仓库内（约 60MB），首次使用请按提示下载，或直接把
-``train_data_path`` 指向本地已有路径。
-
-每行形如（Search-R1 原文格式，含系统 / 用户 / 助手多轮）::
-
-    {"messages": [
-        {"role": "system", "content": "You are a helpful and harmless assistant."},
-        {"role": "user", "content": "Answer the given question. ... Question: <q>?"},
-        {"role": "assistant", "content": "<thinking> ... </thinking>\\n<search> <query> </search>"},
-        {"role": "user", "content": "<information> [Document 1] ... </information>"},
-        {"role": "assistant", "content": "<thinking> ... </thinking>\\n<answer> <answer> </answer>"},
-    ]}
-
-设计要点：
-
-- 训练/评测统一为裸检索协议：初始 system/user prompt 使用 ChatML；assistant 输出与
-  后续 ``<information>`` 检索结果直接拼接，不额外插入 user/assistant ChatML 边界。
-- **loss（labels）**：只对 ``role == "assistant"`` 的 token 计算（think / search /
-  answer 均为模型输出，整体作为 SFT 目标）。
-- **压缩区（regions）**：每个裸 ``<information>`` 块的文档正文对应一个压缩区；
-  XML 标签保留在上下文内，但不参与 Beacon 压缩。
-- 样本结构多变（turn 数、文档长度都不同），且需逐样本对齐压缩区与 loss 区间，
-  因此**仅支持 batch_size=1**（用梯度累积扩大有效 batch）。
-
-其他字段（非 ``<information>`` 的 user / system / 助手消息）token 保持原样但不
-计损失、不压缩。
-"""
+"""兼容 Search-R1 轨迹的 Dataset/collator；当前实验入口使用 OpenSeeker 统一协议。"""
 
 from __future__ import annotations
 
@@ -56,14 +22,7 @@ from .trajectory import (
 from ..loss_segments import SEGMENT_IGNORE, LossSegmentConfig, classify_assistant_text
 
 #: 训练数据不在仓库内时的获取提示（拼进报错信息，方便新用户自助解决）。
-SEARCH_R1_DATA_HINT = (
-    "Search-R1 SFT 轨迹（*-instruct-sft.jsonl）不属于本仓库，请先下载：\n"
-    "  huggingface-cli download --repo-type dataset PeterJinGo/nq_hotpotqa_train \\\n"
-    "      --include '*instruct-sft.jsonl' --local-dir outputs/data/searchr1\n"
-    "或把配置里的 train_data_path 指向已有文件的绝对路径：\n"
-    "  bash scripts/sh/beacon/34_beacon_searchr1_train_impl.sh configs/train/beacon_qwen35_whole_searchr1.yaml \\\n"
-    "      --set train_data_path=/path/to/qwen3-4b-instruct-sft.jsonl"
-)
+SEARCH_R1_DATA_HINT = '缺少兼容轨迹输入；请使用独立方法训练脚本并设置 DATASET_DIR。'
 
 #: 标记文档块的 user 消息前缀（用于识别压缩区）
 _INFO_MARKER = "<information>"
@@ -114,13 +73,7 @@ _align_to_eval_prompt = align_to_eval_prompt
 _LEGACY_DOC_MARKER = re.compile(r"\[Document\s+\d+\]\s*\(ID:")
 
 #: 评测侧渲染与训练数据不一致时的修复提示。
-LEGACY_DOC_FORMAT_HINT = (
-    "检测到旧格式检索文档（[Document N] (ID: ..., Score: ...)）：评测侧的 "
-    "<information> 块现在是统一格式（Doc N + 标题行 + 去重正文，无 ID/Score），"
-    "继续用旧文件训练会让模型看到的文档与评测不一致。请先规范化数据：\n"
-    "  bash scripts/sh/data/17_normalize_docs.sh\n"
-    "  --set train_data_path=outputs/data/searchr1/qwen3-4b-instruct-sft-normalized.jsonl"
-)
+LEGACY_DOC_FORMAT_HINT = '该兼容轨迹缺少标准文档块；当前实验请使用 data/20 或 21 预处理入口的统一编码。'
 
 
 def _warn_if_legacy_document_format(

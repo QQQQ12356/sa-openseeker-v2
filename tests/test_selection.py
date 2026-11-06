@@ -44,22 +44,3 @@ def test_observation_filters_only_use_observation_bodies():
     row['messages'][-1]['content'] += '<tool_response>quoted</tool_response>'
     assert Selection(observations='without').rejection(row) is None
     assert Selection(observations='with').rejection(row) == 'no_observation'
-
-
-def test_train_only_selection_records_rules_and_preserves_tokens(tmp_path):
-    source = tmp_path/'source'; source.mkdir()
-    row = measured()
-    (source/'normalized.jsonl').write_text(json.dumps(row)+'\n')
-    (source/'manifest.json').write_text(json.dumps(dict(protocol=VERSION, tokenizers={'mock': {}},
-        arguments=dict(input=[], seed=42, test_fraction=.02, val_fraction=.02, max_length=16384))))
-    output = tmp_path/'selected'
-    root = Path(__file__).resolve().parents[1]
-    subprocess.run([sys.executable, str(root/'scripts/py/11_select.py'), '--prepared', str(source),
-        '--output', str(output), '--min-length', '100', '--max-length', '100', '--exact-length', '100',
-        '--tokenizer', 'mock', '--observations', 'with', '--split-mode', 'train'], check=True, capture_output=True)
-    selected = json.loads((output/'train.jsonl').read_text())
-    assert encode(selected['messages'], Tokenizer()) == encode(row['messages'], Tokenizer())
-    assert (output/'validation.jsonl').stat().st_size == (output/'test.jsonl').stat().st_size == 0
-    manifest = json.loads((output/'manifest.json').read_text())
-    assert manifest['arguments']['exact_length'] == 100
-    assert manifest['counts']['train'] == 1

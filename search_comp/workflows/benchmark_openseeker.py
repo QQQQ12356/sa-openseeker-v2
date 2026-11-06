@@ -1,7 +1,6 @@
 """Run pinned OpenSeeker generation with auditable, bounded model judging."""
 from __future__ import annotations
 
-import argparse
 import ast
 from collections import Counter
 from contextlib import nullcontext
@@ -23,8 +22,10 @@ OFFICIAL_REVISION = "e3dec1f727d87c5eaa93506e4882c67237647098"
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def ensure_official(path):
+def ensure_official(path, allow_download=True):
     """Fetch into a new directory only; never reset an existing user checkout."""
+    if not path.exists() and not allow_download:
+        raise FileNotFoundError("先运行 scripts/data/sh/30_prepare_browsecomp.sh 准备官方工具")
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(["git", "clone", OFFICIAL_URL, str(path)], check=True)
@@ -73,7 +74,7 @@ def resolve_checkpoint(run_dir, model, kind):
     if not path.is_dir():
         raise ValueError(f"checkpoint directory does not exist: {path}")
     if (path / "adapter_config.json").exists():
-        raise ValueError("merge the LoRA adapter first (scripts/sh/plain/29_plain_merge_adapter.sh or scripts/sh/beacon/35_beacon_merge_adapter.sh)")
+        raise ValueError("merge the LoRA adapter first (the method training script (automatic merge))")
     config_path = path / "config.json"
     config = json.loads(config_path.read_text()) if config_path.is_file() else {}
     text_config = config.get("text_config") or {}
@@ -229,7 +230,7 @@ def native_generate(args, rows, output):
             def log(message):
                 print(f"[benchmark native {index + 1}/{len(rows)}] {message}", flush=True)
             tools = Registry({"search": lambda **kw: search.call(kw),
-                              "visit": lambda **kw: visit.call(kw)}, log=log)
+                              "visit": lambda **kw: visit.call(kw)}, log=log, max_calls=args.tool_count)
             log("question start")
             messages = initial_messages(row["query"], system=system)
             result = run_agent(messages, tokenizer, generate, tools, args.max_turns,
@@ -243,42 +244,12 @@ def native_generate(args, rows, output):
             print(f"[benchmark] native {index + 1}/{len(rows)} status={result['status']}", flush=True)
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--official-dir", type=Path, default=ROOT / "outputs/vendor/OpenSeeker")
-    parser.add_argument("--data", type=Path, default=ROOT / "outputs/data/benchmarks/browsecomp.jsonl")
-    parser.add_argument("--csv", type=Path, help="local encrypted official BrowseComp CSV")
-    parser.add_argument("--prepare-only", action="store_true")
-    parser.add_argument("--mode", choices=["official-v1", "official-v2", "native"], default="native")
-    parser.add_argument("--benchmark", default="BrowseComp", help="record the actual benchmark name for custom data")
-    parser.add_argument("--output-dir", type=Path)
-    parser.add_argument("--predictions", type=Path, help="judge existing query/answer/final_response JSONL")
-    parser.add_argument("--generate-only", action="store_true", help="Generate predictions without loading or contacting a judge")
-    parser.add_argument("--run-dir", type=Path)
-    parser.add_argument("--prompt-data", type=Path,
-                        help="training JSONL supplying original system/tools; overrides RUN_DIR training data")
-    parser.add_argument("--model")
-    parser.add_argument("--model-origin", choices=['checkpoint', 'base-qwen35'], default='checkpoint')
-    parser.add_argument("--kind", choices=["plain", "beacon"])
-    parser.add_argument("--workers", type=int, default=60)
-    parser.add_argument("--judge-workers", type=int, default=1)
-    parser.add_argument("--judge-attempts", type=int, default=3)
-    parser.add_argument("--judge-max-tokens", type=int, default=1024)
-    parser.add_argument("--judge-timeout", type=float, default=120)
-    parser.add_argument("--judge-enable-thinking", action="store_true")
-    parser.add_argument("--skip-judge-preflight", action="store_true")
-    parser.add_argument("--limit", type=int, default=-1)
-    parser.add_argument("--max-tokens", type=int, default=32768)
-    parser.add_argument("--tool-count", type=int, default=200)
-    parser.add_argument("--max-context", type=int, default=131072)
-    parser.add_argument("--max-turns", type=int, default=200)
-    parser.add_argument("--tool-policy", choices=["stable", "official"], default="stable")
-    parser.add_argument("--tool-call-retries", type=int, default=1)
-    parser.add_argument("--max-tool-tokens", type=int, default=32768)
-    from search_comp.evaluation.tool_agent import add_decoding_arguments, decoding_options
-    add_decoding_arguments(parser)
-    parser.add_argument("--dry-run", action="store_true")
-    args = parser.parse_args()
+
+
+def run(args):
+    from search_comp.experiments.validation import ConfigError
+    from search_comp.evaluation.tool_agent import decoding_options
+    parser = ConfigError()
     try:
         generation_options = decoding_options(args, args.kind == 'beacon')
     except ValueError as error:
@@ -305,7 +276,7 @@ def main():
     if args.mode != "native" and args.prompt_data:
         parser.error("--prompt-data is for native mode; official modes retain upstream prompts")
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    output = args.output_dir or ((args.run_dir / "evaluation" if args.run_dir else ROOT / "outputs/results")
+    output = args.output_dir or ((args.run_dir / "evaluation" if args.run_dir else ROOT / "artifacts/unassigned")
                                  / f"benchmark_{args.mode}_{stamp}")
     if args.dry_run:
         command = generation_command(args, args.data, output) if args.mode != "native" else [
@@ -333,8 +304,10 @@ def main():
         require_environment(args.mode, generate=args.predictions is None, score=not args.generate_only)
         if args.mode == "native" and not args.predictions:
             resolve_checkpoint(args.run_dir, args.model, args.kind)
-    revision = ensure_official(args.official_dir)
+    revision = ensure_official(args.official_dir, allow_download=args.prepare_only)
     if not args.data.exists():
+        if not args.prepare_only:
+            raise FileNotFoundError("先运行 scripts/data/sh/30_prepare_browsecomp.sh 准备题目")
         if args.benchmark != "BrowseComp":
             parser.error("custom benchmark requires an existing --data JSONL")
         prepare_browsecomp(args.data, args.csv)
@@ -409,7 +382,3 @@ def main():
     print(json.dumps(summary, indent=2))
     if not scores["complete"]:
         raise RuntimeError("judge coverage incomplete; inspect judge.log and summary (not a complete benchmark score)")
-
-
-if __name__ == "__main__":
-    main()

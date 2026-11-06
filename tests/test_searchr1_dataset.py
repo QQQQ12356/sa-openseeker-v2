@@ -34,7 +34,10 @@ def _write_sample(path):
 def tokenizer():
     from search_comp.milestones.qwen35_native import load_tokenizer
 
-    tok = load_tokenizer("Qwen/Qwen3.5-2B")
+    try:
+        tok = load_tokenizer(os.environ.get("TEST_TOKENIZER_PATH") or "Qwen/Qwen3.5-2B")
+    except (OSError, ValueError) as error:
+        pytest.skip(f"本地 tokenizer 不可用；在 91_test_algorithms.py 设置 TOKENIZER_PATH: {error}")
     tok.pad_token = tok.eos_token
     return tok
 

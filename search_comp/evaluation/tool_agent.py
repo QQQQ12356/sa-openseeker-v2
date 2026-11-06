@@ -21,11 +21,16 @@ class ToolError(RuntimeError):
 
 
 class Registry:
-    def __init__(self, handlers, log=None):
+    def __init__(self, handlers, log=None, max_calls=None):
         self.handlers = handlers
         self.log = log
+        self.max_calls = max_calls
+        self.calls = 0
 
     def execute(self, calls):
+        if self.max_calls is not None and self.calls + len(calls) > self.max_calls:
+            raise ToolError('tool-call budget exhausted')
+        self.calls += len(calls)
         responses = []
         for index, call in enumerate(calls, 1):
             label = f"tool={call['name']} call={index}/{len(calls)}"

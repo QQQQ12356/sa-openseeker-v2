@@ -1,4 +1,4 @@
-# First install torch from the official cu126 index; see training_environment.md.
+# First install torch from the official cu126 index; see docs/10_environment.md.
 # Explicit local version prevents an accidental switch to another CUDA wheel.
 torch==2.7.0+cu126
 triton==3.3.0

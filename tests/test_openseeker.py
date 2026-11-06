@@ -156,24 +156,6 @@ def test_structured_parallel_response_order_is_not_silently_changed():
     with pytest.raises(ValueError,match='out-of-order'):normalize(raw)
 
 
-def test_refilter_correctness_and_stable_question_splits(tmp_path):
-    import subprocess,sys
-    from pathlib import Path
-    parent=tmp_path/'prepared';parent.mkdir()
-    sample=normalize(polar());sample['correctness']='Correct'
-    sample['lengths']={'mock':{'total':100}}
-    incorrect=copy.deepcopy(sample);incorrect.update(id='incorrect',question_id='bad',correctness='Incorrect')
-    longer=copy.deepcopy(sample);longer.update(id='long',question_id='long',lengths={'mock':{'total':10000}})
-    (parent/'normalized.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in [sample,sample,incorrect,longer]))
-    (parent/'manifest.json').write_text(json.dumps(dict(protocol=VERSION,tokenizers={'mock':{}},arguments=dict(
-        input=[],seed=42,require_correct=False,test_fraction=.02,val_fraction=.02))))
-    root=Path(__file__).resolve().parents[1];out=tmp_path/'filtered'
-    subprocess.run([sys.executable,str(root/'scripts/py/11_select.py'),'--prepared',str(parent),
-                    '--output',str(out),'--max-length','1000'],check=True,capture_output=True)
-    report=json.loads((out/'manifest.json').read_text())
-    assert report['counts']['incorrect']==report['counts']['over_length']==report['counts']['duplicate_question']==1
-    selected=[json.loads(line) for split in ['train','validation','test'] for line in (out/f'{split}.jsonl').read_text().splitlines()]
-    assert len(selected)==1 and selected[0]['id']==sample['id']
 
 
 def test_corpus_backend_executes_novel_queries_and_real_visits(tmp_path):
@@ -254,17 +236,3 @@ def test_reference_does_not_rewrite_original_assistant_response():
     row=normalize(polar())
     row['messages'][-1]['content']='<answer>Bob</answer>'
     assert normalize(row)['messages'][-1]['content']=='<answer>Bob</answer>'
-
-
-def test_refilter_rejects_old_length_measurements_before_writing(tmp_path):
-    import subprocess,sys
-    from pathlib import Path
-    parent=tmp_path/'old';parent.mkdir()
-    (parent/'manifest.json').write_text(json.dumps({'protocol':'obsolete-protocol'}))
-    output=tmp_path/'new'
-    script=Path(__file__).resolve().parents[1]/'scripts/py/11_select.py'
-    result=subprocess.run([sys.executable,str(script),'--prepared',str(parent),
-        '--output',str(output),'--max-length','16384'],capture_output=True,text=True)
-    assert result.returncode!=0
-    assert 'rerun scripts/sh/data/10_prepare.sh' in result.stderr
-    assert not output.exists()

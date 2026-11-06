@@ -1,21 +1,4 @@
-"""把原生 SFT 的 LoRA adapter 合并为独立推理 checkpoint。
-
-原生训练（``use_lora: true``）保存的 ``final/`` 里只有 adapter
-（``adapter_model.safetensors`` + ``adapter_config.json``），而评测入口
-``search_comp.evaluation.native_interactive_eval`` 经
-:func:`search_comp.milestones.qwen35_text.load_text_causal_model` 加载完整模型，
-不认识 adapter，因此评测前需先合并。
-
-比 Beacon 版（:mod:`search_comp.trainer.merge_beacon_lora`）简单：原生模型没有
-额外的 Beacon 压缩参数，单独一个 ``merge_and_unload`` 即可。
-
-用法::
-
-    python -m search_comp.trainer.merge_lora \
-        --base_model_path Qwen/Qwen3.5-2B \
-        --adapter_path outputs/models/native_qwen3_searchr1_v1/final \
-        --output_path outputs/models/native_qwen3_searchr1_v1/final_merged
-"""
+"""隔离进程合并 Plain LoRA；训练结束后自动调用。"""
 
 from __future__ import annotations
 
@@ -33,7 +16,7 @@ def resolve_paths(args):
     if not any((adapter / name).is_file() for name in ("adapter_model.safetensors", "adapter_model.bin")):
         raise ValueError(f"adapter 权重缺失: {adapter}")
     if (adapter / "beacon_state.pt").exists():
-        raise ValueError("Beacon adapter 请使用 scripts/sh/beacon/35_beacon_merge_adapter.sh")
+        raise ValueError("Beacon adapter 请使用 Beacon 训练脚本的自动合并步骤")
     config_path = (root or adapter.parent) / "resolved_config.json"
     config = json.loads(config_path.read_text()) if config_path.is_file() else {}
     base = args.base_model_path or config.get("model_name_or_path")

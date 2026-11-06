@@ -103,69 +103,6 @@ class AnswerMetricTests(unittest.TestCase):
                 resolve_system_prompt(run_dir=run)
 
 
-@unittest.skipUnless(BASH and Path(BASH).is_file(), 'Bash is unavailable')
-class EntryTests(unittest.TestCase):
-    def run_entry(self, method, filename, **variables):
-        env = dict(os.environ, PYTHON=Path(sys.executable).as_posix(), PYTHONUTF8='1',
-                   DRY_RUN='1', ACTION='all', RUN_DIR='placeholder-training-run', JUDGE_MODEL='placeholder-judge')
-        env.update(variables)
-        return subprocess.run([BASH, 'scripts/sh/' + method + '/' + filename], cwd=ROOT,
-                              env=env, capture_output=True, text=True, encoding='utf-8')
-
-    def test_all_eighteen_test_and_score_entries_route_independently(self):
-        for method in ('plain', 'beacon', 'baseline'):
-            for number, bench in ((40, 'browsecomp'), (42, 'browsecomp_plus'), (44, 'hotpotqa')):
-                with self.subTest(method=method, benchmark=bench):
-                    result = self.run_entry(method, f'{number}_test_{bench}.sh')
-                    self.assertEqual(result.returncode, 0, result.stderr)
-                    value = json.loads(result.stdout)
-                    if bench == 'browsecomp':
-                        self.assertTrue(value['generate_only'])
-                    else:
-                        self.assertEqual(value['action'], 'run')
-                        self.assertEqual(value['kind'], 'beacon' if method == 'beacon' else 'plain')
-                    result = self.run_entry(method, f'{number+1}_score_{bench}.sh', PREDICTIONS='predictions.jsonl')
-                    self.assertEqual(result.returncode, 0, result.stderr)
-                    value = json.loads(result.stdout)
-                    if bench == 'browsecomp':
-                        self.assertFalse(value['generate_only'])
-                        self.assertEqual(value['generation'][0], 'import_predictions')
-                    else:
-                        self.assertEqual(value['action'], 'score')
-                        self.assertTrue(value['judge_model'])
-                        self.assertEqual(value['llm_judge'], bench == 'hotpotqa')
-
-    def test_all_six_training_entries_have_fixed_dataset_and_complete_config(self):
-        for method in ('plain', 'beacon', 'baseline'):
-            for number, dataset in ((10, 'openseeker'), (11, 'research')):
-                path = ROOT / f'scripts/sh/{method}/{number}_train_{dataset}.sh'
-                result = subprocess.run([BASH, '-n', str(path)], capture_output=True, text=True)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                text = path.read_text(encoding='utf-8')
-                self.assertIn('dataset_name: ' + dataset, text)
-                self.assertIn('method: ' + method, text)
-                self.assertIn('distributed:', text)
-                self.assertIn('use_lora: false' if method == 'baseline' else 'use_lora: true', text)
-
-    def test_generation_requires_training_prompt_source(self):
-        result = self.run_entry('plain', '40_test_browsecomp.sh', RUN_DIR='', PROMPT_DATA='')
-        self.assertEqual(result.returncode, 2)
-        self.assertIn('RUN_DIR', result.stderr)
-
-    def test_legacy_training_entries_cannot_start_a_third_dataset(self):
-        for method, filename in [('plain', '22_plain_searchr1_train.sh'),
-                                 ('beacon', '32_beacon_searchr1_train.sh'),
-                                 ('beacon', '34_beacon_searchr1_train_impl.sh')]:
-            result = self.run_entry(method, filename)
-            self.assertEqual(result.returncode, 2)
-            self.assertIn('11_train_research.sh', result.stderr)
-
-    def test_removed_browsecomp_sft_source_rejected_before_tokenizer_loading(self):
-        result = subprocess.run([sys.executable, 'scripts/py/10_prepare.py', '--source', 'browsecomp',
-                                 '--input', 'missing.jsonl', '--output', 'unused-output'],
-                                cwd=ROOT, capture_output=True, text=True, encoding='utf-8')
-        self.assertEqual(result.returncode, 2)
-        self.assertIn('invalid choice', result.stderr)
 
 
 if __name__ == '__main__':

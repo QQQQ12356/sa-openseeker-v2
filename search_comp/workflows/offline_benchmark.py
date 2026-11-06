@@ -21,7 +21,7 @@ from search_comp.offline.index import LocalIndex, build_index
 from search_comp.offline.scoring import LocalJudge, load_predictions, score_browsecomp, score_hotpot
 from search_comp.offline.tools import BCP_INSTRUCTION, HOTPOT_INSTRUCTION, LocalTools
 from search_comp.workflows.benchmark_openseeker import resolve_checkpoint
-from search_comp.workflows.evaluate_openseeker import worker_devices
+from search_comp.utils.devices import worker_devices
 from search_comp.utils.progress import CompletionProgress
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -132,7 +132,7 @@ def run_phase(args, output, rows, manifest):
 def worker_command(args, output, rank, count):
     """Children only generate: preparation, merging and scoring belong to the parent."""
     model, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
-    command = [sys.executable, str(ROOT / "scripts/py/52_offline_benchmark.py"), "run"]
+    command = [sys.executable, "-m", "search_comp.workflows.offline_benchmark", "run"]
     excluded = {"action", "output_dir", "num_workers", "shard_index", "shard_count",
                 "model", "kind", "judge_model", "predictions", "dry_run"}
     for key, value in vars(args).items():
@@ -362,12 +362,18 @@ def make_parser():
 def main():
     parser = make_parser()
     args = parser.parse_args()
+    return run(args)
+
+
+def run(args):
+    from search_comp.experiments.validation import ConfigError
+    parser = ConfigError()
     from search_comp.evaluation.tool_agent import decoding_options
     try:
         decoding_options(args, args.kind == 'beacon')
     except ValueError as error:
         parser.error(str(error))
-    args.root = args.root or ROOT / "outputs/data/benchmarks" / args.benchmark
+    args.root = args.root or ROOT / "artifacts/benchmarks" / args.benchmark
     for key, value in vars(args).items():
         if isinstance(value, Path):
             setattr(args, key, value.expanduser().resolve())
@@ -435,7 +441,7 @@ def main():
     if args.judge_model and not args.judge_model.is_dir():
         parser.error("judge-model must be a local model directory")
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    output = args.output_dir or ((args.run_dir / "evaluation" if args.run_dir else ROOT / "outputs/results") /
+    output = args.output_dir or ((args.run_dir / "evaluation" if args.run_dir else ROOT / "artifacts/unassigned") /
                                  f"offline_{args.benchmark}_{stamp}")
     output.mkdir(parents=True, exist_ok=False)
     run_manifest = dict(benchmark=args.benchmark, offline=True, model=model, kind=kind,

@@ -1,26 +1,4 @@
-"""Qwen3.5 纯文本 SFT 训练器（无 Beacon、不压缩）。
-
-专为普通 SFT 定制全链接口：模型只需学会
-``think → <search>query</search> → 观察 <information> → <answer>`` 行为。
-
-- 数据：Search-R1 官方 ``messages`` 格式 SFT 轨迹
-  （``outputs/data/searchr1/qwen3-4b-instruct-sft.jsonl``），复用
-  :class:`search_comp.data.searchr1_dataset.SearchR1SFTDataset`，
-  **不截断**，loss 只对 assistant 输出计算。
-- 模型：经 :func:`search_comp.models.plain_qwen3.load_sft_model` 装载的
-  ``Qwen3_5ForCausalLM`` 纯文本模型，无任何压缩/Beacon 参数。
-- 训练：transformers 标准 :class:`~transformers.Trainer`，自带 tqdm 进度条、
-  loss 实时显示、checkpoint 与日志，参考 Beacon 训练脚本 `beacon_trainer.py`
-  的组织方式。
-
-``use_lora: true`` 时冻结基础权重只训练低秩适配器，保存的是 adapter；
-训练结束后自动用 :mod:`search_comp.trainer.merge_lora` 合并到 ``final_merged/``
-（Beacon 版对应 :mod:`search_comp.trainer.merge_beacon_lora`）。
-
-用法::
-
-    python -m search_comp.trainer.plain_sft_trainer --config configs/train/qwen35_plain_sft.yaml
-"""
+"""Plain SFT：完整轨迹训练、分段监督、LoRA 与自动合并；由独立方法脚本生成配置。"""
 
 from __future__ import annotations
 

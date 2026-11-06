@@ -20,7 +20,7 @@ def setup_training(cfg, beacon=False):
         if isinstance(ds, str):
             ds = json.loads(Path(ds).read_text())
         if beacon and ds.get("zero_optimization", {}).get("stage") == 3:
-            raise ValueError("Beacon 的动态分段前向当前不支持 ZeRO-3，请使用 configs/train/ds_zero2.json")
+            raise ValueError("Beacon 的动态分段前向当前不支持 ZeRO-3，请使用 训练脚本中的 DISTRIBUTED 的 zero2 配置")
         cfg["deepspeed"] = ds
         # The supplied DS config owns the optimizer, including CPU offload.
         cfg["optim"] = "adamw_torch"

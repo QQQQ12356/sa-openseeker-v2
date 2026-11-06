@@ -1,0 +1,335 @@
+#!/usr/bin/env bash
+# 独立入口：只修改本文件参数；对应 py 文件负责执行。完整说明：docs/60_parameters.md。
+set -euo pipefail
+
+# Python 解释器；先激活 Linux 环境，或填写其 bin/python 绝对路径。
+PYTHON_BIN="${PYTHON_BIN:-python}"
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_ROOT=$(cd -- "$SCRIPT_DIR/../../.." && pwd)
+[[ $(uname -s) == Linux ]] || { echo '此运行入口仅支持 Linux；Windows 仅修改代码。' >&2; exit 2; }
+(( $# == 0 )) || { echo '请直接编辑 SH 参数，不接受命令行附加参数。' >&2; exit 2; }
+cd -- "$PROJECT_ROOT"
+
+# ===== 可编辑参数：该字段控制 ===== 可编辑参数；约束及推荐值见 docs/60_parameters.md 对应参数表。
+# ENVIRONMENT.HF_ENDPOINT：Hugging Face 来源；可改为 https://hf-mirror.com。
+export HF_ENDPOINT=https://huggingface.co
+
+# ENVIRONMENT.HF_HUB_OFFLINE：1 只用本地文件/缓存；下载脚本必须为 0
+export HF_HUB_OFFLINE=1
+
+# ENVIRONMENT.CUDA_VISIBLE_DEVICES：GPU 物理编号；多卡示例 0,1,2,3
+export CUDA_VISIBLE_DEVICES=0
+
+# ENVIRONMENT.NPROC_PER_NODE：训练进程数，与参与训练的可见 GPU 数量一致；默认 1。
+export NPROC_PER_NODE=1
+
+# ENVIRONMENT.DISTRIBUTED_BACKEND：多卡后端 ddp/zero2；Plain 另支持 zero3；单卡忽略。
+export DISTRIBUTED_BACKEND=zero2
+
+# DATASET_DIR：已预处理数据版本，包含 train/validation/test.jsonl 与 manifest.json
+export SA_DATASET_DIR=artifacts/datasets/research/prepared/qwen35_L16384_s42
+
+# MODEL_PATH：必改：Linux 本地模型路径，须与预处理 MODELS 中的 tokenizer 身份完全相同
+export SA_MODEL_PATH=/models/Qwen3.5-4B
+
+# MODEL_FAMILY：qwen3 或 qwen35；切换模型后重新预处理
+export SA_MODEL_FAMILY=qwen35
+
+# RUN_NAME：实验标签：仅字母、数字、下划线、连字符；程序追加 UTC 时间和随机后缀
+export SA_RUN_NAME=qwen35_L16384_s42
+
+# PLAN_ONLY：true 只校验数据并保存计划；false 启动训练。计划目录不能用于测试
+export SA_PLAN_ONLY=false
+
+# TRAINING.DEEPSPEED：单卡保持 空字符串；多卡 ZeRO 由本文件 DISTRIBUTED 生成完整配置。
+export SA_TRAINING__DEEPSPEED=''
+
+# TRAINING.BEACON_LAYOUT_POLICY：configured 采用 BEACON 中的布局；whole 强制整段兼容布局并规范化相关字段。
+export SA_TRAINING__BEACON_LAYOUT_POLICY=configured
+
+# TRAINING.DISTILL_TEACHER_MODEL_NAME_OR_PATH：蒸馏 teacher；null 使用 student 基座，启用蒸馏需额外资源
+export SA_TRAINING__DISTILL_TEACHER_MODEL_NAME_OR_PATH=''
+
+# TRAINING.DISTILL_TEACHER_DEVICE：teacher 设备；auto 或显式设备
+export SA_TRAINING__DISTILL_TEACHER_DEVICE=auto
+
+# TRAINING.LEARNING_RATE：学习率；修改后重新 plan
+export SA_TRAINING__LEARNING_RATE=5e-05
+
+# TRAINING.WEIGHT_DECAY：权重衰减
+export SA_TRAINING__WEIGHT_DECAY=0.01
+
+# TRAINING.OPTIM：单卡/DDP 优化器；DeepSpeed 自带 optimizer 时由 distributed 配置决定
+export SA_TRAINING__OPTIM=adamw_bnb_8bit
+
+# TRAINING.LR_SCHEDULER_TYPE：学习率调度，如 constant / cosine / linear
+export SA_TRAINING__LR_SCHEDULER_TYPE=constant
+
+# TRAINING.WARMUP_STEPS：Beacon 预热 optimizer 步数
+export SA_TRAINING__WARMUP_STEPS=0
+
+# TRAINING.MAX_GRAD_NORM：梯度裁剪阈值
+export SA_TRAINING__MAX_GRAD_NORM=1.0
+
+# TRAINING.USE_BF16：是否启用 BF16，硬件须支持
+export SA_TRAINING__USE_BF16=true
+
+# TRAINING.NUM_EPOCHS：max_train_steps 为 null 时按 epoch 训练
+export SA_TRAINING__NUM_EPOCHS=1
+
+# TRAINING.MAX_TRAIN_STEPS：null 按 epoch；正整数覆盖 epoch，单位 optimizer step
+export SA_TRAINING__MAX_TRAIN_STEPS=''
+
+# TRAINING.GRAD_ACCUM_STEPS：有效 batch = 进程数 × 单卡 batch × 累积步数
+export SA_TRAINING__GRAD_ACCUM_STEPS=4
+
+# TRAINING.LOGGING_STEPS：日志间隔，优先于 log_freq_steps
+export SA_TRAINING__LOGGING_STEPS=5
+
+# TRAINING.SAVE_FREQ_STEPS：周期保存间隔，单位 optimizer step
+export SA_TRAINING__SAVE_FREQ_STEPS=200
+
+# TRAINING.EVAL_STEPS：验证间隔，单位 optimizer step
+export SA_TRAINING__EVAL_STEPS=200
+
+# TRAINING.SEED：训练随机种子
+export SA_TRAINING__SEED=42
+
+# TRAINING.SHUFFLE_TRAIN_DATA：Beacon 是否打乱训练数据
+export SA_TRAINING__SHUFFLE_TRAIN_DATA=true
+
+# TRAINING.USE_LORA：true 训练 LoRA；false 为全参数，资源需求不同
+export SA_TRAINING__USE_LORA=true
+
+# TRAINING.LORA_R：LoRA 秩
+export SA_TRAINING__LORA_R=16
+
+# TRAINING.LORA_ALPHA：LoRA 缩放参数
+export SA_TRAINING__LORA_ALPHA=32
+
+# TRAINING.LORA_DROPOUT：LoRA dropout
+export SA_TRAINING__LORA_DROPOUT=0.05
+
+# TRAINING.LORA_TARGET_MODULES：LoRA 投影模块名列表；按实际模型结构核对。
+export SA_TRAINING__LORA_TARGET_MODULES='["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]'
+
+# TRAINING.GRADIENT_CHECKPOINTING：Plain 普通层重算；Beacon 使用其专用 checkpoint_blocks，不使用普通层重算。
+export SA_TRAINING__GRADIENT_CHECKPOINTING=false
+
+# TRAINING.LENGTH_DIAGNOSTICS_SAMPLES：训练前统计样本数；0 可关闭
+export SA_TRAINING__LENGTH_DIAGNOSTICS_SAMPLES=128
+
+# TRAINING.MAX_LENGTH：完整轨迹 token 上限；超长过滤或报错，不静默截断
+export SA_TRAINING__MAX_LENGTH=16384
+
+# TRAINING.PER_DEVICE_BATCH_SIZE：轨迹 collator 限制为 1，使用梯度累积增大 batch
+export SA_TRAINING__PER_DEVICE_BATCH_SIZE=1
+
+# TRAINING.LOG_FREQ_STEPS：兼容字段；logging_steps 已设置时以 logging_steps 为准
+export SA_TRAINING__LOG_FREQ_STEPS=5
+
+# BEACON.ENABLE_BEACON：启用 Beacon 模型配置；Beacon 路线保持 true。
+export SA_BEACON__ENABLE_BEACON=true
+
+# BEACON.BEACON_WINDOW：window 布局文档窗口 token 数
+export SA_BEACON__BEACON_WINDOW=1024
+
+# BEACON.BEACON_STRIDE：兼容校验字段，当前推进按 window；不得大于 window
+export SA_BEACON__BEACON_STRIDE=1024
+
+# BEACON.BEACON_WINDOW_ENABLED：configured/window 模式需 true；whole 使用 false
+export SA_BEACON__BEACON_WINDOW_ENABLED=false
+
+# BEACON.BEACON_RATIO：固定比例及推理比例；越小 Beacon 越多
+export SA_BEACON__BEACON_RATIO=16
+
+# BEACON.BEACON_COMPRESSION_MODE：fixed 或 random；random 按训练样本采样
+export SA_BEACON__BEACON_COMPRESSION_MODE=fixed
+
+# BEACON.BEACON_COMPRESSION_RATIOS：random 训练的正整数候选列表，要求非空且无重复。
+export SA_BEACON__BEACON_COMPRESSION_RATIOS='[8, 16, 32, 64]'
+
+# BEACON.BEACON_ATTN：当前仅支持 full-coverage
+export SA_BEACON__BEACON_ATTN=full-coverage
+
+# BEACON.BEACON_ATTENTION_BACKEND：Beacon 注意力后端；默认 sdpa，切换需验证模型与内核兼容性。
+export SA_BEACON__BEACON_ATTENTION_BACKEND=sdpa
+
+# BEACON.BEACON_PARAM：独立投影的空格分隔组合，可选 q/k/v/o；改变后 checkpoint 结构随之改变。
+export SA_BEACON__BEACON_PARAM='q k v'
+
+# BEACON.BEACON_EMBED_INIT：Beacon token embedding 初始化来源，默认 eos。
+export SA_BEACON__BEACON_EMBED_INIT=eos
+
+# BEACON.BEACON_SINK_SIZE：兼容字段；当前不使用
+export SA_BEACON__BEACON_SINK_SIZE=0
+
+# BEACON.BEACON_ATTEND_PREV：兼容字段；当前固定保留历史 Beacon
+export SA_BEACON__BEACON_ATTEND_PREV=true
+
+# BEACON.BEACON_POS：append 或 intersect
+export SA_BEACON__BEACON_POS=append
+
+# BEACON.EVAL_BEACON_RATIO：兼容字段；推理使用 beacon_ratio
+export SA_BEACON__EVAL_BEACON_RATIO=''
+
+# BEACON.BEACON_LINEAR_WRITER_RANK：Qwen3.5 原生线性状态 writer 的低秩维度。
+export SA_BEACON__BEACON_LINEAR_WRITER_RANK=128
+
+# BEACON.BEACON_PRESERVE_NATIVE_LINEAR_STATE：保留原生线性注意力状态的消融开关；改变前评估记忆行为。
+export SA_BEACON__BEACON_PRESERVE_NATIVE_LINEAR_STATE=false
+
+# BEACON.BEACON_QUESTION_MEMORY_V1：启用问题条件记忆实验，默认关闭。
+export SA_BEACON__BEACON_QUESTION_MEMORY_V1=false
+
+# BEACON.BEACON_QUESTION_MAX_TOKENS：问题条件记忆最多读取的 question token 数。
+export SA_BEACON__BEACON_QUESTION_MAX_TOKENS=128
+
+# BEACON.BEACON_READOUT_DISTILL_WEIGHT：readout 蒸馏权重，0 表示关闭
+export SA_BEACON__BEACON_READOUT_DISTILL_WEIGHT=0.0
+
+# BEACON.BEACON_OUTPUT_DISTILL_WEIGHT：输出蒸馏权重；>0 加载 teacher
+export SA_BEACON__BEACON_OUTPUT_DISTILL_WEIGHT=0.0
+
+# BEACON.BEACON_OUTPUT_DISTILL_TEMPERATURE：teacher/student 输出蒸馏温度，必须为正。
+export SA_BEACON__BEACON_OUTPUT_DISTILL_TEMPERATURE=1.0
+
+# BEACON.BEACON_OUTPUT_DISTILL_STRATEGY：输出蒸馏 token 选取策略，默认 all；实验前核对 BeaconConfig 校验。
+export SA_BEACON__BEACON_OUTPUT_DISTILL_STRATEGY=all
+
+# BEACON.BEACON_OUTPUT_DISTILL_TOKENS：蒸馏采样策略的 token 数。
+export SA_BEACON__BEACON_OUTPUT_DISTILL_TOKENS=8
+
+# BEACON.BEACON_OUTPUT_DISTILL_DOC_WEIGHTING：是否按文档相关性调整输出蒸馏权重。
+export SA_BEACON__BEACON_OUTPUT_DISTILL_DOC_WEIGHTING=false
+
+# BEACON.BEACON_OUTPUT_DISTILL_DOC_EPSILON：文档权重平滑量，防止完全零权重。
+export SA_BEACON__BEACON_OUTPUT_DISTILL_DOC_EPSILON=0.1
+
+# BEACON.BEACON_DOC_REGION_SPLIT：按子文档拆分；OpenSeeker 不支持 true
+export SA_BEACON__BEACON_DOC_REGION_SPLIT=false
+
+# BEACON.BEACON_INFORMATION_MODE：whole 对完整观测压缩；window 对窗口观测压缩，与窗口开关保持一致。
+export SA_BEACON__BEACON_INFORMATION_MODE=whole
+
+# BEACON.BEACON_INFORMATION_LOSS：开启续写监督需正 continuation 权重
+export SA_BEACON__BEACON_INFORMATION_LOSS=false
+
+# BEACON.BEACON_CE_LOSS_WEIGHT：assistant 交叉熵权重
+export SA_BEACON__BEACON_CE_LOSS_WEIGHT=1.0
+
+# BEACON.BEACON_CONTINUATION_LOSS_WEIGHT：续写 loss 权重；实际生效还需 information_loss 开启
+export SA_BEACON__BEACON_CONTINUATION_LOSS_WEIGHT=0.1
+
+# BEACON.BEACON_CONTINUATION_TOKENS：启用 continuation 监督时的后续目标 token 数。
+export SA_BEACON__BEACON_CONTINUATION_TOKENS=4
+
+# BEACON.BEACON_CONTINUATION_PER_BEACON：是否为每个 Beacon 建立 continuation 监督。
+export SA_BEACON__BEACON_CONTINUATION_PER_BEACON=false
+
+# BEACON.BEACON_KEEP_WINDOW：keep 段上限；0 整段；policy=configured 时生效
+export SA_BEACON__BEACON_KEEP_WINDOW=0
+
+# BEACON.BEACON_LOSS_CHUNK_SIZE：Beacon 监督 loss 分块大小
+export SA_BEACON__BEACON_LOSS_CHUNK_SIZE=32
+
+# BEACON.BEACON_CHECKPOINT_LOSS：Beacon 输出头 loss 重算
+export SA_BEACON__BEACON_CHECKPOINT_LOSS=true
+
+# BEACON.BEACON_CHECKPOINT_BLOCKS：训练时重算无状态 attention/MLP/writer，避免重放状态更新。
+export SA_BEACON__BEACON_CHECKPOINT_BLOCKS=true
+
+# BEACON.BEACON_CPU_OFFLOAD_ACTIVATIONS：训练时将符合长度阈值的激活暂存 CPU，以主机内存换 GPU 显存。
+export SA_BEACON__BEACON_CPU_OFFLOAD_ACTIVATIONS=true
+
+# BEACON.BEACON_CPU_OFFLOAD_THRESHOLD：达到该 token 长度才 offload
+export SA_BEACON__BEACON_CPU_OFFLOAD_THRESHOLD=2048
+
+# BEACON.LOSS_SEGMENTS.THINK_TAG：think 起止标签
+export SA_BEACON__LOSS_SEGMENTS__THINK_TAG=1.0
+
+# BEACON.LOSS_SEGMENTS.THINK_CONTENT：think 标签内部文本
+export SA_BEACON__LOSS_SEGMENTS__THINK_CONTENT=1.0
+
+# BEACON.LOSS_SEGMENTS.TOOL_CALL_TAG：tool call 起止标签
+export SA_BEACON__LOSS_SEGMENTS__TOOL_CALL_TAG=1.0
+
+# BEACON.LOSS_SEGMENTS.TOOL_CALL_CONTENT：tool call JSON 内容
+export SA_BEACON__LOSS_SEGMENTS__TOOL_CALL_CONTENT=1.0
+
+# BEACON.LOSS_SEGMENTS.ANSWER_TAG：answer 起止标签
+export SA_BEACON__LOSS_SEGMENTS__ANSWER_TAG=1.0
+
+# BEACON.LOSS_SEGMENTS.ANSWER_CONTENT：answer 内部文本
+export SA_BEACON__LOSS_SEGMENTS__ANSWER_CONTENT=1.0
+
+# BEACON.LOSS_SEGMENTS.OTHER：其他 assistant 文本
+export SA_BEACON__LOSS_SEGMENTS__OTHER=1.0
+
+# BEACON.LOSS_SEGMENTS.SEARCH_TAG：兼容 Search-R1 的 search 标签
+export SA_BEACON__LOSS_SEGMENTS__SEARCH_TAG=1.0
+
+# BEACON.LOSS_SEGMENTS.SEARCH_CONTENT：兼容 Search-R1 的 search 内容
+export SA_BEACON__LOSS_SEGMENTS__SEARCH_CONTENT=1.0
+
+# DISTRIBUTED.ZERO2.BF16.ENABLED：auto：沿用 Trainer BF16 设置。
+export SA_DISTRIBUTED__ZERO2__BF16__ENABLED=auto
+
+# DISTRIBUTED.ZERO2.TRAIN_MICRO_BATCH_SIZE_PER_GPU：auto：跟随单卡 batch，当前轨迹必须为 1。
+export SA_DISTRIBUTED__ZERO2__TRAIN_MICRO_BATCH_SIZE_PER_GPU=auto
+
+# DISTRIBUTED.ZERO2.TRAIN_BATCH_SIZE：auto：由进程数、单卡 batch 和梯度累积解析总有效 batch。
+export SA_DISTRIBUTED__ZERO2__TRAIN_BATCH_SIZE=auto
+
+# DISTRIBUTED.ZERO2.GRADIENT_ACCUMULATION_STEPS：auto：跟随 TRAINING.grad_accum_steps。
+export SA_DISTRIBUTED__ZERO2__GRADIENT_ACCUMULATION_STEPS=auto
+
+# DISTRIBUTED.ZERO2.GRADIENT_CLIPPING：auto：跟随 max_grad_norm。
+export SA_DISTRIBUTED__ZERO2__GRADIENT_CLIPPING=auto
+
+# DISTRIBUTED.ZERO2.OPTIMIZER.TYPE：AdamW；使用 DeepSpeed 优化器时覆盖单卡/DDP 的 optim 选择。
+export SA_DISTRIBUTED__ZERO2__OPTIMIZER__TYPE=AdamW
+
+# DISTRIBUTED.ZERO2.OPTIMIZER.PARAMS.LR：auto：跟随 TRAINING.learning_rate。
+export SA_DISTRIBUTED__ZERO2__OPTIMIZER__PARAMS__LR=auto
+
+# DISTRIBUTED.ZERO2.OPTIMIZER.PARAMS.BETAS：auto：使用 Trainer 的 Adam beta 参数。
+export SA_DISTRIBUTED__ZERO2__OPTIMIZER__PARAMS__BETAS=auto
+
+# DISTRIBUTED.ZERO2.OPTIMIZER.PARAMS.EPS：auto：使用 Trainer 的优化器 epsilon。
+export SA_DISTRIBUTED__ZERO2__OPTIMIZER__PARAMS__EPS=auto
+
+# DISTRIBUTED.ZERO2.OPTIMIZER.PARAMS.WEIGHT_DECAY：权重衰减
+export SA_DISTRIBUTED__ZERO2__OPTIMIZER__PARAMS__WEIGHT_DECAY=auto
+
+# DISTRIBUTED.ZERO2.ZERO_OPTIMIZATION.STAGE：zero2=2，zero3=3，不可与后端名称冲突。
+export SA_DISTRIBUTED__ZERO2__ZERO_OPTIMIZATION__STAGE=2
+
+# DISTRIBUTED.ZERO2.ZERO_OPTIMIZATION.OFFLOAD_OPTIMIZER.DEVICE：优化器状态卸载目标，默认 cpu。
+export SA_DISTRIBUTED__ZERO2__ZERO_OPTIMIZATION__OFFLOAD_OPTIMIZER__DEVICE=cpu
+
+# DISTRIBUTED.ZERO2.ZERO_OPTIMIZATION.OFFLOAD_OPTIMIZER.PIN_MEMORY：是否使用锁页主机内存存储卸载的优化器状态。
+export SA_DISTRIBUTED__ZERO2__ZERO_OPTIMIZATION__OFFLOAD_OPTIMIZER__PIN_MEMORY=true
+
+# DISTRIBUTED.ZERO2.ZERO_OPTIMIZATION.OVERLAP_COMM：默认 false，控制通信计算重叠。
+export SA_DISTRIBUTED__ZERO2__ZERO_OPTIMIZATION__OVERLAP_COMM=false
+
+# DISTRIBUTED.ZERO2.ZERO_OPTIMIZATION.CONTIGUOUS_GRADIENTS：默认 true，连续梯度存储。
+export SA_DISTRIBUTED__ZERO2__ZERO_OPTIMIZATION__CONTIGUOUS_GRADIENTS=true
+
+# DISTRIBUTED.ZERO2.ZERO_OPTIMIZATION.REDUCE_BUCKET_SIZE：梯度归约通信桶的元素数，默认 10000000。
+export SA_DISTRIBUTED__ZERO2__ZERO_OPTIMIZATION__REDUCE_BUCKET_SIZE=10000000
+
+# DISTRIBUTED.ZERO2.ZERO_OPTIMIZATION.ALLGATHER_BUCKET_SIZE：参数聚合通信桶的元素数，默认 10000000。
+export SA_DISTRIBUTED__ZERO2__ZERO_OPTIMIZATION__ALLGATHER_BUCKET_SIZE=10000000
+
+# DISTRIBUTED.ZERO2.ZERO_OPTIMIZATION.IGNORE_UNUSED_PARAMETERS：ZeRO-2 默认 true，允许动态路径未参与梯度的参数。
+export SA_DISTRIBUTED__ZERO2__ZERO_OPTIMIZATION__IGNORE_UNUSED_PARAMETERS=true
+
+# DISTRIBUTED.ZERO2.ZERO_ALLOW_UNTESTED_OPTIMIZER：默认 true，允许非内置兼容优化器组合；修改前在 Linux 验证。
+export SA_DISTRIBUTED__ZERO2__ZERO_ALLOW_UNTESTED_OPTIMIZER=true
+
+# ===== 内部身份与单次 Python 调用；无需修改 =====
+export SA_ENTRY=beacon/11_train_research
+export SA_LAUNCHER="$SCRIPT_DIR/11_train_research.sh"
+exec "$PYTHON_BIN" "$PROJECT_ROOT/scripts/beacon/py/11_train_research.py"

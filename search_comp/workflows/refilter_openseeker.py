@@ -2,7 +2,6 @@
 """Create a new length-limited dataset from measured normalized JSONL, without retokenizing.
 Uses the exact tokenizer fingerprints recorded by prepare_openseeker.py.
 """
-import argparse
 from collections import Counter
 import hashlib
 import json
@@ -10,34 +9,32 @@ from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 
-from search_comp.data.selection import add_selection_arguments, selection_from_args
+from search_comp.data.selection import selection_from_args
 
 
-def main():
-    p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--prepared',type=Path,required=True)
-    p.add_argument('--output',type=Path,required=True)
-    p.add_argument('--max-length',type=int,required=True)
-    p.add_argument('--require-correct', action=argparse.BooleanOptionalAction, default=True)
-    add_selection_arguments(p)
-    p.add_argument("--split-mode", choices=["grouped", "train"], default="grouped")
-    args=p.parse_args()
+
+
+def run(args):
+    from search_comp.experiments.validation import ConfigError
+    p = ConfigError()
     selection=selection_from_args(args)
     manifest=json.loads((args.prepared/'manifest.json').read_text())
     from search_comp.data.openseeker import VERSION
     if manifest.get('protocol') != VERSION:
-        p.error('unsupported protocol/lengths: rerun scripts/sh/data/10_prepare.sh from original raw/v3 data')
+        p.error('unsupported protocol/lengths: rerun scripts/data/sh/20_prepare_openseeker.sh 或 21_prepare_research.py from original raw/v3 data')
     options=dict(manifest['arguments'])
     options.update({k: v for k, v in vars(args).items() if k not in ('prepared', 'output')})
     # Published split membership must be retained: recover from original input paths.
     from search_comp.workflows.prepare_openseeker import rows
     from search_comp.data.openseeker import normalize
+    from search_comp.data.research import normalize_research
+    adapter = normalize_research if options.get('source') == 'research' else normalize
     fixed={}
     for s in options['input']:
         path=Path(s)
         if path.stem in ('val','validation','test'):
             for i,row in enumerate(rows(path)):
-                try:fixed[normalize(row,index=i)['question_id']]='test' if path.stem=='test' else 'validation'
+                try:fixed[adapter(row,index=i)['question_id']]='test' if path.stem=='test' else 'validation'
                 except (ValueError,TypeError,KeyError):pass
     if args.tokenizer and args.tokenizer not in manifest['tokenizers']:
         p.error('requested tokenizer was not measured')
@@ -67,6 +64,3 @@ def main():
                 note='Derived selection; normalized full data and length distributions remain in parent.')
     (args.output/'manifest.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(result,indent=2))
-
-
-if __name__=='__main__':main()

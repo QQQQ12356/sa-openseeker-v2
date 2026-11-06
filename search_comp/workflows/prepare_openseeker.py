@@ -2,7 +2,6 @@
 """Stream raw JSONL/Parquet into normalized, grouped, length-filtered JSONL.
 No GPU or model weights are loaded. Run from the project root.
 """
-import argparse
 from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor
 import hashlib
@@ -17,7 +16,7 @@ from search_comp.data.research import normalize_research, ADAPTER_VERSION
 
 MODELS = ['Qwen/Qwen3-4B-Thinking-2507', 'Qwen/Qwen3.5-4B']
 
-from search_comp.data.selection import add_selection_arguments, selection_from_args
+from search_comp.data.selection import selection_from_args
 
 
 def rows(path):
@@ -76,22 +75,11 @@ def dump(f, obj):
     f.write(json.dumps(obj, ensure_ascii=False) + '\n')
 
 
-def main():
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--input', type=Path, action='append', required=True)
-    p.add_argument('--source', required=True, choices=['polar', 'zephyr', 'combined', 'research'])
-    p.add_argument('--output', type=Path, required=True)
-    p.add_argument('--models', nargs='+', default=MODELS)
-    p.add_argument('--offline', action='store_true')
-    p.add_argument('--workers', type=int, default=4)
-    p.add_argument('--max-length', type=int, default=16384)
-    p.add_argument('--seed', type=int, default=42)
-    p.add_argument('--val-fraction', type=float, default=.02)
-    p.add_argument('--test-fraction', type=float, default=.02)
-    p.add_argument('--require-correct', action=argparse.BooleanOptionalAction, default=True)
-    p.add_argument('--limit', type=int)
-    add_selection_arguments(p)
-    args = p.parse_args()
+
+
+def run(args):
+    from search_comp.experiments.validation import ConfigError
+    p = ConfigError()
     if args.workers < 1 or args.max_length < 1:
         p.error('workers and max-length must be positive')
     if args.source == 'research':
@@ -186,7 +174,3 @@ def main():
         backend_sha256=hashlib.sha256(t.backend_tokenizer.to_str().encode()).hexdigest()) for m,t in TOKENIZERS.items()}
     (args.output/'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+'\n')
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
-
-
-if __name__ == '__main__':
-    main()
