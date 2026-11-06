@@ -12,6 +12,7 @@
 artifacts/
 ├── environments/train/                   独立 Linux Python 环境和实际依赖清单
 ├── cache/                                Hub、Torch、XDG 缓存
+├── reports/benchmarks/<导出记录>/          benchmark_scores.xlsx、export_manifest.json 及操作归档
 ├── models/<model_name>/<commit>/          模型快照、下载清单和文件摘要
 │   └── download_manifest.json
 ├── models/jobs/<下载记录>/                 模型下载操作的日志和来源
@@ -102,3 +103,7 @@ Baseline 使用同样的 `evaluation/<benchmark>/...` 结构，直接位于 `bas
 ## 5. 存储管理
 
 可清理与实验无关的下载缓存，但不能删除正在使用的模型、父 prepared 数据、原始公开划分输入或 benchmark 版本。代码仓库只保留源码、配置和编号文档；大文件不提交。归档对外分享时应同时保留指标、来源清单、脚本副本和日志，并自行检查服务返回内容中的敏感数据。
+
+## 6. Excel 汇总报告
+
+运行 `scripts/tools/sh/82_benchmark_excel.sh`，在 `artifacts/reports/benchmarks/<导出记录>/` 创建 `benchmark_scores.xlsx`、`export_manifest.json` 和标准 job/脚本/日志归档。清单记录纳入与跳过的摘要、逐题源文件 SHA256、工作簿 SHA256、各表行数及文本截断/清理数量。默认只纳入完成的评分，不重新执行评分和预测来源校验。汇总范围、完整参数及字段说明见 [82 Excel 导出](82_benchmark_excel.md)。

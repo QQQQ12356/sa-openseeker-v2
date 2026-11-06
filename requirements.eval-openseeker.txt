@@ -1,4 +1,5 @@
 # 独立评测环境，不覆盖训练环境；与固定官方版本的直接工具依赖对齐。
+-r requirements.tools-export.txt
 # BrowseComp 工具固定版本在对应 artifacts/benchmarks/browsecomp/VERSION/vendor/OpenSeeker 中准备。
 openai==2.26.0
 qwen-agent==0.0.34

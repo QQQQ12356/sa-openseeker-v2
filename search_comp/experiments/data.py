@@ -52,8 +52,6 @@ def select_dataset(*, dataset_name, prepared, profile, tokenizer, min_length, ma
     manifest = read_json(parent / "manifest.json")
     if (manifest["arguments"]["source"] == "research") != (dataset_name == "research"):
         raise ValueError("筛选数据来源与 DATASET_NAME 不一致")
-    if dataset_name == "research" and correctness != "any":
-        raise ValueError("Research 没有经过验证的正确性标签；CORRECTNESS 必须为 any")
     directory = ROOT / "artifacts/datasets" / dataset_name / "prepared" / slug(profile)
     options = dict(prepared=parent, output=directory, max_length=max_length,
                    require_correct=correctness == "Correct", min_length=min_length,

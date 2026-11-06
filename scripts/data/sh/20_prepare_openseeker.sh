@@ -41,7 +41,7 @@ export SA_MIN_LENGTH=1
 # MAX_LENGTH：完整轨迹 token 上限；超长过滤或报错，不静默截断
 export SA_MAX_LENGTH=16384
 
-# CORRECTNESS：Correct/Incorrect/any；Research 只能 any
+# CORRECTNESS：Correct/Incorrect 精确匹配原始正确性标签；any 不限制，含缺失/未知标签
 export SA_CORRECTNESS=Correct
 
 # OBSERVATIONS：any/with/without：工具观测筛选

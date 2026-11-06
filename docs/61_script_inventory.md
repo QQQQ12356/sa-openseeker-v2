@@ -1016,6 +1016,8 @@
 
 入口：`scripts/data/sh/21_prepare_research.sh`；执行适配器：`scripts/data/py/21_prepare_research.py`。
 
+`SA_CORRECTNESS` 可设为 `Correct`、`Incorrect` 或 `any`，默认 `any`。前两者精确匹配原始 `trajectory correctness`；缺失/未知标签仅在 any 模式保留。修改筛选条件时使用新的 SA_PROFILE。
+
 | 实际变量 | 逻辑字段 | 类型 | 默认值 |
 |---|---|---|---|
 | `HF_ENDPOINT` | `ENVIRONMENT.HF_ENDPOINT` | str | `https://huggingface.co` |
@@ -1057,6 +1059,8 @@
 ### 23_select_research.sh
 
 入口：`scripts/data/sh/23_select_research.sh`；执行适配器：`scripts/data/py/23_select_research.py`。
+
+`SA_CORRECTNESS` 可设为 `Correct`、`Incorrect` 或 `any`，默认 `any`。使用父版本 normalized.jsonl 中的 correctness 标签，规则同预处理；不重新判断答案。修改筛选条件时使用新的 SA_PROFILE。
 
 | 实际变量 | 逻辑字段 | 类型 | 默认值 |
 |---|---|---|---|
@@ -1162,6 +1166,20 @@
 | `SA_EVALUATION_DIR` | `EVALUATION_DIR` | str | `artifacts/experiments/plain/openseeker/REPLACE_WITH_RUN/evaluation/hotpotqa/REPLACE_WITH_EVALUATION` |
 | `SA_TITLE` | `TITLE` | str | `测试轨迹检查` |
 
+### 82_benchmark_excel.sh
+
+入口：`scripts/tools/sh/82_benchmark_excel.sh`；执行适配器：`scripts/tools/py/82_benchmark_excel.py`。
+
+| 实际变量 | 逻辑字段 | 类型 | 默认值 | 作用与修改提示 |
+|---|---|---|---|---|
+| `SA_INPUTS` | `INPUTS` | list | `["artifacts/experiments"]` | 非空 JSON 路径列表，目录递归扫描或直接指定 summary.metrics.json；输入重叠去重 |
+| `SA_OUTPUT_DIR` | `OUTPUT_DIR` | path | `artifacts/reports/benchmarks` | 本项目 artifacts 内的输出父目录，每次创建新子目录 |
+| `SA_RUN_NAME` | `RUN_NAME` | str | `benchmark_excel` | 导出标签，1–96 字符，字母/数字开头，其余可用下划线和连字符 |
+| `SA_INCLUDE_DETAILS` | `INCLUDE_DETAILS` | bool | `true` | 是否导出已有的逐题指标及裁判记录；false 减小工作簿体积 |
+| `SA_INCLUDE_INCOMPLETE` | `INCLUDE_INCOMPLETE` | bool | `false` | 是否纳入不完整/未完成任务的现有摘要；true 用于排错 |
+
+`PYTHON_BIN` 默认继承激活环境的 python；SCRIPT_DIR、PROJECT_ROOT、SA_ENTRY、SA_LAUNCHER 自动计算或固定。完整示例、内部变量说明和字段口径见 [82 Excel 导出](82_benchmark_excel.md)。
+
 ### 90_validate.sh
 
 入口：`scripts/tools/sh/90_validate.sh`；执行适配器：`scripts/tools/py/90_validate.py`。
@@ -1169,7 +1187,7 @@
 | 实际变量 | 逻辑字段 | 类型 | 默认值 |
 |---|---|---|---|
 | `SA_RUN_UNIT_TESTS` | `RUN_UNIT_TESTS` | bool | `true` |
-| `SA_TEST_PATTERNS` | `TEST_PATTERNS` | tuple | `["test_experiment_contracts.py", "test_research_sft.py", "test_training_benchmark_matrix.py", "test_hotpot_judge.py", "test_shell_config.py"]` |
+| `SA_TEST_PATTERNS` | `TEST_PATTERNS` | tuple | `["test_experiment_contracts.py", "test_research_sft.py", "test_training_benchmark_matrix.py", "test_hotpot_judge.py", "test_shell_config.py", "test_export_benchmark_excel.py"]` |
 
 ### 91_test_algorithms.sh
 

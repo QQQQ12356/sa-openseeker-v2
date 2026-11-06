@@ -12,6 +12,8 @@
 
 本手册保留 TRAINING.max_length 等逻辑字段便于对照算法；实际 SH 名称统一为 SA_TRAINING__MAX_LENGTH。普通顶层字段加 SA_，ENVIRONMENT 下的真实环境变量不加前缀。每份 SH 的完整实际名称见 [61 参数清单](61_script_inventory.md)。布尔值在 SH 中写 true/false，None 在 SH 中用空字符串表示。
 
+benchmark 评分后的 Excel 导出使用 `scripts/tools/sh/82_benchmark_excel.sh`。其参数 INPUTS、OUTPUT_DIR、RUN_NAME、INCLUDE_DETAILS、INCLUDE_INCOMPLETE 的完整作用、示例、输出口径和修改提示集中在 [82 Excel 导出](82_benchmark_excel.md)，不复用其他工具的同名参数默认值。
+
 ## 2. 环境与公共路径
 
 | 变量 | 作用与修改提示 |
@@ -48,7 +50,7 @@
 | OFFLINE | 是否仅使用本地 tokenizer；默认 True，不加载模型权重。 |
 | WORKERS | CPU 计长进程数，正整数。 |
 | MIN_LENGTH / MAX_LENGTH | 完整轨迹 token 范围，至少 1；不静默截断。 |
-| CORRECTNESS | Correct/Incorrect/any；Research 必须 any。 |
+| CORRECTNESS | OpenSeeker 与 Research 均支持 Correct/Incorrect/any；前两者精确匹配原始标签，any 包含缺失/未知标签。Research 默认 any；预处理及二次筛选均可修改，变更时使用新 PROFILE。 |
 | OBSERVATIONS | any/with/without：工具观测筛选。 |
 | SEED | 同题分组哈希划分种子；固定输入与种子便于复现。 |
 | VAL_FRACTION / TEST_FRACTION | 非负比例，总和小于 1；公开划分优先，实际比例近似。 |

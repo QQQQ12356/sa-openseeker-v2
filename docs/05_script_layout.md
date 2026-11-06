@@ -19,7 +19,7 @@ scripts/
   beacon/sh/、beacon/py/     同样八对文件
   baseline/sh/、baseline/py/ 六对文件，仅测试和评分
   data/sh/、data/py/         十对模型/数据/benchmark 准备文件
-  tools/sh/、tools/py/       五对安装、报告、验证文件
+  tools/sh/、tools/py/       六对安装、报告、Excel 导出、验证文件
 ```
 
 调用链只有 `SH → 同名 PY → 共享实现`。各 SH 不 source 其他公共配置，不调用另一个方法的 SH，不拼接训练/评测命令行选项。训练与离线 GPU worker 保留必要的进程隔离。
@@ -73,3 +73,7 @@ SH 变量值不要在等号两侧加空格。字符串中如果需要单引号�
 实验与报告操作保留 `source_launcher.sh`、`source_script.py`、解析后的设置和日志。代码摘要仍覆盖共享实现。SH 改动会随新任务保存，不覆盖旧实验；安装和检查工具保持各自说明中的输出约定。
 
 Windows 不运行 SH 或真实实验；静态检查只读取 SH 中的字面默认值并校验类型，既不执行 Bash，也不加载模型。
+
+## 7. Benchmark Excel 导出
+
+`tools/sh/82_benchmark_excel.sh → tools/py/82_benchmark_excel.py → workflows/export_benchmark_excel.py` 遵循同样的配对规则。可编辑参数为 INPUTS、OUTPUT_DIR、RUN_NAME、INCLUDE_DETAILS、INCLUDE_INCOMPLETE；依赖及完整说明见 [82 Excel 导出](82_benchmark_excel.md)。导出只读取已有评分结果，在 Linux 使用 CPU，不调用模型或重新评分。

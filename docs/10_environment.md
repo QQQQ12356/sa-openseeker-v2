@@ -8,6 +8,7 @@
 - 安装 `git`；使用多卡 ZeRO 时还需可用的 C/C++ 编译器和构建工具。
 - 单卡与 DDP 不需要 DeepSpeed；ZeRO-2/3 需要 DeepSpeed。Beacon 不支持 ZeRO-3。
 - 预处理只加载 tokenizer，使用 CPU；训练和模型测试使用 GPU。默认合并 LoRA 使用 CPU，需要相应主机内存。
+- benchmark Excel 导出只需 Linux CPU 与 `requirements.tools-export.txt`；统一依赖已包含该文件，也可独立安装，见 [82 Excel 导出](82_benchmark_excel.md)。
 
 依赖版本沿用源分支的固定基线，本次没有在 Linux 安装或验证依赖组合。`environment.train-cu126.yml` 提供可选 Conda 系统工具环境描述；统一 Python 安装脚本见下一节。
 

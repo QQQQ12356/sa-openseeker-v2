@@ -43,7 +43,7 @@ bash scripts/data/sh/11_download_research.sh
 2. `SA_MODELS`：填写后续训练使用的 Linux 本地 tokenizer 路径；不会加载模型权重。
 3. `SA_PROFILE`：选择新的数据版本名；改变来源、tokenizer、长度、筛选或划分时使用新版本。
 4. `SA_MIN_LENGTH`、`SA_MAX_LENGTH`：限制完整轨迹 token 长度，超长整条过滤，禁止截断。
-5. `SA_CORRECTNESS`、`SA_OBSERVATIONS`：按标签和工具观测筛选。Research 只能使用 `CORRECTNESS='any'`。
+5. `SA_CORRECTNESS`、`SA_OBSERVATIONS`：按标签和工具观测筛选。OpenSeeker 与 Research 均支持 `Correct`、`Incorrect`、`any`；Research 默认仍为 `any`。
 6. `SA_VAL_FRACTION`、`SA_TEST_FRACTION`、`SA_SEED`：默认约 96% / 2% / 2%，按问题哈希分组，避免同题跨集合。
 
 ```bash
@@ -53,9 +53,19 @@ bash scripts/data/sh/21_prepare_research.sh
 
 仅运行所需数据入口。结果位于 `artifacts/datasets/<dataset>/prepared/<PROFILE>/`，包含 `normalized.jsonl`、三个划分、拒绝记录、计长记录和 `manifest.json`。公开的 validation/test 问题优先保留原划分，实际比例为近似值。Research 保留轨迹不是独立 benchmark 标准答案。
 
+正确性来自原始记录的 `trajectory correctness`，规范化后保存为 `correctness`；筛选不重新判断答案对错。
+
+| `SA_CORRECTNESS` | 保留条件 | 修改提示 |
+|---|---|---|
+| `Correct` | 标签精确等于 `Correct` | 区分大小写；缺失、空值或未知标签会被过滤 |
+| `Incorrect` | 标签精确等于 `Incorrect` | 仅保留明确标记的错误轨迹；缺失标签不视为错误 |
+| `any` | 不按正确性过滤 | 包含缺失/未知标签；仍应用长度、工具观测和去重规则 |
+
+例如，仅保留 Research 的正确轨迹时，在 `21_prepare_research.sh` 中设置 `export SA_CORRECTNESS=Correct`，并填写新的 `SA_PROFILE`。若原始数据没有对应标签，筛选结果可能为空；可查看原预处理版本的 manifest.correctness、筛选计数及 rejected.jsonl。不要根据 demonstration_final_response 或 answer_source 推断正确性。
+
 ## 4. 可选：重新筛选
 
-使用 `scripts/data/sh/22_select_openseeker.sh` 或 `23_select_research.py`。设置父版本 `SA_PREPARED`、新 `SA_PROFILE`、`SA_TOKENIZER`、长度和筛选条件后直接运行。程序读取父版本实测 `normalized.jsonl`，不重新分词，恢复公开划分并记录父版本。父版本只按预处理时的 tokenizer 计过长度；新增 tokenizer 必须重新预处理。
+使用 `scripts/data/sh/22_select_openseeker.sh` 或 `scripts/data/sh/23_select_research.sh`。设置父版本 `SA_PREPARED`、新 `SA_PROFILE`、`SA_TOKENIZER`、长度和筛选条件后直接运行。Research 二次筛选同样支持 `SA_CORRECTNESS=Correct/Incorrect/any`，使用父版本 normalized.jsonl 中已有的 correctness 标签。程序不重新分词，恢复公开划分并记录父版本。父版本只按预处理时的 tokenizer 计过长度；新增 tokenizer 必须重新预处理。
 
 筛选结果不复制全量 normalized 文件；如要继续扩大/改变范围，应仍从拥有 normalized 文件的原始预处理版本筛选。保留父目录及其原始输入，保证公开划分可恢复。
 

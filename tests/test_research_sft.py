@@ -2,10 +2,13 @@
 import copy
 import json
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from search_comp.data.research import normalize_research
 from search_comp.data.openseeker import encode, parse_calls, pieces
+from search_comp.data.selection import Selection
 from search_comp.workflows.render_dataset_html import prepare_record
 
 
@@ -66,6 +69,37 @@ class ResearchTests(unittest.TestCase):
         raw = example()
         raw['answer'] = 'City of Paris'
         self.assertEqual(normalize_research(raw)['answer_source'], 'reference')
+
+    def test_correctness_modes_use_explicit_source_labels(self):
+        for label in ('Correct', 'Incorrect', None, '', 'unknown', 'correct'):
+            raw = example()
+            if label is not None:
+                raw['trajectory correctness'] = label
+            row = normalize_research(raw)
+            row['lengths'] = {'mock': {'total': 100}}
+            self.assertEqual(row['correctness'], label)
+            for mode in ('Correct', 'Incorrect', 'any'):
+                with self.subTest(label=label, mode=mode):
+                    accepted = Selection(correctness=mode).rejection(row) is None
+                    self.assertEqual(accepted, mode == 'any' or label == mode)
+
+    def test_prepare_accepts_all_correctness_modes_before_tokenizer_loading(self):
+        from search_comp.workflows import prepare_openseeker
+
+        class StopBeforeLoading(Exception):
+            pass
+
+        for mode in ('Correct', 'Incorrect', 'any'):
+            args = SimpleNamespace(source='research', workers=1, min_length=1, max_length=128,
+                exact_length=None, correctness=mode, require_correct=mode == 'Correct',
+                observations='any', tokenizer=None, val_fraction=0, test_fraction=0,
+                models=['mock'], offline=True)
+            with self.subTest(mode=mode), patch.object(prepare_openseeker, 'initialize',
+                    side_effect=StopBeforeLoading) as initialize:
+                with self.assertRaises(StopBeforeLoading):
+                    prepare_openseeker.run(args)
+                initialize.assert_called_once_with(['mock'], True)
+                self.assertEqual(args.require_correct, mode == 'Correct')
 
     def test_incompatible_tool_is_rejected(self):
         raw = example()

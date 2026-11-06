@@ -193,21 +193,35 @@ class ExperimentContracts(unittest.TestCase):
             dict(role="tool_call", content='<tool_call>{"name":"search","arguments":{"query":["city"]}}</tool_call>'),
             dict(role="tool_output", content="Paris."), dict(role="answer", content="Paris")])
         original = self.directory / "validation.jsonl"
-        original.write_text(json.dumps(raw) + "\n", encoding="utf-8")
+        labels = ("Correct", "Incorrect", None)
+        samples = []
+        for index, label in enumerate(labels):
+            sample = json.loads(json.dumps(raw))
+            sample["messages"][1]["content"] = f"Where {index}?"
+            sample["trajectory correctness"] = label
+            samples.append(sample)
+        original.write_text("".join(json.dumps(sample) + "\n" for sample in samples), encoding="utf-8")
         prepared = self.directory / "prepared"
         prepared.mkdir()
-        row = normalize_research(raw)
-        row["lengths"] = {"local-model": dict(total=100)}
-        (prepared / "normalized.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
+        rows = [normalize_research(sample, index=index) for index, sample in enumerate(samples)]
+        for row in rows:
+            row["lengths"] = {"local-model": dict(total=100)}
+        (prepared / "normalized.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
         write_json(prepared / "manifest.json", dict(protocol=VERSION, tokenizers={"local-model": {}},
             arguments=dict(source="research", input=[str(original)], seed=42, val_fraction=0, test_fraction=0)))
-        with patch.object(dataset_jobs, "configure"), patch.object(dataset_jobs, "ROOT", self.directory):
-            dataset_jobs.select_dataset(dataset_name="research", prepared=prepared, profile="derived",
-                tokenizer="local-model", min_length=1, max_length=128, exact_length=None,
-                correctness="any", observations="any", environment={})
-        selected = self.directory / "artifacts/datasets/research/prepared/derived"
-        self.assertEqual((selected / "train.jsonl").read_text(), "")
-        self.assertEqual(json.loads((selected / "validation.jsonl").read_text())["question"], "Where?")
+        for mode in ("Correct", "Incorrect", "any"):
+            profile = f"derived_{mode}"
+            with self.subTest(mode=mode), patch.object(dataset_jobs, "configure"), \
+                    patch.object(dataset_jobs, "ROOT", self.directory):
+                dataset_jobs.select_dataset(dataset_name="research", prepared=prepared, profile=profile,
+                    tokenizer="local-model", min_length=1, max_length=128, exact_length=None,
+                    correctness=mode, observations="any", environment={})
+            selected = self.directory / "artifacts/datasets/research/prepared" / profile
+            self.assertEqual((selected / "train.jsonl").read_text(), "")
+            self.assertEqual((selected / "test.jsonl").read_text(), "")
+            kept = [json.loads(line) for line in (selected / "validation.jsonl").read_text().splitlines()]
+            self.assertEqual([row["correctness"] for row in kept],
+                             [label for label in labels if mode == "any" or label == mode])
 
     def test_every_method_entry_imports_without_running_or_loading_models(self):
         for method, count in (("plain", 8), ("beacon", 8), ("baseline", 6)):

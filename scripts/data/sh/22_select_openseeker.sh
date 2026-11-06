@@ -38,7 +38,7 @@ export SA_MAX_LENGTH=8192
 # EXACT_LENGTH：可选精确 token 长度；空字符串 不限定
 export SA_EXACT_LENGTH=''
 
-# CORRECTNESS：Correct/Incorrect/any；Research 只能 any
+# CORRECTNESS：Correct/Incorrect 精确匹配父版本正确性标签；any 不限制，含缺失/未知标签
 export SA_CORRECTNESS=Correct
 
 # OBSERVATIONS：any/with/without：工具观测筛选

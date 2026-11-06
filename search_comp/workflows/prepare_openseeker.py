@@ -82,10 +82,6 @@ def run(args):
     p = ConfigError()
     if args.workers < 1 or args.max_length < 1:
         p.error('workers and max-length must be positive')
-    if args.source == 'research':
-        if args.correctness not in (None, 'any'):
-            p.error('RESEARCH correctness is unverified; use --correctness any')
-        args.require_correct = False
     selection = selection_from_args(args)
     if not 0 <= args.val_fraction + args.test_fraction < 1 or min(args.val_fraction, args.test_fraction) < 0:
         p.error('invalid split fractions')

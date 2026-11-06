@@ -23,6 +23,7 @@ Baseline 指未训练的原始 Qwen3.5 基座。Plain 默认使用 LoRA；Beacon
 | 3 | [32 Baseline 指南](docs/32_baseline.md) | 基座与提示词配置、三项测试与评分 |
 | 4 | [60 参数手册](docs/60_parameters.md) | SH 脚本变量、训练参数、压缩参数及修改提示 |
 | 5 | [70 产物规范](docs/70_artifacts.md) | 目录、命名、运行身份、来源校验、失败归档 |
+| 6 | [82 Excel 导出](docs/82_benchmark_excel.md) | benchmark 评分汇总、逐题明细、完整参数与修改提示 |
 | 参考 | [90 迁移说明](docs/90_migration.md) | 来源提交、架构决策、旧目录迁移边界 |
 | 验证 | [99 验证记录](docs/99_validation.md) | 已执行检查和 Linux 后续验证范围 |
 
@@ -34,6 +35,7 @@ Baseline 指未训练的原始 Qwen3.5 基座。Plain 默认使用 LoRA；Beacon
 4. 训练完成后，将终端输出的实验目录复制到对应测试脚本的 `SA_TRAINING_RUN`。
 5. 测试完成后，将测试目录复制到对应评分脚本的 `SA_EVALUATION_DIR`。评分自动沿用数据版本与题目范围。
 6. 所有运行产物写入 `artifacts/`。每次运行创建独立目录；失败保留清单和日志，修正后重新运行。
+7. 评分完成后，编辑并运行 `bash scripts/tools/sh/82_benchmark_excel.sh`，将一份或多份 benchmark 评分结果汇总到 Excel；详细步骤见 [82 Excel 导出](docs/82_benchmark_excel.md)。
 
 ## 代码结构
 
@@ -44,7 +46,7 @@ scripts/                  按 sh/、py/ 分离的独立运行文件
   plain/py/               同名 Python 执行适配器（不维护参数默认值）
   beacon/sh/、beacon/py/   Beacon 独立入口与执行适配器
   baseline/sh/、baseline/py/  Baseline 独立入口与执行适配器
-  tools/sh/、tools/py/     环境安装、HTML 检查与验证
+  tools/sh/、tools/py/     环境安装、HTML 检查、评分 Excel 导出与验证
   templates/              离线 HTML 模板
 search_comp/
   experiments/            统一流程、参数校验和归档接口
