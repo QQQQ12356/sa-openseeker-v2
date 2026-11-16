@@ -146,7 +146,7 @@ BrowseComp 使用固定版工具与 stable 页面读取策略，原生生成逐�
 | logging_steps | `5` | `5` | 日志间隔，优先于 log_freq_steps |
 | loss_segments | 见下表 | `'—'` | 逐 token 监督权重映射，字段说明见损失分段表。 |
 | per_device_eval_batch_size | `1` | `'—'` | 验证 collator 仅支持 1 |
-| save_total_limit | `2` | `'—'` | Plain 周期 checkpoint 最大保留数；null 表示不限制 |
+| save_total_limit | `2` | Research 为 `2` | 周期 checkpoint 最大保留数。Research 入口用 `0` 表示不限制，最终模型单独保存。 |
 | beacon_layout_policy | `'—'` | `'configured'` | configured 采用 BEACON 中的布局；whole 强制整段兼容布局并规范化相关字段。 |
 | distill_teacher_model_name_or_path | `'—'` | `空字符串` | 蒸馏 teacher；null 使用 student 基座，启用蒸馏需额外资源 |
 | distill_teacher_device | `'—'` | `'auto'` | teacher 设备；auto 或显式设备 |

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import time
@@ -110,16 +112,28 @@ class _SaveBeaconCheckpoints(TrainerCallback):
         tokenizer: 用于随 checkpoint 保存。
         use_lora: 是否 LoRA。
         max_steps: 按步数训练的终止步数；为 None 时按 epoch 终止。
+        save_total_limit: 周期 checkpoint 最大保留数，0 表示不限制。
     """
 
     def __init__(self, exp_dir: str, save_freq: int, model, tokenizer,
-                 use_lora: bool, max_steps) -> None:
+                 use_lora: bool, max_steps, save_total_limit: int = 0) -> None:
         self.exp_dir = exp_dir
         self.save_freq = save_freq
         self.model = model
         self.tokenizer = tokenizer
         self.use_lora = use_lora
         self.max_steps = max_steps
+        self.save_total_limit = save_total_limit
+
+    def _rotate_checkpoints(self):
+        checkpoints = []
+        for entry in Path(self.exp_dir).iterdir():
+            match = re.fullmatch(r"checkpoint-([0-9]+)", entry.name)
+            if match and not entry.is_symlink() and entry.is_dir():
+                checkpoints.append((int(match[1]), entry))
+        checkpoints.sort()
+        for _, checkpoint in checkpoints[:-self.save_total_limit]:
+            shutil.rmtree(checkpoint)
 
     def on_step_end(self, args, state, control, **kwargs):
         gs = state.global_step
@@ -128,6 +142,8 @@ class _SaveBeaconCheckpoints(TrainerCallback):
             save_beacon_checkpoint(self.trainer, self.model, self.tokenizer, ckpt, self.use_lora)
             if state.is_world_process_zero:
                 print(f"[beacon] 已保存 adapter/state -> {ckpt}", flush=True)
+                if self.save_total_limit:
+                    self._rotate_checkpoints()
         if self.max_steps is not None and gs >= self.max_steps:
             control.should_training_stop = True  # 精确在 max_steps 处停止
 
@@ -340,7 +356,8 @@ def main_train(
         # 每个 log_step 的损失行会额外打印 ce_loss / cont_loss / readout_loss
         # （超类只是 Trainer 的子类，其余行为不变）。
         callbacks=[
-            _SaveBeaconCheckpoints(exp_dir, save_freq, model, tokenizer, use_lora, max_train_steps),
+            _SaveBeaconCheckpoints(exp_dir, save_freq, model, tokenizer, use_lora, max_train_steps,
+                                   save_total_limit=cfg.get("save_total_limit") or 0),
             JsonlMetricsCallback(exp_dir),
             CudaMemoryCallback(exp_dir),
         ],

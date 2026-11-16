@@ -89,6 +89,9 @@ export SA_TRAINING__LOGGING_STEPS=5
 # TRAINING.SAVE_FREQ_STEPS：周期保存间隔，单位 optimizer step
 export SA_TRAINING__SAVE_FREQ_STEPS=200
 
+# TRAINING.SAVE_TOTAL_LIMIT：周期 checkpoint 最大保留数，0 表示不限制
+export SA_TRAINING__SAVE_TOTAL_LIMIT=2
+
 # TRAINING.EVAL_STEPS：验证间隔，单位 optimizer step
 export SA_TRAINING__EVAL_STEPS=200
 

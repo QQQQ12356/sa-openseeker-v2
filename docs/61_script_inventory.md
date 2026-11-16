@@ -498,6 +498,7 @@
 
 | 实际变量 | 逻辑字段 | 类型 | 默认值 |
 |---|---|---|---|
+| `SA_TRAINING__SAVE_TOTAL_LIMIT` | `TRAINING.SAVE_TOTAL_LIMIT` | int | `2` |
 | `HF_ENDPOINT` | `ENVIRONMENT.HF_ENDPOINT` | str | `https://huggingface.co` |
 | `HF_HUB_OFFLINE` | `ENVIRONMENT.HF_HUB_OFFLINE` | str | `1` |
 | `CUDA_VISIBLE_DEVICES` | `ENVIRONMENT.CUDA_VISIBLE_DEVICES` | str | `0` |

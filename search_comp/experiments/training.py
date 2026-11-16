@@ -22,6 +22,9 @@ def resolve_training(method, dataset_name, dataset_dir, model_path, model_family
     if model_path not in manifest["tokenizers"]:
         raise ValueError("数据没有使用该 MODEL_PATH tokenizer 计长；预处理和训练必须使用相同身份")
     cfg = deepcopy(training)
+    save_total_limit = cfg.get("save_total_limit")
+    if save_total_limit is not None and (type(save_total_limit) is not int or save_total_limit < 0):
+        raise ValueError("save_total_limit 必须是非负整数，0 表示不限制")
     if cfg.get("per_device_batch_size", 1) != 1 or cfg.get("per_device_eval_batch_size", 1) != 1:
         raise ValueError("轨迹 collator 只支持单卡 batch=1，请用梯度累积扩大有效 batch")
     if not isinstance(cfg.get("max_length"), int) or cfg["max_length"] < manifest["arguments"]["max_length"]:
