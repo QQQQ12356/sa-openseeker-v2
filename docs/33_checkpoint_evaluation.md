@@ -67,3 +67,11 @@ LoRA 测试优先使用检查点目录中的 tokenizer，缺少 tokenizer 时使
 Plain 测试自动复用同一题内的推理缓存，无需设置 SH 参数。工具返回后只编码新增消息。上一轮缓存对应的 token 与本轮输入前缀完全一致时，模型只对未缓存的 token 执行 prefill。若输出文本重新编码后改变了前缀，当前轮会重新 prefill。切换题目时清空缓存。
 
 在线 BrowseComp 的 `console.log` 中，`input_tokens` 是该轮完整输入长度，`cached_input_tokens` 是复用的前缀长度。首轮或前缀不匹配时为 `0`。三个 benchmark 的预测记录都保存每道题累计复用的 token 数，可用它判断缓存是否命中。
+
+## 5. 查看测试进度
+
+三个 benchmark 在终端和测试目录的 `console.log` 使用相同的完成进度格式，例如 `[benchmark browsecomp-plus generation] done=12/50 status=completed sample=8.4s elapsed=103.2s`。
+
+- `done` 是已写入的预测数和本次选中的总题数，分母受 `SA_GENERATION__LIMIT` 影响。遇到工具失败或达到预算的题也会写入预测并计入完成数，具体结果看 `status`。
+- `sample` 是该题的耗时，`elapsed` 是生成进度开始以来的累计耗时。离线索引校验会先显示 `checking local index`，长题运行期间完成数会停在上一条。
+- 离线多卡运行时，终端的 `done` 汇总所有 worker。各卡的日志保存在 `results/workers/worker_<rank>.log`。

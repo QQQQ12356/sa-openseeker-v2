@@ -1,9 +1,13 @@
-"""Report completed JSONL records across workers without rereading trajectories."""
+"""Report per-question completion from in-process or worker predictions."""
 from contextlib import contextmanager
 import json
 from pathlib import Path
 import threading
 import time
+
+
+def generation_label(benchmark):
+    return f"benchmark {benchmark.lower()} generation"
 
 
 class CompletionProgress:
@@ -20,9 +24,26 @@ class CompletionProgress:
         self.started = time.monotonic()
         self._report()
 
-    def _report(self):
-        self.emit(f"[{self.label}] done={len(self.seen)}/{self.total}; "
-                  f"elapsed={time.monotonic() - self.started:.1f}s")
+    def _report(self, row=None):
+        fields = [f"[{self.label}] done={len(self.seen)}/{self.total}"]
+        if row is not None:
+            if row.get("status"):
+                fields.append(f"status={row['status']}")
+            seconds = row.get("seconds", row.get("elapsed_seconds"))
+            if isinstance(seconds, (int, float)):
+                fields.append(f"sample={seconds:.1f}s")
+        fields.append(f"elapsed={time.monotonic() - self.started:.1f}s")
+        self.emit(" ".join(fields))
+
+    def record(self, row):
+        """Count a prediction after its complete line has been flushed."""
+        if not isinstance(row, dict) or (self.item_type is not None and row.get("type") != self.item_type):
+            return
+        identity = row.get(self.key)
+        if not isinstance(identity, (str, int)) or identity in self.seen:
+            return
+        self.seen.add(identity)
+        self._report(row)
 
     def poll(self):
         for index, path in enumerate(self.paths):
@@ -40,14 +61,7 @@ class CompletionProgress:
                     row = json.loads(line)
                 except (ValueError, UnicodeDecodeError):
                     continue  # Scoring/merge validation owns malformed output errors.
-                if not isinstance(row, dict) or (self.item_type is not None
-                        and row.get("type") != self.item_type):
-                    continue
-                identity = row.get(self.key)
-                if not isinstance(identity, (str, int)) or identity in self.seen:
-                    continue
-                self.seen.add(identity)
-                self._report()
+                self.record(row)
 
     @contextmanager
     def watch(self):

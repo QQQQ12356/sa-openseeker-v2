@@ -22,7 +22,7 @@ from search_comp.offline.index import LocalIndex, build_index
 from search_comp.offline.scoring import LocalJudge, load_predictions, score_browsecomp, score_hotpot
 from search_comp.offline.tools import BCP_INSTRUCTION, HOTPOT_INSTRUCTION, LocalTools
 from search_comp.utils.devices import worker_devices
-from search_comp.utils.progress import CompletionProgress
+from search_comp.utils.progress import CompletionProgress, generation_label
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -56,6 +56,7 @@ def prepare_phase(args):
 
 
 def verify_index(args, manifest):
+    print(f"[offline {args.benchmark}] checking local index; verify_checksum={args.verify_index}", flush=True)
     with LocalIndex(args.root / "index.sqlite", args.verify_index) as index:
         if index.manifest["benchmark"] != args.benchmark or index.manifest["corpus_sha256"] != manifest["corpus_sha256"]:
             raise ValueError("index and dataset have different corpus/benchmark provenance")
@@ -67,6 +68,7 @@ def verify_index(args, manifest):
 def run_phase(args, output, rows, manifest):
     if args.num_workers > 1:
         return run_parallel(args, output, rows, manifest)
+    progress = CompletionProgress((), len(rows), generation_label(args.benchmark))
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     from search_comp.data.agent_prompt import build_system_prompt, resolve_system_prompt
     from search_comp.evaluation.tool_agent import decoding_options
@@ -88,7 +90,6 @@ def run_phase(args, output, rows, manifest):
         generate.metadata['base_model_path'] = model_path
     statuses = Counter()
     start = time.monotonic()
-    print(f"[offline {args.benchmark}] done=0/{len(rows)}", flush=True)
     with LocalIndex(args.root / "index.sqlite") as index, (output / "predictions.jsonl").open("x", encoding="utf-8") as target:
         tools = LocalTools(index, tokenizer, args.topk, args.snippet_tokens, args.read_tokens,
                            args.allow_visit, args.tool_count)
@@ -109,8 +110,7 @@ def run_phase(args, output, rows, manifest):
             target.write(json.dumps(result, ensure_ascii=False) + "\n")
             target.flush()
             statuses[result["status"]] += 1
-            print(f"[offline {args.benchmark}] done={position + 1}/{len(rows)} status={result['status']} "
-                  f"sample={result['seconds']:.1f}s elapsed={time.monotonic() - start:.1f}s", flush=True)
+            progress.record(result)
     dump(output / "generation.metrics.json", dict(statuses=dict(statuses), count=len(rows),
                                                   seconds=time.monotonic() - start))
     del generate, model, tokenizer
@@ -181,7 +181,8 @@ def merge_worker_predictions(paths, output, rows, manifest):
     return target, statuses
 
 
-def forward_worker_progress(readers, buffers):
+def forward_worker_status(readers, buffers):
+    """Forward worker startup lines; the parent reports completed predictions."""
     for rank, reader in enumerate(readers):
         buffers[rank] += reader.read()
         lines = buffers[rank].split("\n")
@@ -199,14 +200,15 @@ def run_parallel(args, output, rows, manifest):
         raise ValueError("parallel evaluation requires at least one question")
     directory = output / "workers"
     directory.mkdir()
-    processes, paths = [], []
+    processes = []
+    folders = [directory / f"worker_{rank}" for rank in range(len(devices))]
+    paths = [folder / "predictions.jsonl" for folder in folders]
+    progress = CompletionProgress(paths, len(rows), generation_label(args.benchmark))
     start = time.monotonic()
     with ExitStack() as stack:
         readers, buffers = [], []
         try:
-            for rank, device in enumerate(devices):
-                folder = directory / f"worker_{rank}"
-                paths.append(folder / "predictions.jsonl")
+            for rank, (device, folder) in enumerate(zip(devices, folders)):
                 log_path = directory / f"worker_{rank}.log"
                 log = stack.enter_context(log_path.open("x", encoding="utf-8"))
                 command = worker_command(args, folder, rank, len(devices))
@@ -217,10 +219,9 @@ def run_parallel(args, output, rows, manifest):
                 readers.append(stack.enter_context(log_path.open(encoding="utf-8", errors="replace")))
                 buffers.append("")
             pending = list(processes)
-            progress = CompletionProgress(paths, len(rows), f"offline {args.benchmark} all")
             heartbeat = time.monotonic()
             while pending:
-                forward_worker_progress(readers, buffers)
+                forward_worker_status(readers, buffers)
                 progress.poll()
                 for process in pending[:]:
                     code = process.poll()
@@ -235,7 +236,7 @@ def run_parallel(args, output, rows, manifest):
                     heartbeat = time.monotonic()
                 if pending:
                     time.sleep(0.1)
-            forward_worker_progress(readers, buffers)
+            forward_worker_status(readers, buffers)
             progress.poll()
         finally:
             for process in processes:
@@ -427,6 +428,7 @@ def run(args):
     if args.action in {"run", "all"}:
         # Resolve before creating a result directory, and before any large model allocation.
         model, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
+        print(f"[offline {args.benchmark}] selected questions={len(rows)}", flush=True)
         index_metadata = verify_index(args, manifest)
     else:
         model, kind, index_metadata = None, None, None

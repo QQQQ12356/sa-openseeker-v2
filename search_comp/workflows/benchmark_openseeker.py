@@ -16,7 +16,7 @@ import time
 
 from search_comp.evaluation.benchmark_data import prepare_browsecomp, read_questions, sha256
 from search_comp.evaluation.checkpoints import load_evaluation_model, resolve_checkpoint
-from search_comp.utils.progress import CompletionProgress
+from search_comp.utils.progress import CompletionProgress, generation_label
 
 OFFICIAL_URL = "https://github.com/PolarSeeker/OpenSeeker.git"
 OFFICIAL_REVISION = "e3dec1f727d87c5eaa93506e4882c67237647098"
@@ -173,7 +173,7 @@ def native_generate(args, rows, output):
     from search_comp.data.agent_prompt import initial_messages, resolve_system_prompt
     from search_comp.evaluation.tool_agent import ModelGenerator, Registry, run_agent, decoding_options
 
-    print(f"[benchmark native generation] done=0/{len(rows)}", flush=True)
+    progress = CompletionProgress((), len(rows), generation_label(getattr(args, "benchmark", "browsecomp")), key="query")
     system, prompt_source = resolve_system_prompt(getattr(args, 'prompt_data', None), args.run_dir)
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     generation_options = decoding_options(args, kind == 'beacon')
@@ -208,7 +208,7 @@ def native_generate(args, rows, output):
                           tool_calls=sum(len(e.get("calls", [])) for e in result["events"]))
             target.write(json.dumps(result, ensure_ascii=False) + "\n")
             target.flush()
-            print(f"[benchmark] native {index + 1}/{len(rows)} status={result['status']}", flush=True)
+            progress.record(result)
 
 
 
@@ -321,7 +321,7 @@ def run(args):
             native_generate(args, rows, raw)
         else:
             run_logged(generation_command(args, dataset, output), args.official_dir, output / "generation.log",
-                       raw, len(rows), f"benchmark {args.benchmark} generation")
+                       raw, len(rows), generation_label(args.benchmark))
     aligned = output / "result_for_judge.jsonl"
     suffix = boxed_instruction(args.official_dir) if args.mode == "official-v2" else ""
     coverage = align_results(rows, raw, aligned, suffix)
