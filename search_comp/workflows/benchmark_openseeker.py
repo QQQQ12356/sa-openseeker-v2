@@ -178,6 +178,8 @@ def native_generate(args, rows, output):
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     generation_options = decoding_options(args, kind == 'beacon')
     origin = getattr(args, 'model_origin', 'checkpoint')
+    if origin == 'base-qwen35':
+        generation_options['reuse_plain_cache'] = False
     print(f"[benchmark native generation] loading {kind} checkpoint={model_path}", flush=True)
     model, tokenizer = load_evaluation_model(model_path, kind, origin, args.run_dir)
     print("[benchmark native generation] model ready", flush=True)

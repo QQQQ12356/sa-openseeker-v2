@@ -14,6 +14,7 @@ import urllib.request
 from types import SimpleNamespace
 from ..data.openseeker import (encode, parse_calls, json_text, CALL_END, RESPONSE_RE)
 from ..data.agent_prompt import prompt_metadata, render_system
+from .plain_generation import PlainGenerationState
 
 
 class ToolError(RuntimeError):
@@ -135,8 +136,11 @@ def decoding_options(args, beacon=False):
 
 class ModelGenerator:
     def __init__(self, model, tokenizer, beacon=False, decoding='greedy', repetition_penalty=1.0,
-                 temperature=1.0, top_p=1.0, seed=42):
+                 temperature=1.0, top_p=1.0, seed=42, reuse_plain_cache=True):
         self.model, self.tokenizer, self.beacon = model, tokenizer, beacon
+        self.reuse_plain_cache = reuse_plain_cache and not beacon
+        self.plain_state = None
+        self.cached_input_tokens = None
         self.decoding, self.repetition_penalty = decoding, repetition_penalty
         self.temperature, self.top_p, self.seed = temperature, top_p, seed
         decoding_options(SimpleNamespace(decoding=decoding, repetition_penalty=repetition_penalty,
@@ -150,14 +154,24 @@ class ModelGenerator:
                                  json_text(config).encode()).hexdigest())
         if beacon:
             self.metadata['beacon_config'] = model.beacon_config.to_dict()
+        else:
+            self.metadata['plain_cross_turn_cache'] = self.reuse_plain_cache
         self.metadata['repetition_scope'] = ('beacon_visible_tokens' if beacon else 'full_input_and_generated')
 
     def start_question(self, question):
+        if self.reuse_plain_cache:
+            self.plain_state = PlainGenerationState(self.tokenizer)
+            self.cached_input_tokens = 0
         if self.decoding == 'sample':
             import torch
             # Same question/seed receives the same RNG sequence across shards.
             offset = int.from_bytes(hashlib.sha256(question.encode('utf-8')).digest()[:4], 'big')
             torch.manual_seed((self.seed + offset) % (2**32))
+
+    def encode_turn(self, history, *, allow_invalid_calls=False):
+        if self.plain_state is not None:
+            return self.plain_state.encode_turn(history)
+        return encode(history, self.tokenizer, generation_prompt=True, allow_invalid_calls=allow_invalid_calls)
 
     def __call__(self, encoded, max_new_tokens):
         import torch
@@ -182,6 +196,14 @@ class ModelGenerator:
                         text = tokenizer.decode(input_ids[0, start:].tolist(), skip_special_tokens=False)
                         return any(s in text for s in stops)
                 sampling = dict(temperature=self.temperature, top_p=self.top_p, top_k=0) if self.decoding == 'sample' else {}
+                cache_options = {}
+                if self.plain_state is not None:
+                    past, self.cached_input_tokens = self.plain_state.take_cache(encoded['input_ids'])
+                    cache_options.update(use_cache=True, return_dict_in_generate=True)
+                    if past is not None:
+                        cache_options['past_key_values'] = past
+                # Full IDs are used by stopping and repetition penalty. With
+                # past_key_values, Transformers forwards only the uncached suffix.
                 out = self.model.generate(input_ids=ids, attention_mask=torch.ones_like(ids),
                     # Do not inherit checkpoint-specific sampling, beam or penalty defaults
                     # that the Beacon argmax loop does not implement.
@@ -189,8 +211,10 @@ class ModelGenerator:
                         do_sample=self.decoding == 'sample', num_beams=1, repetition_penalty=self.repetition_penalty,
                         bos_token_id=self.model.config.bos_token_id,
                         eos_token_id=eos_ids or None, pad_token_id=tokenizer.pad_token_id, **sampling),
-                    stopping_criteria=StoppingCriteriaList([Stop()]))
-                generated = out[0, start:].tolist()
+                    stopping_criteria=StoppingCriteriaList([Stop()]), **cache_options)
+                generated = getattr(out, 'sequences', out)[0, start:].tolist()
+                if self.plain_state is not None:
+                    self.plain_state.save_cache(getattr(out, 'past_key_values', None), encoded['input_ids'], generated)
         text = tokenizer.decode(generated, skip_special_tokens=False)
         ended = any(s in text for s in stops) or bool(generated and generated[-1] in eos_ids)
         # ChatML assistant boundary is re-serialized by the shared encoder.
@@ -228,10 +252,15 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
     history[0]['content'] = render_system(history[0]['content'], tool_schemas)
     if hasattr(generate, 'start_question'):
         generate.start_question(history[1]['content'])
+    encode_turn = getattr(generate, 'encode_turn', None)
+    reused_tokens = getattr(generate, 'cached_input_tokens', None)
     events = []; status = 'turn_limit'; prediction = ''; generated_tokens = 0
     call_retries = 0
     for turn in range(max_turns):
-        encoded = encode(history, tokenizer, generation_prompt=True, allow_invalid_calls=max_call_retries > 0)
+        if encode_turn is None:
+            encoded = encode(history, tokenizer, generation_prompt=True, allow_invalid_calls=max_call_retries > 0)
+        else:
+            encoded = encode_turn(history, allow_invalid_calls=max_call_retries > 0)
         available = max_context - len(encoded['input_ids'])
         if available <= 0:
             status = 'context_limit'; break
@@ -245,8 +274,13 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
             if log:
                 log(f"turn={turn + 1}/{max_turns} generation error={type(error).__name__} elapsed={time.monotonic() - start:.2f}s")
             raise
+        cached = getattr(generate, 'cached_input_tokens', None)
+        if reused_tokens is not None:
+            reused_tokens += cached
         if log:
-            log(f"turn={turn + 1}/{max_turns} generation end output_tokens={n_tokens} ended={ended} elapsed={time.monotonic() - start:.2f}s")
+            cache_log = f" cached_input_tokens={cached}" if cached is not None else ""
+            log(f"turn={turn + 1}/{max_turns} generation end output_tokens={n_tokens} ended={ended} "
+                f"elapsed={time.monotonic() - start:.2f}s{cache_log}")
         generated_tokens += n_tokens
         history.append(dict(role='assistant', content=text))
         if not ended:
@@ -285,10 +319,13 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
             status = 'tool_budget'; events.append(dict(calls=calls, tokens=lengths)); break
         history.extend(replies)
         events.append(dict(calls=calls, observation_tokens=lengths))
-    return dict(prediction=prediction, status=status, messages=history, events=events,
-                **prompt_metadata(history[0]['content']),
-                generation_config=getattr(generate, 'metadata', {}),
-                generated_tokens=generated_tokens, turns=len(events))
+    result = dict(prediction=prediction, status=status, messages=history, events=events,
+                  **prompt_metadata(history[0]['content']),
+                  generation_config=getattr(generate, 'metadata', {}),
+                  generated_tokens=generated_tokens, turns=len(events))
+    if reused_tokens is not None:
+        result['cached_input_tokens'] = reused_tokens
+    return result
 
 
 class CorpusTools(Registry):

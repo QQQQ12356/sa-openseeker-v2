@@ -165,9 +165,9 @@ def validate(row):
         raise ValueError('expected nonempty string reference answer')
 
 
-def pieces(messages, generation_prompt=False):
+def pieces(messages, generation_prompt=False, *, start=0):
     """(text, supervised, compressible) pieces; boundaries are protocol tokens."""
-    for i, msg in enumerate(messages):
+    for i, msg in enumerate(messages[start:], start=start):
         role, text = msg['role'], msg['content']
         yield f'<|im_start|>{role}\n', False, False
         if role == 'user' and i > 1:

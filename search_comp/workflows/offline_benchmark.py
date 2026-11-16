@@ -79,6 +79,8 @@ def run_phase(args, output, rows, manifest):
 
     print(f"[offline] loading {kind} checkpoint={model_path}; questions={len(rows)}", flush=True)
     origin = getattr(args, 'model_origin', 'checkpoint')
+    if origin == 'base-qwen35':
+        generation_options['reuse_plain_cache'] = False
     model, tokenizer = load_evaluation_model(model_path, kind, origin, args.run_dir)
     generate = ModelGenerator(model, tokenizer, kind == "beacon", **generation_options)
     generate.metadata.update(checkpoint=model_path, model_origin=origin)

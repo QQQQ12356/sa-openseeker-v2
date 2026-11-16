@@ -61,3 +61,9 @@ LoRA 测试优先使用检查点目录中的 tokenizer，缺少 tokenizer 时使
 2. 查看 `console.log` 中的加载信息。找不到检查点时，列出实验的 `models/model/`，确认步数实际保存且还在保留范围内。缺少 adapter 权重、Beacon 状态或权重分片时，请恢复完整的检查点目录。
 3. 找不到基座或提示词数据时，核对 `models/model/resolved_config.json` 和 `experiment.json` 中记录的路径，确保原始基座与 prepared 训练 JSONL 在当前 Linux 环境可读。
 4. 评分仍使用同方法、同 benchmark 的 `41/43/45_score_*.sh`。把**测试记录根目录**填进 `SA_EVALUATION_DIR`，评分会沿用该次测试的预测和题目范围。对同一 benchmark 比较不同检查点时，各次测试使用独立记录。
+
+## 4. Plain 多轮推理缓存
+
+Plain 测试自动复用同一题内的推理缓存，无需设置 SH 参数。工具返回后只编码新增消息。上一轮缓存对应的 token 与本轮输入前缀完全一致时，模型只对未缓存的 token 执行 prefill。若输出文本重新编码后改变了前缀，当前轮会重新 prefill。切换题目时清空缓存。
+
+在线 BrowseComp 的 `console.log` 中，`input_tokens` 是该轮完整输入长度，`cached_input_tokens` 是复用的前缀长度。首轮或前缀不匹配时为 `0`。三个 benchmark 的预测记录都保存每道题累计复用的 token 数，可用它判断缓存是否命中。
