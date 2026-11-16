@@ -6,7 +6,7 @@
 
 - `ENVIRONMENT` 先应用到进程环境，再导入 tokenizer/模型/Hub 客户端。
 - `TRAINING`、`BEACON`、`DISTRIBUTED` 为当前文件的完整训练配置，由对应 SA_* 环境变量还原，不继承另一方法配置。
-- 测试的模型及训练提示词读取 `TRAINING_RUN`，不接受模型覆盖；baseline 使用本地 `MODEL_PATH`。
+- Plain 和 Beacon 从 `TRAINING_RUN` 读取训练提示词及模型来源，可用 `CHECKPOINT` 选择指定训练步数。Baseline 使用本地 `MODEL_PATH`。
 - 评分的 benchmark 版本和 `limit` 来自 `EVALUATION_DIR`，避免评分与生成范围不一致。
 - 相对路径均以项目根目录解析；模型 tokenizer 身份必须使用预处理时相同的字符串。不要使用 Windows 盘符路径。
 
@@ -29,7 +29,8 @@ benchmark 评分后的 Excel 导出使用 `scripts/tools/sh/82_benchmark_excel.s
 | MODEL_PATH | 训练基座或 baseline 本地权重；与 tokenizer 计长身份一致。 |
 | MODEL_FAMILY | 训练适配族 qwen3/qwen35；baseline 固定原始 Qwen3.5。 |
 | PLAN_ONLY | True 只校验/归档，不加载模型；False 正式训练且创建新记录。 |
-| TRAINING_RUN | 已成功完成的训练实验根目录；baseline 必须 None。 |
+| TRAINING_RUN | Plain/Beacon 同方法的训练实验根目录。使用最终模型时该实验须成功完成。Baseline 留空。 |
+| CHECKPOINT | Plain/Beacon 测试专用，实际变量为 `SA_CHECKPOINT`。默认留空使用最终模型，也可填 `checkpoint-200` 或同实验中该目录完整路径。详见 [33 检查点测试](33_checkpoint_evaluation.md)。 |
 | BENCHMARK_DIR | 准备好的共享 benchmark 版本目录。 |
 | PROMPT_DATA | 训练方法必须 None；baseline 可选单一 system 的规范化 train.jsonl。 |
 | EVALUATION_DIR | 成功测试目录，含 job.json、evaluation.json、results/；不能填单个预测文件。 |

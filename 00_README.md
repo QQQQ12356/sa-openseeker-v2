@@ -21,6 +21,7 @@ Baseline 指未训练的原始 Qwen3.5 基座。Plain 默认使用 LoRA；Beacon
 | 3 | [30 Plain 指南](docs/30_plain.md) | 数据选择、训练计划、训练、三项测试与评分 |
 | 3 | [31 Beacon 指南](docs/31_beacon.md) | 压缩参数、训练计划、训练、三项测试与评分 |
 | 3 | [32 Baseline 指南](docs/32_baseline.md) | 基座与提示词配置、三项测试与评分 |
+| 3 | [33 检查点测试](docs/33_checkpoint_evaluation.md) | 用 Plain 或 Beacon 的周期检查点运行三项 benchmark |
 | 4 | [60 参数手册](docs/60_parameters.md) | SH 脚本变量、训练参数、压缩参数及修改提示 |
 | 5 | [70 产物规范](docs/70_artifacts.md) | 目录、命名、运行身份、来源校验、失败归档 |
 | 6 | [82 Excel 导出](docs/82_benchmark_excel.md) | benchmark 评分汇总、逐题明细、完整参数与修改提示 |
@@ -32,7 +33,7 @@ Baseline 指未训练的原始 Qwen3.5 基座。Plain 默认使用 LoRA；Beacon
 1. 先编辑待执行 SH 文件中的 `SA_*` 参数与环境变量；必改项有中文注释。
 2. 激活环境后直接运行该文件，例如 `bash scripts/plain/sh/10_train_openseeker.sh`。不需要追加参数或设置命令行覆盖。
 3. 方法 SH 各自包含完整配置，仅调用同目录体系内的同名 PY，不调用其他方法的 SH。公共数据和 benchmark 版本可以复用。
-4. 训练完成后，将终端输出的实验目录复制到对应测试脚本的 `SA_TRAINING_RUN`。
+4. 将训练实验目录填入测试脚本的 `SA_TRAINING_RUN`。测试周期检查点时填写 `SA_CHECKPOINT`，留空测试成功训练的最终模型。
 5. 测试完成后，将测试目录复制到对应评分脚本的 `SA_EVALUATION_DIR`。评分自动沿用数据版本与题目范围。
 6. 所有运行产物写入 `artifacts/`。每次运行创建独立目录；失败保留清单和日志，修正后重新运行。
 7. 评分完成后，编辑并运行 `bash scripts/tools/sh/82_benchmark_excel.sh`，将一份或多份 benchmark 评分结果汇总到 Excel；详细步骤见 [82 Excel 导出](docs/82_benchmark_excel.md)。

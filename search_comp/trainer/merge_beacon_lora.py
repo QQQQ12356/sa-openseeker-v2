@@ -4,12 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 
-import torch
-
-from ..models.beacon_config import BeaconConfig
-from ..models.model_loader import load_beacon_model
+from ..models.model_loader import load_beacon_adapter
 
 
 def main() -> None:
@@ -26,25 +22,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    from peft import PeftModel
     from ..milestones.qwen35_text import load_text_tokenizer
 
-    beacon_config = BeaconConfig.from_dict(json.loads(args.beacon_config_json))
-    model = load_beacon_model(
-        args.base_model_path,
-        beacon_config=beacon_config,
-        device_map=args.device_map,
-    )
-    beacon_state_path = os.path.join(args.adapter_path, "beacon_state.pt")
-    beacon_state = torch.load(beacon_state_path, map_location="cpu", weights_only=True)
-    missing, unexpected = model.load_state_dict(beacon_state, strict=False)
-    unexpected = [name for name in unexpected if "beacon" in name]
-    if unexpected:
-        raise RuntimeError(f"Beacon 参数载入出现未知键: {unexpected}")
-    if not any("beacon" in name for name in beacon_state):
-        raise RuntimeError(f"adapter 中缺少 Beacon 参数: {beacon_state_path}")
-
-    merged = PeftModel.from_pretrained(model, args.adapter_path).merge_and_unload()
+    model = load_beacon_adapter(args.base_model_path, args.adapter_path,
+                                json.loads(args.beacon_config_json), device_map=args.device_map)
+    merged = model.merge_and_unload()
     merged.save_pretrained(args.output_path)
     load_text_tokenizer(args.adapter_path).save_pretrained(args.output_path)
     print(f"[beacon] 已合并 final checkpoint -> {args.output_path}", flush=True)

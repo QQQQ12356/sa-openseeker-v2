@@ -22,6 +22,7 @@ SCHEMA = {'ENVIRONMENT__HF_ENDPOINT': {'env': 'HF_ENDPOINT', 'type': 'str'},
  'ENVIRONMENT__JINA_TIMEOUT': {'env': 'JINA_TIMEOUT', 'type': 'str'},
  'BENCHMARK_DIR': {'env': 'SA_BENCHMARK_DIR', 'type': 'str'},
  'TRAINING_RUN': {'env': 'SA_TRAINING_RUN', 'type': 'str'},
+ 'CHECKPOINT': {'env': 'SA_CHECKPOINT', 'type': 'str'},
  'MODEL_PATH': {'env': 'SA_MODEL_PATH', 'type': 'optional'},
  'PROMPT_DATA': {'env': 'SA_PROMPT_DATA', 'type': 'optional'},
  'RUN_NAME': {'env': 'SA_RUN_NAME', 'type': 'str'},
@@ -43,5 +44,6 @@ if __name__ == "__main__":
     globals().update(load_settings(__file__, SCHEMA))
     from search_comp.experiments.benchmarks import evaluate
     evaluate(method="plain", benchmark="browsecomp", benchmark_dir=BENCHMARK_DIR,
-             training_run=TRAINING_RUN, model_path=MODEL_PATH, prompt_data=PROMPT_DATA,
+             training_run=TRAINING_RUN, checkpoint=CHECKPOINT, model_path=MODEL_PATH,
+             prompt_data=PROMPT_DATA,
              run_name=RUN_NAME, generation=GENERATION, environment=ENVIRONMENT)

@@ -1,0 +1,63 @@
+# 33 从训练检查点运行 Benchmark
+
+Plain 和 Beacon 的 BrowseComp、BrowseComp-Plus、HotpotQA 测试入口均支持选择训练中的 `checkpoint-<step>`。两种训练数据（OpenSeeker 和 Research）使用同一套测试脚本，数据身份、基座及训练提示词由所属训练实验确定。
+
+## 1. 选入口并填写参数
+
+| Benchmark | Plain | Beacon | 准备条件 |
+|---|---|---|---|
+| BrowseComp | `scripts/plain/sh/40_test_browsecomp.sh` | `scripts/beacon/sh/40_test_browsecomp.sh` | 准备题目和固定版本的在线工具，配置搜索、读取与总结服务 |
+| BrowseComp-Plus | `scripts/plain/sh/42_test_browsecomp_plus.sh` | `scripts/beacon/sh/42_test_browsecomp_plus.sh` | 准备题目、本地语料和索引 |
+| HotpotQA | `scripts/plain/sh/44_test_hotpotqa.sh` | `scripts/beacon/sh/44_test_hotpotqa.sh` | 准备 fullwiki 题目、独立维基语料和索引 |
+
+| SH 参数 | 默认值 | 作用与修改提示 |
+|---|---|---|
+| `SA_TRAINING_RUN` | 当前方法的 OpenSeeker 实验占位路径 | 必填。填训练实验根目录，目录内应有 `job.json`、`experiment.json` 和 `models/model/`。Research 实验通常位于 `artifacts/experiments/<方法>/research/`。 |
+| `SA_CHECKPOINT` | 空字符串 | 留空时读取成功训练的 `models/model/train_summary.json` 中的 `final_model_path`。填 `checkpoint-200` 时使用本实验的 `models/model/checkpoint-200`。也可填指向同一目录的 Linux 绝对路径，或相对项目根目录的完整路径。数字是 optimizer step。 |
+| `SA_MODEL_PATH` | 空字符串 | Plain 和 Beacon 的测试脚本中留空。模型来源由训练实验与 `SA_CHECKPOINT` 确定。 |
+| `SA_PROMPT_DATA` | 空字符串 | 留空。程序从 `experiment.json` 找到训练 JSONL，核对已归档的文件摘要，再读取 system 和工具定义。 |
+| `SA_BENCHMARK_DIR` | 对应 benchmark 的 `v1` 目录 | 填已经准备好的版本。离线测试需要同版本的索引，`SA_GENERATION__TITLE_WEIGHT` 应与建索引时一致。 |
+| `SA_RUN_NAME` | `full` | 给测试记录起名，可用 `ckpt200_smoke` 或 `ckpt200_full`。 |
+| `SA_GENERATION__LIMIT` | `-1` | `-1` 测全部题目。新检查点建议先跑前 5 至 10 题验证加载和工具调用，再切换到全量。 |
+| `CUDA_VISIBLE_DEVICES` / `SA_GENERATION__NUM_WORKERS` | `0` / `1` | 在线 BrowseComp 按题顺序运行。两个离线入口可用多个 worker，每个 worker 在一张可见 GPU 上加载完整模型，worker 数应与计划使用的 GPU 数匹配。 |
+| `SA_GENERATION__DECODING` | `greedy` | Plain 支持 `greedy` 和 `sample`，Beacon 使用 `greedy`。比较不同训练步数时沿用同一组生成与工具预算。 |
+
+例如，编辑 `scripts/beacon/sh/44_test_hotpotqa.sh` 中对应的参数行：
+
+```bash
+export SA_TRAINING_RUN=artifacts/experiments/beacon/research/REPLACE_WITH_RUN
+export SA_CHECKPOINT=checkpoint-200
+export SA_MODEL_PATH=''
+export SA_PROMPT_DATA=''
+export SA_BENCHMARK_DIR=artifacts/benchmarks/hotpotqa/v1
+export SA_RUN_NAME=ckpt200_smoke
+export SA_GENERATION__LIMIT=5
+```
+
+填入真实实验目录后，在 Linux 项目根目录运行：
+
+```bash
+bash scripts/beacon/sh/44_test_hotpotqa.sh
+```
+
+要比较最终模型，在同一个测试入口把 `SA_CHECKPOINT` 改为 `''`，并修改 `SA_RUN_NAME`。要换到 Plain，改用 Plain 入口和 Plain 训练实验。其他测试参数见 [60 参数手册](60_parameters.md)。
+
+## 2. 检查点格式与加载方式
+
+| 训练产物 | 所需文件与配置 | 加载方式 |
+|---|---|---|
+| Plain 全量模型 | `config.json`、模型权重或权重索引及全部分片、tokenizer | 直接加载目录中的权重。 |
+| Plain LoRA | `adapter_config.json`、`adapter_model.safetensors` 或 `adapter_model.bin`、原训练基座 | 加载原训练基座并挂载 LoRA。训练配置优先提供基座路径。 |
+| Beacon 全量模型 | Beacon 模型的 `config.json`、模型权重或权重索引及全部分片、tokenizer | 直接恢复 Beacon 权重与模型配置。 |
+| Beacon LoRA | LoRA 配置和权重、`beacon_state.pt`、原训练基座及 Beacon 配置 | 使用实验归档的配置构建 Beacon 模型，恢复 `beacon_state.pt`，再挂载 LoRA。 |
+
+LoRA 测试优先使用检查点目录中的 tokenizer，缺少 tokenizer 时使用原训练基座的 tokenizer。Plain 和 Beacon 的 LoRA 检查点可以直接推理，无需先合并。优化器和调度器状态不参与 benchmark 推理。
+
+显式指定周期检查点时，只要目录已经写完且文件齐全，训练处于 `running` 或 `failed` 也能测试。计划运行（`job.json` 的 `operation` 为 `plan`）没有检查点。训练仍在运行时，选择已保存完毕且在评测加载期间不会被 `SAVE_TOTAL_LIMIT` 清理的检查点。离线多 worker 会分别加载同一个选定目录。
+
+## 3. 核对结果并评分
+
+1. 测试仍写入 `<实验>/evaluation/<benchmark>/<测试记录>/`。查看 `evaluation.json` 的 `checkpoint` 和 `model_path`，核对选择值与解析后的周期检查点路径。最终模型模式下可在 `results/manifest.json` 的 `model` 查看实际权重目录。
+2. 查看 `console.log` 中的加载信息。找不到检查点时，列出实验的 `models/model/`，确认步数实际保存且还在保留范围内。缺少 adapter 权重、Beacon 状态或权重分片时，请恢复完整的检查点目录。
+3. 找不到基座或提示词数据时，核对 `models/model/resolved_config.json` 和 `experiment.json` 中记录的路径，确保原始基座与 prepared 训练 JSONL 在当前 Linux 环境可读。
+4. 评分仍使用同方法、同 benchmark 的 `41/43/45_score_*.sh`。把**测试记录根目录**填进 `SA_EVALUATION_DIR`，评分会沿用该次测试的预测和题目范围。对同一 benchmark 比较不同检查点时，各次测试使用独立记录。

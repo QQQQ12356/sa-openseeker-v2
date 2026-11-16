@@ -1,10 +1,14 @@
 """Three benchmarks with explicit method ownership and separate scoring jobs."""
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
+
+from search_comp.evaluation.checkpoints import resolve_checkpoint
 from .runtime import ROOT, configure, digest, job, path, read_json, slug, stamp, write_json
 
 BENCHMARKS = {"browsecomp", "browsecomp-plus", "hotpotqa"}
+CHECKPOINT_NAME = re.compile(r"checkpoint-[1-9][0-9]*")
 
 
 def online_options(benchmark_dir, **values):
@@ -74,9 +78,9 @@ def prepare_benchmark(*, benchmark, version, phase, environment, data=None, corp
                 dev_url=DEV_URL, wiki_url=WIKI_URL))
 
 
-def resolve_target(method, training_run, model_path):
+def resolve_target(method, training_run, model_path, checkpoint=None):
     if method == "baseline":
-        if training_run or not model_path:
+        if training_run or checkpoint or not model_path:
             raise ValueError("baseline 只接受本地 MODEL_PATH，不接受训练实验")
         return "untrained", None, str(path(model_path)), "plain", "base-qwen35"
     if method not in {"plain", "beacon"} or not training_run or model_path:
@@ -84,19 +88,29 @@ def resolve_target(method, training_run, model_path):
     run = path(training_run)
     record = read_json(run / "job.json")
     spec = read_json(run / "experiment.json")
-    if record["operation"] != "train" or record["status"] != "complete":
-        raise ValueError("只能测试已成功完成训练的实验；plan/failed 不能作为模型来源")
     if spec["method"] != method or spec["dataset_name"] not in {"openseeker", "research"}:
         raise ValueError("训练实验与方法不一致")
-    return spec["dataset_name"], run, None, method, "checkpoint"
+    if record["operation"] != "train":
+        raise ValueError("必须指定正式训练实验；plan 没有模型权重")
+    model = None
+    if checkpoint:
+        model_dir = (run / "models/model").resolve()
+        name = str(checkpoint)
+        candidate = (model_dir / name).resolve() if CHECKPOINT_NAME.fullmatch(name) else path(name)
+        if candidate.parent != model_dir or not CHECKPOINT_NAME.fullmatch(candidate.name):
+            raise ValueError("SA_CHECKPOINT 必须指向 SA_TRAINING_RUN/models/model/checkpoint-<正整数步数>")
+        model, _ = resolve_checkpoint(run, candidate, method, require_weights=True)
+    elif record["status"] != "complete":
+        raise ValueError("默认最终模型要求训练成功完成；可用 SA_CHECKPOINT 指定已保存的周期检查点")
+    return spec["dataset_name"], run, model, method, "checkpoint"
 
 
 def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prompt_data,
-             run_name, generation, environment):
+             run_name, generation, environment, checkpoint=None):
     configure(environment)
     if benchmark not in BENCHMARKS:
         raise ValueError("不支持的 benchmark")
-    dataset_name, training_run, model, kind, origin = resolve_target(method, training_run, model_path)
+    dataset_name, training_run, model, kind, origin = resolve_target(method, training_run, model_path, checkpoint)
     # Training prompts are always bound to the experiment; baseline may choose an explicit comparison profile.
     if method != "baseline" and prompt_data:
         raise ValueError("训练方法的提示词从 TRAINING_RUN 读取，无需覆盖 PROMPT_DATA")
@@ -106,6 +120,7 @@ def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prom
     directory = base / "evaluation" / benchmark / stamp(run_name)
     settings = dict(method=method, benchmark=benchmark, dataset_name=dataset_name,
                     benchmark_dir=str(path(benchmark_dir)), training_run=training_run, model_path=model,
+                    checkpoint=checkpoint or None,
                     prompt_data=str(path(prompt_data)) if prompt_data else None, generation=generation)
     common = dict(run_dir=training_run, model=model, kind=kind, model_origin=origin,
                   prompt_data=path(prompt_data) if prompt_data else None, output_dir=directory / "results")

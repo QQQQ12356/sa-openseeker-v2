@@ -15,6 +15,7 @@ import threading
 import time
 
 from search_comp.evaluation.benchmark_data import prepare_browsecomp, read_questions, sha256
+from search_comp.evaluation.checkpoints import load_evaluation_model, resolve_checkpoint
 from search_comp.utils.progress import CompletionProgress
 
 OFFICIAL_URL = "https://github.com/PolarSeeker/OpenSeeker.git"
@@ -58,33 +59,6 @@ def require_environment(mode, generate=True, score=True):
                or os.environ[name].startswith("YOUR_")]
     if missing:
         raise ValueError("configure environment variables: " + ", ".join(missing))
-
-
-def resolve_checkpoint(run_dir, model, kind):
-    spec = {}
-    if run_dir:
-        spec = json.loads((run_dir / "experiment.json").read_text())
-        if not model:
-            summary = run_dir / "models/model/train_summary.json"
-            model = json.loads(summary.read_text())["final_model_path"]
-    kind = kind or spec.get("kind")
-    if not model:
-        raise ValueError("set --run-dir or --model for checkpoint inference")
-    path = Path(model).expanduser().resolve()
-    if not path.is_dir():
-        raise ValueError(f"checkpoint directory does not exist: {path}")
-    if (path / "adapter_config.json").exists():
-        raise ValueError("merge the LoRA adapter first (the method training script (automatic merge))")
-    config_path = path / "config.json"
-    config = json.loads(config_path.read_text()) if config_path.is_file() else {}
-    text_config = config.get("text_config") or {}
-    is_beacon = config.get("enable_beacon") or text_config.get("enable_beacon")
-    kind = kind or ("beacon" if is_beacon else "plain")
-    if is_beacon and kind != "beacon":
-        raise ValueError("checkpoint enables Beacon; use kind=beacon and native generation")
-    if kind not in {"plain", "beacon"}:
-        raise ValueError("checkpoint kind must be plain or beacon")
-    return str(path), kind
 
 
 def run_logged(command, cwd, log, progress_path=None, total=None, label=None, key="query", item_type=None):
@@ -198,28 +172,19 @@ def native_generate(args, rows, output):
     from llm_tool_openseeker import Search, Visit
     from search_comp.data.agent_prompt import initial_messages, resolve_system_prompt
     from search_comp.evaluation.tool_agent import ModelGenerator, Registry, run_agent, decoding_options
-    from search_comp.models.model_loader import load_beacon_model, load_tokenizer
 
     print(f"[benchmark native generation] done=0/{len(rows)}", flush=True)
     system, prompt_source = resolve_system_prompt(getattr(args, 'prompt_data', None), args.run_dir)
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     generation_options = decoding_options(args, kind == 'beacon')
-    tokenizer = load_tokenizer(model_path)
-    if getattr(args, 'model_origin', 'checkpoint') == 'base-qwen35':
-        if kind != 'plain':
-            raise ValueError('Qwen3.5 baseline requires kind=plain')
-        from search_comp.models.base_qwen35 import load_base_qwen35
-        model = load_base_qwen35(model_path)
-    elif kind == 'beacon':
-        model = load_beacon_model(model_path)
-    else:
-        from search_comp.models.plain_qwen3 import load_sft_model
-        model = load_sft_model(model_path)
-    model.eval()
+    origin = getattr(args, 'model_origin', 'checkpoint')
+    print(f"[benchmark native generation] loading {kind} checkpoint={model_path}", flush=True)
+    model, tokenizer = load_evaluation_model(model_path, kind, origin, args.run_dir)
     print("[benchmark native generation] model ready", flush=True)
     generate = ModelGenerator(model, tokenizer, kind == "beacon", **generation_options)
-    if getattr(args, 'model_origin', 'checkpoint') == 'base-qwen35':
-        generate.metadata.update(model_origin='base-qwen35', base_model_path=model_path)
+    generate.metadata.update(checkpoint=model_path, model_origin=origin)
+    if origin == 'base-qwen35':
+        generate.metadata['base_model_path'] = model_path
     search, visit = Search(), Visit()
     if getattr(args, 'tool_policy', 'official') == 'stable':
         from search_comp.evaluation.online_visit import StableVisit

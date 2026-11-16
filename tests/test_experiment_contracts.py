@@ -5,11 +5,14 @@ import json
 import os
 from pathlib import Path
 import runpy
+import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from search_comp.data.openseeker import VERSION
+from search_comp.evaluation.checkpoints import load_evaluation_model, resolve_checkpoint
 from search_comp.evaluation.tool_agent import Registry, ToolError
 from search_comp.experiments.benchmarks import resolve_evaluation, resolve_target
 from search_comp.experiments import benchmarks
@@ -97,7 +100,7 @@ class ExperimentContracts(unittest.TestCase):
     def test_planned_training_cannot_supply_a_checkpoint(self):
         write_json(self.directory / "job.json", dict(operation="plan", status="complete"))
         write_json(self.directory / "experiment.json", dict(method="plain", dataset_name="openseeker"))
-        with self.assertRaisesRegex(ValueError, "plan/failed"):
+        with self.assertRaisesRegex(ValueError, "正式训练实验"):
             resolve_target("plain", self.directory, None)
 
     def test_completed_research_run_resolves_to_its_own_method(self):
@@ -107,6 +110,85 @@ class ExperimentContracts(unittest.TestCase):
         self.assertEqual(result, ("research", self.directory.resolve(), None, "beacon", "checkpoint"))
         with self.assertRaisesRegex(ValueError, "方法"):
             resolve_target("plain", self.directory, None)
+
+    def test_explicit_checkpoint_requires_matching_run_and_complete_shards(self):
+        run = self.directory / "run"
+        checkpoint = run / "models/model/checkpoint-200"
+        checkpoint.mkdir(parents=True)
+        write_json(run / "job.json", dict(operation="train", status="failed"))
+        write_json(run / "experiment.json", dict(method="plain", dataset_name="research"))
+        write_json(checkpoint / "config.json", {})
+        write_json(checkpoint / "model.safetensors.index.json",
+                   dict(weight_map={"layer": "model-00001-of-00001.safetensors"}))
+        with self.assertRaisesRegex(ValueError, "完整权重"):
+            resolve_target("plain", run, None, checkpoint.name)
+        (checkpoint / "model-00001-of-00001.safetensors").touch()
+        self.assertEqual(resolve_target("plain", run, None, checkpoint)[2], str(checkpoint.resolve()))
+        with self.assertRaisesRegex(ValueError, "SA_CHECKPOINT"):
+            resolve_target("plain", run, None, self.directory / "checkpoint-200")
+        with self.assertRaisesRegex(ValueError, "最终模型"):
+            resolve_target("plain", run, None)
+        write_json(run / "job.json", dict(operation="plan", status="complete"))
+        with self.assertRaisesRegex(ValueError, "正式训练实验"):
+            resolve_target("plain", run, None, checkpoint.name)
+
+    def test_beacon_adapter_uses_resolved_training_config_and_checkpoint_tokenizer(self):
+        run = self.directory
+        checkpoint = run / "models/model/checkpoint-200"
+        checkpoint.mkdir(parents=True)
+        write_json(run / "job.json", dict(operation="train", status="failed"))
+        write_json(run / "experiment.json", dict(method="beacon", dataset_name="research"))
+        config = dict(beacon_ratio=[8])
+        write_json(checkpoint.parent / "resolved_config.json", dict(model_name_or_path="/base", beacon=config))
+        write_json(checkpoint / "adapter_config.json", {})
+        (checkpoint / "adapter_model.safetensors").touch()
+        with self.assertRaisesRegex(ValueError, "beacon_state.pt"):
+            resolve_target("beacon", run, None, checkpoint.name)
+        (checkpoint / "beacon_state.pt").touch()
+        (checkpoint / "tokenizer.json").touch()
+        selected = resolve_target("beacon", run, None, checkpoint.name)[2]
+        model = Mock()
+        loader = SimpleNamespace(load_beacon_model=Mock(), load_beacon_adapter=Mock(return_value=model),
+                                 load_tokenizer=Mock(return_value="tokenizer"))
+        with patch.dict(sys.modules, {"search_comp.models.model_loader": loader}):
+            self.assertEqual(load_evaluation_model(selected, "beacon", "checkpoint", run), (model, "tokenizer"))
+        loader.load_beacon_adapter.assert_called_once_with("/base", selected, config, device_map="auto")
+        loader.load_tokenizer.assert_called_once_with(selected)
+        loader.load_beacon_model.assert_not_called()
+        model.eval.assert_called_once()
+
+    def test_final_model_and_full_beacon_checkpoint_resolve_separately(self):
+        run = self.directory
+        final = run / "models/model/final"
+        periodic = final.with_name("checkpoint-200")
+        final.mkdir(parents=True)
+        periodic.mkdir()
+        write_json(run / "job.json", dict(operation="train", status="complete"))
+        write_json(run / "experiment.json", dict(method="beacon", dataset_name="research"))
+        config = dict(architectures=["BeaconQwen3_5ForCausalLM"])
+        write_json(final / "config.json", config)
+        write_json(periodic / "config.json", config)
+        write_json(final.parent / "train_summary.json", dict(final_model_path=str(final)))
+        (periodic / "model.safetensors").touch()
+        self.assertEqual(resolve_checkpoint(run, None, None), (str(final.resolve()), "beacon"))
+        self.assertEqual(resolve_target("beacon", run, None, periodic.name)[2], str(periodic.resolve()))
+
+    def test_plain_adapter_uses_the_original_base_and_tokenizer_plan(self):
+        checkpoint = self.directory / "models/model/checkpoint-200"
+        checkpoint.mkdir(parents=True)
+        write_json(self.directory / "experiment.json", dict(training_config=dict(model_name_or_path="/base")))
+        write_json(checkpoint / "adapter_config.json", {})
+        (checkpoint / "adapter_model.safetensors").touch()
+        model = Mock()
+        plan = dict(tokenizer="/base")
+        plain = SimpleNamespace(resolve_plain_evaluation=Mock(return_value=plan),
+                                load_plain_evaluation_model=Mock(return_value=model))
+        loader = SimpleNamespace(load_beacon_model=Mock(), load_tokenizer=Mock(return_value="tokenizer"))
+        with patch.dict(sys.modules, {"search_comp.models.model_loader": loader, "search_comp.models.plain_qwen3": plain}):
+            self.assertEqual(load_evaluation_model(str(checkpoint), "plain", "checkpoint", self.directory), (model, "tokenizer"))
+        plain.resolve_plain_evaluation.assert_called_once_with(str(checkpoint), base_model_path="/base")
+        plain.load_plain_evaluation_model.assert_called_once_with(plan)
+        loader.load_tokenizer.assert_called_once_with("/base")
 
     def test_score_requires_matching_method_and_benchmark(self):
         directory = self.evaluation()
@@ -234,22 +316,35 @@ class ExperimentContracts(unittest.TestCase):
     def test_all_fifteen_experiment_benchmark_pairs_archive_and_score_at_their_owner(self):
         """Exercise the public orchestration with a tiny in-memory engine adapter."""
         from search_comp.workflows import benchmark_openseeker, offline_benchmark
-        methods = [("plain", "openseeker"), ("plain", "research"),
-                   ("beacon", "openseeker"), ("beacon", "research"), ("baseline", "untrained")]
-        for method, dataset in methods:
+        targets = [("plain", "openseeker", None), ("plain", "research", None),
+                   ("beacon", "openseeker", None), ("beacon", "research", None),
+                   ("plain", "research", "checkpoint-200"), ("beacon", "research", "checkpoint-200"),
+                   ("baseline", "untrained", None)]
+        for method, dataset, checkpoint in targets:
             for benchmark, number in (("browsecomp", 40), ("browsecomp-plus", 42), ("hotpotqa", 44)):
-                with self.subTest(method=method, dataset=dataset, benchmark=benchmark):
+                with self.subTest(method=method, dataset=dataset, benchmark=benchmark, checkpoint=checkpoint):
                     filename = ROOT / "scripts" / method / "py" / f"{number}_test_{benchmark.replace('-', '_')}.py"
-                    generation = parameters(filename)["GENERATION"]
+                    settings = parameters(filename)
+                    generation = settings["GENERATION"]
+                    if method != "baseline":
+                        self.assertEqual(settings["CHECKPOINT"], "")
                     assets = self.directory / "benchmarks" / benchmark
                     assets.mkdir(parents=True, exist_ok=True)
                     (assets / "questions.jsonl").write_text('{"query":"q","answer":"Paris"}\n', encoding="utf-8")
-                    training_run = None
+                    training_run = selected = None
                     if method != "baseline":
                         training_run = self.directory / method / dataset
                         training_run.mkdir(parents=True, exist_ok=True)
-                        write_json(training_run / "job.json", dict(operation="train", status="complete"))
+                        write_json(training_run / "job.json",
+                                   dict(operation="train", status="running" if checkpoint else "complete"))
                         write_json(training_run / "experiment.json", dict(method=method, dataset_name=dataset))
+                        if checkpoint:
+                            selected = training_run / "models/model" / checkpoint
+                            selected.mkdir(parents=True, exist_ok=True)
+                            write_json(selected / "adapter_config.json", {})
+                            (selected / "adapter_model.safetensors").touch()
+                            if method == "beacon":
+                                (selected / "beacon_state.pt").touch()
                     observed = []
 
                     def engine(args):
@@ -267,7 +362,7 @@ class ExperimentContracts(unittest.TestCase):
                     with patch.object(benchmarks, "configure"), patch.object(benchmarks, "ROOT", self.directory), patch.object(adapter, "run", engine):
                         evaluation = benchmarks.evaluate(method=method, benchmark=benchmark, benchmark_dir=assets,
                             training_run=training_run, model_path="/local/base" if method == "baseline" else None,
-                            prompt_data=None, run_name="smoke", generation=generation, environment={})
+                            prompt_data=None, run_name="smoke", generation=generation, environment={}, checkpoint=checkpoint)
                         scoring = benchmarks.score(method=method, benchmark=benchmark, evaluation_dir=evaluation,
                             run_name="judge", judge=dict(judge_model=None, llm_judge=False), environment={})
                     owner = training_run or self.directory / "artifacts/experiments/baseline/untrained"
@@ -275,6 +370,15 @@ class ExperimentContracts(unittest.TestCase):
                     self.assertTrue(scoring.is_relative_to(evaluation / "scores"))
                     self.assertEqual(observed[0].kind, "beacon" if method == "beacon" else "plain")
                     self.assertEqual(observed[0].model_origin, "base-qwen35" if method == "baseline" else "checkpoint")
+                    if selected:
+                        source = json.loads((evaluation / "evaluation.json").read_text(encoding="utf-8"))
+                        self.assertEqual(source["checkpoint"], checkpoint)
+                        self.assertEqual(source["model_path"], str(selected.resolve()))
+                        self.assertEqual(observed[0].model, str(selected.resolve()))
+                        if benchmark != "browsecomp":
+                            command = offline_benchmark.worker_command(observed[0], evaluation / "worker", 0, 2)
+                            self.assertEqual(command[command.index("--model") + 1], str(selected.resolve()))
+                            self.assertEqual(command[command.index("--run-dir") + 1], str(training_run.resolve()))
                     self.assertEqual(observed[1].limit, generation["limit"])
                     self.assertIsNone(observed[1].model)
                     self.assertEqual(json.loads((scoring / "job.json").read_text())["status"], "complete")

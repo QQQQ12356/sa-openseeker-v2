@@ -229,6 +229,7 @@
 | `JINA_TIMEOUT` | `ENVIRONMENT.JINA_TIMEOUT` | str | `50` |
 | `SA_BENCHMARK_DIR` | `BENCHMARK_DIR` | str | `artifacts/benchmarks/browsecomp/v1` |
 | `SA_TRAINING_RUN` | `TRAINING_RUN` | str | `artifacts/experiments/plain/openseeker/REPLACE_WITH_RUN` |
+| `SA_CHECKPOINT` | `CHECKPOINT` | str | `空字符串` |
 | `SA_MODEL_PATH` | `MODEL_PATH` | optional | `空字符串` |
 | `SA_PROMPT_DATA` | `PROMPT_DATA` | optional | `空字符串` |
 | `SA_RUN_NAME` | `RUN_NAME` | str | `full` |
@@ -276,6 +277,7 @@
 | `CUDA_VISIBLE_DEVICES` | `ENVIRONMENT.CUDA_VISIBLE_DEVICES` | str | `0` |
 | `SA_BENCHMARK_DIR` | `BENCHMARK_DIR` | str | `artifacts/benchmarks/browsecomp-plus/v1` |
 | `SA_TRAINING_RUN` | `TRAINING_RUN` | str | `artifacts/experiments/plain/openseeker/REPLACE_WITH_RUN` |
+| `SA_CHECKPOINT` | `CHECKPOINT` | str | `空字符串` |
 | `SA_MODEL_PATH` | `MODEL_PATH` | optional | `空字符串` |
 | `SA_PROMPT_DATA` | `PROMPT_DATA` | optional | `空字符串` |
 | `SA_RUN_NAME` | `RUN_NAME` | str | `full` |
@@ -332,6 +334,7 @@
 | `CUDA_VISIBLE_DEVICES` | `ENVIRONMENT.CUDA_VISIBLE_DEVICES` | str | `0` |
 | `SA_BENCHMARK_DIR` | `BENCHMARK_DIR` | str | `artifacts/benchmarks/hotpotqa/v1` |
 | `SA_TRAINING_RUN` | `TRAINING_RUN` | str | `artifacts/experiments/plain/openseeker/REPLACE_WITH_RUN` |
+| `SA_CHECKPOINT` | `CHECKPOINT` | str | `空字符串` |
 | `SA_MODEL_PATH` | `MODEL_PATH` | optional | `空字符串` |
 | `SA_PROMPT_DATA` | `PROMPT_DATA` | optional | `空字符串` |
 | `SA_RUN_NAME` | `RUN_NAME` | str | `full` |
@@ -629,6 +632,7 @@
 | `JINA_TIMEOUT` | `ENVIRONMENT.JINA_TIMEOUT` | str | `50` |
 | `SA_BENCHMARK_DIR` | `BENCHMARK_DIR` | str | `artifacts/benchmarks/browsecomp/v1` |
 | `SA_TRAINING_RUN` | `TRAINING_RUN` | str | `artifacts/experiments/beacon/openseeker/REPLACE_WITH_RUN` |
+| `SA_CHECKPOINT` | `CHECKPOINT` | str | `空字符串` |
 | `SA_MODEL_PATH` | `MODEL_PATH` | optional | `空字符串` |
 | `SA_PROMPT_DATA` | `PROMPT_DATA` | optional | `空字符串` |
 | `SA_RUN_NAME` | `RUN_NAME` | str | `full` |
@@ -676,6 +680,7 @@
 | `CUDA_VISIBLE_DEVICES` | `ENVIRONMENT.CUDA_VISIBLE_DEVICES` | str | `0` |
 | `SA_BENCHMARK_DIR` | `BENCHMARK_DIR` | str | `artifacts/benchmarks/browsecomp-plus/v1` |
 | `SA_TRAINING_RUN` | `TRAINING_RUN` | str | `artifacts/experiments/beacon/openseeker/REPLACE_WITH_RUN` |
+| `SA_CHECKPOINT` | `CHECKPOINT` | str | `空字符串` |
 | `SA_MODEL_PATH` | `MODEL_PATH` | optional | `空字符串` |
 | `SA_PROMPT_DATA` | `PROMPT_DATA` | optional | `空字符串` |
 | `SA_RUN_NAME` | `RUN_NAME` | str | `full` |
@@ -732,6 +737,7 @@
 | `CUDA_VISIBLE_DEVICES` | `ENVIRONMENT.CUDA_VISIBLE_DEVICES` | str | `0` |
 | `SA_BENCHMARK_DIR` | `BENCHMARK_DIR` | str | `artifacts/benchmarks/hotpotqa/v1` |
 | `SA_TRAINING_RUN` | `TRAINING_RUN` | str | `artifacts/experiments/beacon/openseeker/REPLACE_WITH_RUN` |
+| `SA_CHECKPOINT` | `CHECKPOINT` | str | `空字符串` |
 | `SA_MODEL_PATH` | `MODEL_PATH` | optional | `空字符串` |
 | `SA_PROMPT_DATA` | `PROMPT_DATA` | optional | `空字符串` |
 | `SA_RUN_NAME` | `RUN_NAME` | str | `full` |

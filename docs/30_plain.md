@@ -46,18 +46,19 @@ bash scripts/plain/sh/10_train_openseeker.sh
 bash scripts/plain/sh/11_train_research.sh
 ```
 
-每次正式运行建立新实验，保存 `train.yaml`、`experiment.json`、脚本副本、日志和模型。默认 LoRA 结束后自动合并，成功的 `models/model/train_summary.json` 中 `final_model_path` 是测试使用的模型。合并失败将整个训练记录为失败，不能当作可测试实验。
+每次正式运行建立新实验，保存 `train.yaml`、`experiment.json`、脚本副本、日志和模型。默认 LoRA 结束后自动合并，成功的 `models/model/train_summary.json` 中 `final_model_path` 是测试使用的模型。最终模型模式要求训练成功。若最终合并失败，可另选该实验中已完整保存的周期检查点。
 
 ## 5. 配置测试
 
 三个测试文件相互独立。分别修改：
 
-- `SA_TRAINING_RUN`：刚完成训练的实验根目录；Research 实验应位于 `plain/research/`。
+- `SA_TRAINING_RUN`：同方法的训练实验根目录，Research 实验位于 `plain/research/`。
+- `SA_CHECKPOINT`：默认留空测试成功训练的最终模型。填 `checkpoint-200` 或同实验内该目录完整路径测试周期检查点。
 - `SA_BENCHMARK_DIR`：公共准备脚本产生的准确版本目录。
 - `SA_RUN_NAME`：正式全量可用 `full`；小样本可用 `smoke`。
 - `GENERATION`：先用正数 `limit` 验证流程，正式结果改为 `-1`。调整上下文、每轮输出、工具预算等参数时各方法保持可比较设置。
 
-训练方法固定 `SA_MODEL_PATH=''`、`SA_PROMPT_DATA=''`：模型和提示词从 `SA_TRAINING_RUN` 解析，拒绝跨方法实验、计划目录和失败训练。
+`SA_MODEL_PATH` 和 `SA_PROMPT_DATA` 留空。模型来源和提示词从所属实验解析。显式选择周期检查点时，可以对运行中或失败的正式训练使用已经保存完整的检查点。文件要求、配置示例和排错见 [33 检查点测试](33_checkpoint_evaluation.md)。
 
 | Benchmark | 测试入口 | 执行条件 |
 |---|---|---|

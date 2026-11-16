@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Optional
 
 import torch
@@ -36,6 +37,23 @@ def load_model(model_name_or_path=DEFAULT_MODEL, beacon_config=None,
 
 
 load_beacon_model = load_model
+
+
+def load_beacon_adapter(base_model_path, adapter_path, beacon_config, *, device_map="auto"):
+    """Restore Beacon parameters and attach the frozen LoRA weights."""
+    from peft import PeftModel
+
+    model = load_beacon_model(base_model_path, beacon_config=BeaconConfig.from_dict(beacon_config),
+                              device_map=device_map)
+    state_path = Path(adapter_path) / "beacon_state.pt"
+    state = torch.load(state_path, map_location="cpu", weights_only=True)
+    if not any("beacon" in name for name in state):
+        raise RuntimeError(f"adapter 中缺少 Beacon 参数: {state_path}")
+    _, unexpected = model.load_state_dict(state, strict=False)
+    unexpected = [name for name in unexpected if "beacon" in name]
+    if unexpected:
+        raise RuntimeError(f"Beacon 参数载入出现未知键: {unexpected}")
+    return PeftModel.from_pretrained(model, adapter_path, is_trainable=False)
 
 
 def load_tokenizer(model_name_or_path: str, trust_remote_code: bool = False):

@@ -62,7 +62,7 @@ Plain/Beacon 的训练实验内部结构：
     ├── job.json
     ├── source_script.py
     ├── console.log
-    ├── evaluation.json                   测试身份、预测路径、预测/manifest 摘要
+    ├── evaluation.json                   测试身份、检查点来源、预测路径及摘要
     ├── results/
     │   ├── manifest.json                 题目、选择范围、模型、工具及代码来源
     │   ├── predictions.jsonl             离线两项预测
@@ -83,7 +83,7 @@ Baseline 使用同样的 `evaluation/<benchmark>/...` 结构，直接位于 `bas
 |---|---|---|
 | 预处理 | 原文件摘要、tokenizer 指纹、编码协议、来源和长度 | 同名数据内容不一致 |
 | 训练 | 数据身份、协议、tokenizer 名称、长度上限、划分存在与训练非空 | Research/OpenSeeker 混用、静默截断 |
-| 方法测试 | 训练已完成，方法与数据身份匹配，最终模型存在；训练提示词数据摘要 | 误用计划目录、失败训练、跨方法模型 |
+| 方法测试 | 方法与数据身份匹配，训练提示词数据摘要。默认最终模型要求训练成功；周期模式校验检查点属于指定正式训练实验且模型权重文件齐全。 | 误用计划目录、跨实验检查点或缺失权重 |
 | 基座测试 | baseline 无 TRAINING_RUN，原始 Qwen3.5 配置且无 Beacon/adapter | 基座与训练后模型混淆 |
 | 离线测试 | 题目/语料摘要，索引来源、标题权重和完整性 | 检索资产与题目版本不符 |
 | 评分 | 测试完成、方法/benchmark 匹配、预测和测试 manifest 摘要不变、题目版本与 LIMIT 相同 | 给错方法评分、修改预测后复用旧身份 |

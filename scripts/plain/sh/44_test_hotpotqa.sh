@@ -23,13 +23,16 @@ export CUDA_VISIBLE_DEVICES=0
 # BENCHMARK_DIR：共享的题目/语料/索引版本；必须先完成该 benchmark 准备脚本
 export SA_BENCHMARK_DIR=artifacts/benchmarks/hotpotqa/v1
 
-# TRAINING_RUN：训练实验根目录；Research 指向 research 实验；baseline 固定 空字符串
+# TRAINING_RUN：同方法的训练实验根目录，包含 experiment.json 和 models/model。
 export SA_TRAINING_RUN=artifacts/experiments/plain/openseeker/REPLACE_WITH_RUN
 
-# MODEL_PATH：baseline 必改为本地未训练 Qwen3.5 基座；训练方法固定 空字符串，自动读取 final_model_path
+# CHECKPOINT：空值使用成功训练的最终模型。填 checkpoint-200 或本实验该目录的完整路径测试周期检查点。
+export SA_CHECKPOINT=''
+
+# MODEL_PATH：留空，由 TRAINING_RUN 与 CHECKPOINT 选择模型。
 export SA_MODEL_PATH=''
 
-# PROMPT_DATA：baseline 可填写规范化 train.jsonl 以对齐比较提示词；空字符串 使用内置 Polar 提示词；训练方法固定 空字符串
+# PROMPT_DATA：留空，从 TRAINING_RUN 读取训练提示词。
 export SA_PROMPT_DATA=''
 
 # RUN_NAME：测试标签，程序追加 UTC 时间与随机后缀；小样本建议 smoke

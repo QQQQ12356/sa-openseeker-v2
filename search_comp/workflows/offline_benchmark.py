@@ -15,12 +15,12 @@ import subprocess
 import sys
 import time
 
+from search_comp.evaluation.checkpoints import load_evaluation_model, resolve_checkpoint
 from search_comp.offline.assets import DEV_URL, WIKI_URL, digest, download_assets, dump, enforce_offline, verify_official
 from search_comp.offline.data import prepare, records
 from search_comp.offline.index import LocalIndex, build_index
 from search_comp.offline.scoring import LocalJudge, load_predictions, score_browsecomp, score_hotpot
 from search_comp.offline.tools import BCP_INSTRUCTION, HOTPOT_INSTRUCTION, LocalTools
-from search_comp.workflows.benchmark_openseeker import resolve_checkpoint
 from search_comp.utils.devices import worker_devices
 from search_comp.utils.progress import CompletionProgress
 
@@ -76,24 +76,14 @@ def run_phase(args, output, rows, manifest):
         answer_instruction=HOTPOT_INSTRUCTION if args.benchmark == "hotpotqa" else BCP_INSTRUCTION)
     verify_index(args, manifest)
     from search_comp.evaluation.tool_agent import ModelGenerator, run_agent
-    from search_comp.models.model_loader import load_beacon_model, load_tokenizer
 
     print(f"[offline] loading {kind} checkpoint={model_path}; questions={len(rows)}", flush=True)
-    tokenizer = load_tokenizer(model_path)
-    if getattr(args, 'model_origin', 'checkpoint') == 'base-qwen35':
-        if kind != 'plain':
-            raise ValueError('Qwen3.5 baseline requires kind=plain')
-        from search_comp.models.base_qwen35 import load_base_qwen35
-        model = load_base_qwen35(model_path)
-    elif kind == 'beacon':
-        model = load_beacon_model(model_path)
-    else:
-        from search_comp.models.plain_qwen3 import load_sft_model
-        model = load_sft_model(model_path)
-    model.eval()
+    origin = getattr(args, 'model_origin', 'checkpoint')
+    model, tokenizer = load_evaluation_model(model_path, kind, origin, args.run_dir)
     generate = ModelGenerator(model, tokenizer, kind == "beacon", **generation_options)
-    if getattr(args, 'model_origin', 'checkpoint') == 'base-qwen35':
-        generate.metadata.update(model_origin='base-qwen35', base_model_path=model_path)
+    generate.metadata.update(checkpoint=model_path, model_origin=origin)
+    if origin == 'base-qwen35':
+        generate.metadata['base_model_path'] = model_path
     statuses = Counter()
     start = time.monotonic()
     print(f"[offline {args.benchmark}] done=0/{len(rows)}", flush=True)
