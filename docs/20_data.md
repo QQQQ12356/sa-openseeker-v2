@@ -53,7 +53,7 @@ bash scripts/data/sh/21_prepare_research.sh
 
 仅运行所需数据入口。结果位于 `artifacts/datasets/<dataset>/prepared/<PROFILE>/`，包含 `normalized.jsonl`、三个划分、拒绝记录、计长记录和 `manifest.json`。公开的 validation/test 问题优先保留原划分，实际比例为近似值。Research 保留轨迹不是独立 benchmark 标准答案。
 
-正确性来自原始记录的 `trajectory correctness`，规范化后保存为 `correctness`；筛选不重新判断答案对错。
+Research 优先读取原始字段 `trajectory_correctness`，该字段缺失时兼容旧字段 `trajectory correctness`。OpenSeeker 读取 `trajectory correctness`。规范化统一保存为 `correctness`；筛选不重新判断答案对错。
 
 | `SA_CORRECTNESS` | 保留条件 | 修改提示 |
 |---|---|---|
@@ -68,6 +68,8 @@ bash scripts/data/sh/21_prepare_research.sh
 使用 `scripts/data/sh/22_select_openseeker.sh` 或 `scripts/data/sh/23_select_research.sh`。设置父版本 `SA_PREPARED`、新 `SA_PROFILE`、`SA_TOKENIZER`、长度和筛选条件后直接运行。Research 二次筛选同样支持 `SA_CORRECTNESS=Correct/Incorrect/any`，使用父版本 normalized.jsonl 中已有的 correctness 标签。程序不重新分词，恢复公开划分并记录父版本。父版本只按预处理时的 tokenizer 计过长度；新增 tokenizer 必须重新预处理。
 
 筛选结果不复制全量 normalized 文件；如要继续扩大/改变范围，应仍从拥有 normalized 文件的原始预处理版本筛选。保留父目录及其原始输入，保证公开划分可恢复。
+
+如果旧版 Research 预处理未识别 `trajectory_correctness`，请使用相同原始数据和新的 `SA_PROFILE` 重新运行 `21_prepare_research.sh`，以重新读取标签。
 
 ## 5. 可选：检查数据
 

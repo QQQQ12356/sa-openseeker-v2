@@ -5,6 +5,7 @@ from html import escape
 from itertools import islice
 import json
 
+from search_comp.data.research import research_correctness
 from search_comp.data.selection import Selection
 from search_comp.experiments.runtime import path, read_json, write_json
 from search_comp.workflows.prepare_openseeker import initialize, measure, rows, stats
@@ -12,11 +13,12 @@ from search_comp.workflows.prepare_openseeker import initialize, measure, rows, 
 
 BIN_WIDTH = 4096
 LAST_EDGE = 65536
+MISSING_LABEL = object()
 
 
 def raw_label(raw):
-    field = "trajectory correctness"
-    return json.dumps(raw[field], ensure_ascii=False, sort_keys=True) if field in raw else "(missing)"
+    label = research_correctness(raw, default=MISSING_LABEL)
+    return "(missing)" if label is MISSING_LABEL else json.dumps(label, ensure_ascii=False, sort_keys=True)
 
 
 def items(inputs):

@@ -1016,7 +1016,7 @@
 
 入口：`scripts/data/sh/21_prepare_research.sh`；执行适配器：`scripts/data/py/21_prepare_research.py`。
 
-`SA_CORRECTNESS` 可设为 `Correct`、`Incorrect` 或 `any`，默认 `any`。前两者精确匹配原始 `trajectory correctness`；缺失/未知标签仅在 any 模式保留。修改筛选条件时使用新的 SA_PROFILE。
+`SA_CORRECTNESS` 可设为 `Correct`、`Incorrect` 或 `any`，默认 `any`。前两者精确匹配原始 `trajectory_correctness`，字段缺失时读取旧字段 `trajectory correctness`。缺失或未知标签仅在 `any` 模式保留。修改筛选条件时使用新的 `SA_PROFILE`。
 
 | 实际变量 | 逻辑字段 | 类型 | 默认值 |
 |---|---|---|---|

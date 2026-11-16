@@ -10,6 +10,7 @@ from search_comp.data.research import normalize_research
 from search_comp.data.openseeker import encode, parse_calls, pieces
 from search_comp.data.selection import Selection
 from search_comp.workflows.render_dataset_html import prepare_record
+from search_comp.workflows.research_statistics import raw_label
 
 
 def example():
@@ -74,7 +75,7 @@ class ResearchTests(unittest.TestCase):
         for label in ('Correct', 'Incorrect', None, '', 'unknown', 'correct'):
             raw = example()
             if label is not None:
-                raw['trajectory correctness'] = label
+                raw['trajectory_correctness'] = label
             row = normalize_research(raw)
             row['lengths'] = {'mock': {'total': 100}}
             self.assertEqual(row['correctness'], label)
@@ -82,6 +83,20 @@ class ResearchTests(unittest.TestCase):
                 with self.subTest(label=label, mode=mode):
                     accepted = Selection(correctness=mode).rejection(row) is None
                     self.assertEqual(accepted, mode == 'any' or label == mode)
+
+    def test_report_and_normalization_agree_on_research_label_fields(self):
+        cases = [
+            ({'trajectory_correctness': 'Correct'}, 'Correct', '"Correct"'),
+            ({'trajectory correctness': 'Incorrect'}, 'Incorrect', '"Incorrect"'),
+            ({'trajectory_correctness': 'Correct', 'trajectory correctness': 'Incorrect'}, 'Correct', '"Correct"'),
+            ({'trajectory_correctness': None, 'trajectory correctness': 'Correct'}, None, 'null'),
+            ({}, None, '(missing)'),
+        ]
+        for fields, normalized, reported in cases:
+            with self.subTest(fields=fields):
+                raw = {**example(), **fields}
+                self.assertEqual(normalize_research(raw)['correctness'], normalized)
+                self.assertEqual(raw_label(raw), reported)
 
     def test_prepare_accepts_all_correctness_modes_before_tokenizer_loading(self):
         from search_comp.workflows import prepare_openseeker

@@ -5,7 +5,12 @@ import re
 
 from .openseeker import CALL_BEGIN, CALL_END, CALL_RE, PROTOCOL, normalize, parse_calls
 
-ADAPTER_VERSION = 'research-role-export-v1'
+ADAPTER_VERSION = 'research-role-export-v2'
+
+
+def research_correctness(row, default=None):
+    """Read the Research export label, falling back to the legacy field."""
+    return row.get('trajectory_correctness', row.get('trajectory correctness', default))
 
 
 def normalize_research(row, source='research', index=0):
@@ -92,6 +97,6 @@ def normalize_research(row, source='research', index=0):
     reference = raw.get('answer')
     raw['answer'] = reference or final
     result = normalize(raw, source, index)
-    result.update(adapter_version=ADAPTER_VERSION, training_only=True,
+    result.update(correctness=research_correctness(raw), adapter_version=ADAPTER_VERSION, training_only=True,
                   answer_source='reference' if reference else 'demonstration_final_response')
     return result
