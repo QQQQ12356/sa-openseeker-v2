@@ -1180,6 +1180,21 @@
 
 `PYTHON_BIN` 默认继承激活环境的 python；SCRIPT_DIR、PROJECT_ROOT、SA_ENTRY、SA_LAUNCHER 自动计算或固定。完整示例、内部变量说明和字段口径见 [82 Excel 导出](82_benchmark_excel.md)。
 
+### 83_research_statistics.sh
+
+入口为 `scripts/tools/sh/83_research_statistics.sh`，对应适配器为 `scripts/tools/py/83_research_statistics.py`。
+
+| 实际变量 | 类型 | 默认值 | 用途 |
+|---|---|---|---|
+| `SA_SNAPSHOT_DIR` | str | 空 | 必填，指向包含 `download_manifest.json` 的 Research 下载快照 |
+| `HF_HUB_OFFLINE` | str | `1` | 离线运行，tokenizer 也固定从本地加载 |
+| `SA_TOKENIZER` | str | `/models/Qwen3.5-4B` | 使用与 Research 预处理相同的 tokenizer |
+| `SA_MAX_LENGTH` | int | `16384` | 筛选模拟使用的完整轨迹 token 上限 |
+| `SA_OBSERVATIONS` | str | `with` | 工具观测筛选，可设为 `any`、`with` 或 `without` |
+| `SA_WORKERS` | int | `4` | CPU 分词进程数 |
+
+报告写入 `artifacts/datasets/research/reports/statistics_*/`，包含 `statistics.html` 和 `statistics.json`。报告列出原始标签、成功测长及长度合格三个阶段的标签条数，并比较 `Correct` 和 `any` 的逐问去重后保留量。
+
 ### 90_validate.sh
 
 入口：`scripts/tools/sh/90_validate.sh`；执行适配器：`scripts/tools/py/90_validate.py`。

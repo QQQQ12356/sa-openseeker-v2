@@ -19,7 +19,7 @@ scripts/
   beacon/sh/、beacon/py/     同样八对文件
   baseline/sh/、baseline/py/ 六对文件，仅测试和评分
   data/sh/、data/py/         十对模型/数据/benchmark 准备文件
-  tools/sh/、tools/py/       六对安装、报告、Excel 导出、验证文件
+  tools/sh/、tools/py/       七对安装、报告、数据统计、Excel 导出、验证文件
 ```
 
 调用链只有 `SH → 同名 PY → 共享实现`。各 SH 不 source 其他公共配置，不调用另一个方法的 SH，不拼接训练/评测命令行选项。训练与离线 GPU worker 保留必要的进程隔离。
