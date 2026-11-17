@@ -46,6 +46,8 @@ class CompletionProgress:
         self._report(row)
 
     def poll(self):
+        """Read new predictions and return the number of newly counted records."""
+        previous_count = len(self.seen)
         for index, path in enumerate(self.paths):
             try:
                 with path.open("rb") as source:
@@ -62,6 +64,7 @@ class CompletionProgress:
                 except (ValueError, UnicodeDecodeError):
                     continue  # Scoring/merge validation owns malformed output errors.
                 self.record(row)
+        return len(self.seen) - previous_count
 
     @contextmanager
     def watch(self):

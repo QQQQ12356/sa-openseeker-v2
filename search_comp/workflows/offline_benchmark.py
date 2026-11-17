@@ -219,10 +219,11 @@ def run_parallel(args, output, rows, manifest):
                 readers.append(stack.enter_context(log_path.open(encoding="utf-8", errors="replace")))
                 buffers.append("")
             pending = list(processes)
-            heartbeat = time.monotonic()
+            last_progress_or_heartbeat = time.monotonic()
             while pending:
                 forward_worker_status(readers, buffers)
-                progress.poll()
+                if progress.poll():
+                    last_progress_or_heartbeat = time.monotonic()
                 for process in pending[:]:
                     code = process.poll()
                     if code is None:
@@ -230,10 +231,11 @@ def run_parallel(args, output, rows, manifest):
                     if code:
                         raise RuntimeError(f"offline worker {processes.index(process)} exited with code {code}; see {directory}")
                     pending.remove(process)
-                if time.monotonic() - heartbeat >= 15:
+                now = time.monotonic()
+                if pending and now - last_progress_or_heartbeat >= 60:
                     print(f"[offline] active workers={len(pending)}/{len(processes)}; "
-                          f"elapsed={time.monotonic() - start:.1f}s; logs={directory}", flush=True)
-                    heartbeat = time.monotonic()
+                          f"elapsed={now - start:.1f}s", flush=True)
+                    last_progress_or_heartbeat = now
                 if pending:
                     time.sleep(0.1)
             forward_worker_status(readers, buffers)
