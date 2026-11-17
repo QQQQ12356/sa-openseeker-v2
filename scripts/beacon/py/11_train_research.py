@@ -11,6 +11,7 @@ SCHEMA = {'ENVIRONMENT__HF_ENDPOINT': {'env': 'HF_ENDPOINT', 'type': 'str'},
  'ENVIRONMENT__NPROC_PER_NODE': {'env': 'NPROC_PER_NODE', 'type': 'str'},
  'ENVIRONMENT__DISTRIBUTED_BACKEND': {'env': 'DISTRIBUTED_BACKEND', 'type': 'str'},
  'DATASET_DIR': {'env': 'SA_DATASET_DIR', 'type': 'str'},
+ 'DATASET_NAME': {'env': 'SA_DATASET_NAME', 'type': 'str'},
  'MODEL_PATH': {'env': 'SA_MODEL_PATH', 'type': 'str'},
  'MODEL_FAMILY': {'env': 'SA_MODEL_FAMILY', 'type': 'str'},
  'RUN_NAME': {'env': 'SA_RUN_NAME', 'type': 'str'},
@@ -164,7 +165,7 @@ if __name__ == "__main__":
     globals().update(load_settings(__file__, SCHEMA))
     from search_comp.experiments.training import train
     train(
-        method="beacon", dataset_name="research", dataset_dir=DATASET_DIR,
+        method="beacon", dataset_name=DATASET_NAME, dataset_dir=DATASET_DIR,
         model_path=MODEL_PATH, model_family=MODEL_FAMILY, training=TRAINING,
         distributed=DISTRIBUTED, run_name=RUN_NAME, plan_only=PLAN_ONLY,
         environment=ENVIRONMENT, beacon=BEACON,

@@ -117,6 +117,7 @@
 | `NPROC_PER_NODE` | `ENVIRONMENT.NPROC_PER_NODE` | str | `1` |
 | `DISTRIBUTED_BACKEND` | `ENVIRONMENT.DISTRIBUTED_BACKEND` | str | `zero2` |
 | `SA_DATASET_DIR` | `DATASET_DIR` | str | `artifacts/datasets/research/prepared/qwen35_L16384_s42` |
+| `SA_DATASET_NAME` | `DATASET_NAME` | str | `research` |
 | `SA_MODEL_PATH` | `MODEL_PATH` | str | `/models/Qwen3.5-4B` |
 | `SA_MODEL_FAMILY` | `MODEL_FAMILY` | str | `qwen35` |
 | `SA_RUN_NAME` | `RUN_NAME` | str | `qwen35_L16384_s42` |
@@ -508,6 +509,7 @@
 | `NPROC_PER_NODE` | `ENVIRONMENT.NPROC_PER_NODE` | str | `1` |
 | `DISTRIBUTED_BACKEND` | `ENVIRONMENT.DISTRIBUTED_BACKEND` | str | `zero2` |
 | `SA_DATASET_DIR` | `DATASET_DIR` | str | `artifacts/datasets/research/prepared/qwen35_L16384_s42` |
+| `SA_DATASET_NAME` | `DATASET_NAME` | str | `research` |
 | `SA_MODEL_PATH` | `MODEL_PATH` | str | `/models/Qwen3.5-4B` |
 | `SA_MODEL_FAMILY` | `MODEL_FAMILY` | str | `qwen35` |
 | `SA_RUN_NAME` | `RUN_NAME` | str | `qwen35_L16384_s42` |
@@ -1082,6 +1084,22 @@
 | `SA_EXACT_LENGTH` | `EXACT_LENGTH` | optional | `空字符串` |
 | `SA_CORRECTNESS` | `CORRECTNESS` | str | `any` |
 | `SA_OBSERVATIONS` | `OBSERVATIONS` | str | `any` |
+
+### 24_mix_datasets.sh
+
+入口：`scripts/data/sh/24_mix_datasets.sh`；执行适配器：`scripts/data/py/24_mix_datasets.py`。
+
+| 实际变量 | 逻辑字段 | 类型 | 默认值 |
+|---|---|---|---|
+| `SA_OPENSEEKER_PREPARED` | `OPENSEEKER_PREPARED` | str | `artifacts/datasets/openseeker/prepared/qwen35_L16384_s42` |
+| `SA_RESEARCH_PREPARED` | `RESEARCH_PREPARED` | str | `artifacts/datasets/research/prepared/qwen35_L16384_s42` |
+| `SA_PROFILE` | `PROFILE` | str | `qwen35_L16384_mix_1to1_s42` |
+| `SA_TOKENIZER` | `TOKENIZER` | str | `/models/Qwen3.5-4B` |
+| `SA_MAX_LENGTH` | `MAX_LENGTH` | int | `16384` |
+| `SA_RATIO` | `RATIO` | str | `1:1` |
+| `SA_SEED` | `SEED` | int | `42` |
+
+比例按训练轨迹数计算，顺序为 OpenSeeker:Research。详见 [数据准备](20_data.md#5-可选混合-openseeker-与-research)。
 
 ### 30_prepare_browsecomp.sh
 

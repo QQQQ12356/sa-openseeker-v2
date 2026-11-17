@@ -37,8 +37,8 @@ artifacts/
 │   ├── prepared/                          离线规范化题目/语料与清单
 │   └── index.sqlite                       离线持久化 BM25 索引
 └── experiments/
-    ├── plain/<openseeker或research>/<run>/
-    ├── beacon/<openseeker或research>/<run>/
+    ├── plain/<openseeker、research 或 mixed>/<run>/
+    ├── beacon/<openseeker、research 或 mixed>/<run>/
     └── baseline/untrained/
 ```
 
@@ -82,7 +82,7 @@ Baseline 使用同样的 `evaluation/<benchmark>/...` 结构，直接位于 `bas
 | 阶段 | 校验内容 | 防止的问题 |
 |---|---|---|
 | 预处理 | 原文件摘要、tokenizer 指纹、编码协议、来源和长度 | 同名数据内容不一致 |
-| 训练 | 数据身份、协议、tokenizer 名称、长度上限、划分存在与训练非空 | Research/OpenSeeker 混用、静默截断 |
+| 训练 | 数据身份、协议、tokenizer 名称、长度上限、划分存在与训练非空 | 清单来源与训练配置不一致、静默截断 |
 | 方法测试 | 方法与数据身份匹配，训练提示词数据摘要。默认最终模型要求训练成功；周期模式校验检查点属于指定正式训练实验且模型权重文件齐全。 | 误用计划目录、跨实验检查点或缺失权重 |
 | 基座测试 | baseline 无 TRAINING_RUN，原始 Qwen3.5 配置且无 Beacon/adapter | 基座与训练后模型混淆 |
 | 离线测试 | 题目/语料摘要，索引来源、标题权重和完整性 | 检索资产与题目版本不符 |

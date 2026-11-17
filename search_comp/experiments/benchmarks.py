@@ -88,7 +88,7 @@ def resolve_target(method, training_run, model_path, checkpoint=None):
     run = path(training_run)
     record = read_json(run / "job.json")
     spec = read_json(run / "experiment.json")
-    if spec["method"] != method or spec["dataset_name"] not in {"openseeker", "research"}:
+    if spec["method"] != method or spec["dataset_name"] not in {"openseeker", "research", "mixed"}:
         raise ValueError("训练实验与方法不一致")
     if record["operation"] != "train":
         raise ValueError("必须指定正式训练实验；plan 没有模型权重")
@@ -111,8 +111,9 @@ def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prom
     if benchmark not in BENCHMARKS:
         raise ValueError("不支持的 benchmark")
     dataset_name, training_run, model, kind, origin = resolve_target(method, training_run, model_path, checkpoint)
-    # Training prompts are always bound to the experiment; baseline may choose an explicit comparison profile.
-    if method != "baseline" and prompt_data:
+    if dataset_name == "mixed" and not prompt_data:
+        raise ValueError("混合训练实验须用 PROMPT_DATA 指定一套 system/tools 提示词")
+    if method != "baseline" and dataset_name != "mixed" and prompt_data:
         raise ValueError("训练方法的提示词从 TRAINING_RUN 读取，无需覆盖 PROMPT_DATA")
     if kind == "beacon" and generation["decoding"] != "greedy":
         raise ValueError("Beacon 当前仅支持 greedy 解码")

@@ -32,7 +32,8 @@ export SA_CHECKPOINT=''
 # MODEL_PATH：留空，由 TRAINING_RUN 与 CHECKPOINT 选择模型。
 export SA_MODEL_PATH=''
 
-# PROMPT_DATA：留空，从 TRAINING_RUN 读取训练提示词。
+# PROMPT_DATA：纯来源实验留空，由 TRAINING_RUN 提供提示词。
+# mixed 实验填写单一 system/tools 的规范化 JSONL；纯来源实验留空。
 export SA_PROMPT_DATA=''
 
 # RUN_NAME：测试标签，程序追加 UTC 时间与随机后缀；小样本建议 smoke

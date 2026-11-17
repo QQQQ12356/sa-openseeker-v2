@@ -1,6 +1,6 @@
 # 33 从训练检查点运行 Benchmark
 
-Plain 和 Beacon 的 BrowseComp、BrowseComp-Plus、HotpotQA 测试入口均支持选择训练中的 `checkpoint-<step>`。两种训练数据（OpenSeeker 和 Research）使用同一套测试脚本，数据身份、基座及训练提示词由所属训练实验确定。
+Plain 和 Beacon 的 BrowseComp、BrowseComp-Plus、HotpotQA 测试入口均支持选择训练中的 `checkpoint-<step>`。OpenSeeker、Research 和混合数据实验使用同一套测试脚本。数据身份及基座由所属训练实验确定，混合实验通过 `SA_PROMPT_DATA` 显式选择评测提示词。
 
 ## 1. 选入口并填写参数
 
@@ -15,7 +15,7 @@ Plain 和 Beacon 的 BrowseComp、BrowseComp-Plus、HotpotQA 测试入口均支�
 | `SA_TRAINING_RUN` | 当前方法的 OpenSeeker 实验占位路径 | 必填。填训练实验根目录，目录内应有 `job.json`、`experiment.json` 和 `models/model/`。Research 实验通常位于 `artifacts/experiments/<方法>/research/`。 |
 | `SA_CHECKPOINT` | 空字符串 | 留空时读取成功训练的 `models/model/train_summary.json` 中的 `final_model_path`。填 `checkpoint-200` 时使用本实验的 `models/model/checkpoint-200`。也可填指向同一目录的 Linux 绝对路径，或相对项目根目录的完整路径。数字是 optimizer step。 |
 | `SA_MODEL_PATH` | 空字符串 | Plain 和 Beacon 的测试脚本中留空。模型来源由训练实验与 `SA_CHECKPOINT` 确定。 |
-| `SA_PROMPT_DATA` | 空字符串 | 留空。程序从 `experiment.json` 找到训练 JSONL，核对已归档的文件摘要，再读取 system 和工具定义。 |
+| `SA_PROMPT_DATA` | 空字符串 | OpenSeeker / Research 实验留空，由训练记录定位并核对训练 JSONL。mixed 实验必填，指向所有行渲染后具有一致 system 和工具定义的规范化 JSONL。只读取 system 和工具定义。 |
 | `SA_BENCHMARK_DIR` | 对应 benchmark 的 `v1` 目录 | 填已经准备好的版本。离线测试需要同版本的索引，`SA_GENERATION__TITLE_WEIGHT` 应与建索引时一致。 |
 | `SA_RUN_NAME` | `full` | 给测试记录起名，可用 `ckpt200_smoke` 或 `ckpt200_full`。 |
 | `SA_GENERATION__LIMIT` | `-1` | `-1` 测全部题目。新检查点建议先跑前 5 至 10 题验证加载和工具调用，再切换到全量。 |
