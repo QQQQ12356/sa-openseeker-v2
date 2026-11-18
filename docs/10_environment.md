@@ -51,6 +51,8 @@ SH 先 export 环境变量；PY 在导入模型、tokenizer 或 Hub 客户端前
 
 ## 4. BrowseComp 在线依赖
 
+需要本地部署网页摘要模型时，按 [11 SGLang 摘要服务](11_sglang_summary.md) 在独立服务环境启动，完成真实请求检查后再运行测试。当前测试入口只连接摘要 HTTP 服务，不会自动启动模型。
+
 BrowseComp 通过固定版本的 OpenSeeker 搜索/访问工具连接外网。测试脚本读取以下服务器环境变量：
 
 | 变量 | 作用 |

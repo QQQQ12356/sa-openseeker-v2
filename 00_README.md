@@ -17,6 +17,7 @@ Baseline 指未训练的原始 Qwen3.5 基座。Plain 默认使用 LoRA；Beacon
 | 顺序 | 文档 | 内容 |
 |---|---|---|
 | 1 | [10 环境准备](docs/10_environment.md) | Linux 环境、依赖安装、镜像、GPU 和在线服务 |
+| 1 | [11 SGLang 摘要服务](docs/11_sglang_summary.md) | 独立服务环境、Qwen 摘要模型部署、接口检查与 BrowseComp 接入 |
 | 2 | [20 数据准备](docs/20_data.md) | 模型、两种训练数据、筛选、三项 benchmark 的准备 |
 | 3 | [30 Plain 指南](docs/30_plain.md) | 数据选择、训练计划、训练、三项测试与评分 |
 | 3 | [31 Beacon 指南](docs/31_beacon.md) | 压缩参数、训练计划、训练、三项测试与评分 |
