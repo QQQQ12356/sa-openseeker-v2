@@ -1190,6 +1190,7 @@
 | `SA_BENCHMARK` | `BENCHMARK` | str | `hotpotqa` |
 | `SA_EVALUATION_DIR` | `EVALUATION_DIR` | str | `artifacts/experiments/plain/openseeker/REPLACE_WITH_RUN/evaluation/hotpotqa/REPLACE_WITH_EVALUATION` |
 | `SA_TITLE` | `TITLE` | str | `测试轨迹检查` |
+| `SA_SCORE_DIR` | `SCORE_DIR` | optional | 空；自动选择本测试最新完成且预测指纹匹配的 Judge 评分，或填写具体评分根目录。 |
 
 ### 82_benchmark_excel.sh
 

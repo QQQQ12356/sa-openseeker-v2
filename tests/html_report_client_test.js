@@ -61,6 +61,14 @@ const structured = evaluate('messageView({role:"assistant",tool_calls:[{function
 assert.equal(findClass(structured, 'call-title')[0].textContent, 'search');
 assert.ok(findClass(structured, 'call-arguments')[0].textContent.includes('\n'));
 assert.equal(ids.list.children.length, 2);
+assert.ok(ids.detail.textContent.includes('LLM Judge'));
+assert.ok(ids.detail.textContent.includes('Matches the reference'));
+assert.ok(ids.detail.textContent.includes('92'));
+assert.ok(ids.list.children[0].textContent.includes('Judge 正确 (1)'));
+evaluate("judgeFilter.value = 'error'; judgeFilter.handlers.change()");
+assert.equal(ids.list.children.length, 1);
+assert.ok(ids.detail.textContent.includes('判定失败'));
+evaluate("judgeFilter.value = ''; judgeFilter.handlers.change()");
 ids.list.children[1].onclick();
 assert.ok(ids.detail.textContent.includes('Second question'));
 ids.em.value = 'true'; ids.em.handlers.change(); assert.equal(ids.list.children.length, 1);

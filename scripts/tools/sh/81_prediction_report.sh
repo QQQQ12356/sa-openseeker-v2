@@ -26,6 +26,9 @@ export SA_BENCHMARK=hotpotqa
 # EVALUATION_DIR：作用及修改约束见 docs/60_parameters.md。
 export SA_EVALUATION_DIR=artifacts/experiments/plain/openseeker/REPLACE_WITH_RUN/evaluation/hotpotqa/REPLACE_WITH_EVALUATION
 
+# SCORE_DIR：留空自动选择本测试最新完成且匹配的 LLM Judge 评分；也可填写 scores 下某次评分根目录。
+export SA_SCORE_DIR=''
+
 # TITLE：HTML 标题
 export SA_TITLE='测试轨迹检查'
 

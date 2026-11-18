@@ -250,7 +250,7 @@ DISTRIBUTED.zero2 / zero3 分别提供完整 DeepSpeed 字典；脚本不加载�
 | 00_setup_environment.py | ENVIRONMENT_DIR / TORCH_SPEC / TORCH_INDEX / PIP_INDEX / HF_ENDPOINT | 环境位置、PyTorch wheel、包源与 Hub 源；见 10 环境文档。 |
 | 00_setup_environment.py | INSTALL_DEEPSPEED / DEEPSPEED_SPEC | 是否安装 DeepSpeed，以及待验证的版本约束。 |
 | 80_dataset_report.py | DATASET_DIR / SPLIT / LIMIT / OFFSET / TITLE | 数据版本、展示划分、条数、偏移、标题；LIMIT=0 全量。 |
-| 81_prediction_report.py | METHOD / BENCHMARK / EVALUATION_DIR / TITLE | 匹配测试记录并生成 HTML。 |
+| 81_prediction_report.py | METHOD / BENCHMARK / EVALUATION_DIR / SCORE_DIR / TITLE | 匹配测试记录并生成 HTML；SCORE_DIR 留空自动选择最新完成且预测指纹一致的 Judge 评分，或指定评分根目录。 |
 | 90_validate.py | RUN_UNIT_TESTS / TEST_PATTERNS | 是否运行无模型标准库测试，以及测试文件模式。 |
 | 91_test_algorithms.py | TEST_PATH / VERBOSE / TOKENIZER_PATH | Linux 算法回归范围、输出详细程度和可选本地 tokenizer；未缓存的 tokenizer 兼容测试会明确跳过。 |
 

@@ -30,6 +30,9 @@ const el = (tag, cls, value) => {
 const present = v => v !== undefined && v !== null;
 const number = v => present(v) && v !== '' && typeof v !== 'boolean' && Number.isFinite(Number(v)) ? Number(v) : null;
 const emValue = r => r.exact_match === true || r.exact_match === 1 || r.exact_match === 'true' ? 'true' : r.exact_match === false || r.exact_match === 0 || r.exact_match === 'false' ? 'false' : 'missing';
+const judgeValue = r => r.llm_judge?.status ?? 'unscored';
+const judgeLabels = {correct: '正确 (1)', incorrect: '错误 (0)', error: '判定失败', unscored: '未评分'};
+const judgeSources = {model: 'LLM Judge 实际判定', judge_error: 'Judge 调用或解析失败', empty_or_failed_response_rule: '生成失败或空回答，按规则计 0', empty_response_rule: '空回答，按规则计 0'};
 const messages = r => Array.isArray(r.messages) ? r.messages : [];
 const question = r => text(r.question ?? r.query ?? messages(r).find(m => m && m.role === 'user')?.content ?? '（未找到问题）');
 const prediction = r => r.prediction ?? r.predicted_answer ?? r.response;
@@ -39,6 +42,14 @@ let visible = [], selected = null;
 document.title = report.title;
 $('title').textContent = report.title;
 $('source').textContent = `来源：${report.source}`;
+const judgeSource = el('div', 'muted', `LLM Judge 来源：${report.judge_source ?? '未提供评分记录'}`);
+$('source').append(judgeSource);
+const judgeFilter = el('select'); judgeFilter.id = 'judge';
+judgeFilter.ariaLabel = 'LLM Judge 筛选';
+for (const [value, label] of [['', '全部 Judge'], ...Object.entries(judgeLabels)]) {
+  const option = el('option', '', label); option.value = value; judgeFilter.append(option);
+}
+$('status').parentNode?.append(judgeFilter);
 for (const s of [...new Set(rows.map(r => String(r.status ?? '（缺失）')))]) {
   const o = el('option', '', s); o.value = s; $('status').append(o);
 }
@@ -54,6 +65,9 @@ function updateStats() {
   stat('当前匹配 / 全部样本', `${visible.length} / ${rows.length}`);
   const scored = visible.filter(i => emValue(rows[i]) !== 'missing');
   stat(`Exact Match · ${scored.length} 个有效样本`, scored.length ? `${(100 * scored.filter(i => emValue(rows[i]) === 'true').length / scored.length).toFixed(1)}%` : '—');
+  const judged = visible.filter(i => ['correct', 'incorrect'].includes(judgeValue(rows[i])));
+  stat(`LLM Judge · ${judged.length} 个有效判定`, judged.length ? `${(100 * judged.filter(i => judgeValue(rows[i]) === 'correct').length / judged.length).toFixed(1)}%` : '—');
+  stat('Judge 失败 / 未评分', `${visible.filter(i => judgeValue(rows[i]) === 'error').length} / ${visible.filter(i => judgeValue(rows[i]) === 'unscored').length}`);
   for (const [field, label, scale, suffix] of [['f1', '平均 F1', 100, '%'], ['seconds', '平均耗时', 1, ' s'], ['generated_tokens', '平均生成 Token', 1, '']]) {
     const value = mean(field, visible);
     stat(label, value === null ? '—' : (value * scale).toFixed(2) + suffix);
@@ -186,6 +200,17 @@ function show(index) {
   const metrics = el('div', 'metrics');
   for (const [key, label] of [['sample_index', '样本索引'], ['status', '状态'], ['exact_match', 'EM'], ['f1', 'F1'], ['seconds', '耗时 (s)'], ['generated_tokens', '生成 Token'], ['turns', '工具轮数']]) metrics.append(el('span', 'metric', `${label}: ${metricText(key, r[key])}`));
   meta.append(metrics); root.append(meta, card('问题', question(r)));
+  const judgment = r.llm_judge;
+  const judgeCard = el('section', 'card judge-result'); judgeCard.append(el('h2', '', 'LLM Judge'));
+  segment(judgeCard, '判定', judgeLabels[judgeValue(r)] ?? '未评分');
+  if (judgment) {
+    segment(judgeCard, '判定来源', judgeSources[judgment.source] ?? judgment.source);
+    if (present(judgment.confidence)) segment(judgeCard, '置信度（Judge 自报，非得分）', judgment.confidence);
+    if (present(judgment.reasoning)) segment(judgeCard, '判定理由', judgment.reasoning);
+    if (present(judgment.response)) judgeCard.append(disclosure('Judge 原始输出', el('pre', '', judgment.response)));
+    judgeCard.append(disclosure('完整评分记录 / 重试过程', el('pre', '', text(judgment.raw))));
+  }
+  root.append(judgeCard);
   const pair = el('div', 'pair'); pair.append(card('参考答案', reference(r), 'reference'), card('模型答案', prediction(r), 'prediction')); root.append(pair);
   const trajectory = el('section', 'card trajectory'), heading = el('div', 'trajectory-heading');
   heading.append(el('h2', '', `对话轨迹 · ${messages(r).length} 条消息`));
@@ -202,7 +227,7 @@ function show(index) {
 }
 function refresh() {
   const q = $('query').value.toLocaleLowerCase(), status = $('status').value, em = $('em').value, sort = $('sort').value;
-  visible = rows.map((_, i) => i).filter(i => (!q || searchText[i].includes(q)) && (!status || String(rows[i].status ?? '（缺失）') === status) && (!em || emValue(rows[i]) === em));
+  visible = rows.map((_, i) => i).filter(i => (!q || searchText[i].includes(q)) && (!status || String(rows[i].status ?? '（缺失）') === status) && (!em || emValue(rows[i]) === em) && (!judgeFilter.value || judgeValue(rows[i]) === judgeFilter.value));
   if (sort !== 'original') visible.sort((a, b) => {
     const x = number(rows[a][sort]), y = number(rows[b][sort]);
     return x === null ? (y === null ? a - b : 1) : y === null ? -1 : (sort === 'f1' ? x - y : y - x) || a - b;
@@ -213,6 +238,7 @@ function refresh() {
     const r = rows[i], b = el('button', 'item'); b.dataset.index = i;
     b.append(el('span', 'item-id', `#${i + 1} · ${text(r.id ?? '')}`), el('div', 'preview', question(r)));
     const tags = el('div');
+    tags.append(el('span', `tag ${judgeValue(r) === 'correct' ? 'good' : judgeValue(r) === 'incorrect' ? 'bad' : ''}`, `Judge ${judgeLabels[judgeValue(r)]}`));
     tags.append(el('span', `tag ${emValue(r) === 'true' ? 'good' : emValue(r) === 'false' ? 'bad' : ''}`, `EM ${text(r.exact_match)}`), el('span', 'tag', `F1 ${number(r.f1) === null ? '—' : Number(r.f1).toFixed(3)}`), el('span', 'tag', text(r.status)));
     b.append(tags); b.onclick = () => show(i); $('list').append(b);
   }
@@ -222,6 +248,7 @@ function refresh() {
 let timer;
 $('query').addEventListener('input', () => {clearTimeout(timer); timer = setTimeout(refresh, 180);});
 for (const id of ['status', 'em', 'sort']) $(id).addEventListener('change', refresh);
+judgeFilter.addEventListener('change', refresh);
 refresh();
 </script>
 </body>

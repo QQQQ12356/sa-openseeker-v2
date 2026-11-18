@@ -10,6 +10,7 @@ SCHEMA = {'ENVIRONMENT__HF_ENDPOINT': {'env': 'HF_ENDPOINT', 'type': 'str'},
  'METHOD': {'env': 'SA_METHOD', 'type': 'str'},
  'BENCHMARK': {'env': 'SA_BENCHMARK', 'type': 'str'},
  'EVALUATION_DIR': {'env': 'SA_EVALUATION_DIR', 'type': 'str'},
+ 'SCORE_DIR': {'env': 'SA_SCORE_DIR', 'type': 'optional'},
  'TITLE': {'env': 'SA_TITLE', 'type': 'str'}}
 
 if __name__ == "__main__":
@@ -17,8 +18,11 @@ if __name__ == "__main__":
     globals().update(load_settings(__file__, SCHEMA))
     from search_comp.experiments.runtime import configure, job, path, stamp
     from search_comp.experiments.benchmarks import resolve_evaluation
-    from search_comp.workflows.render_predictions_html import render_report
+    from search_comp.workflows.render_predictions_html import render_report, resolve_score_file
     configure(ENVIRONMENT)
     directory, source = resolve_evaluation(METHOD, BENCHMARK, EVALUATION_DIR)
-    with job(directory / "reports" / stamp("html"), "prediction_report", dict(evaluation_dir=directory)) as output:
-        render_report(path(source["predictions"]), output / "predictions.html", title=TITLE)
+    judge_path = resolve_score_file(directory, SCORE_DIR)
+    with job(directory / "reports" / stamp("html"), "prediction_report",
+             dict(evaluation_dir=directory, judge_source=judge_path)) as output:
+        render_report(path(source["predictions"]), output / "predictions.html", title=TITLE, judge_path=judge_path)
+        print(f"LLM Judge 来源: {judge_path or '未找到匹配评分；报告显示未评分'}")
