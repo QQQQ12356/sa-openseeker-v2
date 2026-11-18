@@ -68,6 +68,8 @@ Plain 测试自动复用同一题内的推理缓存，无需设置 SH 参数。�
 
 在线 BrowseComp 的 `console.log` 中，`input_tokens` 是该轮完整输入长度，`cached_input_tokens` 是复用的前缀长度。首轮或前缀不匹配时为 `0`。三个 benchmark 的预测记录都保存每道题累计复用的 token 数，可用它判断缓存是否命中。
 
+Plain 和 Beacon 的生成停止检查使用 Transformers `StopStringCriteria`，按词表预计算的匹配关系检查生成 token 的有限后缀，避免每生成一个 token 都把本轮完整输出复制到 CPU 并解码。结束标记跨 token、与相邻文本合并时仍能匹配；Plain 只检查本轮新增输出，提示词内的标记不会触发停止。EOS、生成预算和最终输出提取规则保持不变。仅对没有 Hugging Face 词表接口的简化测试 tokenizer 保留原有解码检查。
+
 ## 5. 查看测试进度
 
 三个 benchmark 在终端和测试目录的 `console.log` 使用相同的完成进度格式，例如 `[benchmark browsecomp-plus generation] done=12/50 status=completed sample=8.4s elapsed=103.2s`。

@@ -1,6 +1,7 @@
 """架构无关的 Beacon KV 管理、损失和生成逻辑。"""
 from __future__ import annotations
 from typing import List, Optional, Tuple
+from collections import deque
 import math
 import torch
 import torch.nn.functional as F
@@ -799,6 +800,11 @@ class BeaconCausalLMMixin:
         )
         eos = eos_token_ids if eos_token_ids is not None else [self.config.eos_token_id]
         generated = []
+        stop = None
+        if stop_texts and tokenizer is not None:
+            from ..generation_stopping import GeneratedTextStop
+            stop = GeneratedTextStop(tokenizer, stop_texts)
+            stop_tokens = deque(maxlen=stop.suffix_length)
 
         for _ in range(max_new_tokens):
             logits = apply_visible_repetition_penalty(logits, _mem._visible_token_ids, repetition_penalty)
@@ -822,11 +828,9 @@ class BeaconCausalLMMixin:
             logits = self.decode_step(next_token)
             if next_token.item() in eos:
                 break
-            if stop_texts and tokenizer is not None:
-                gen_text = tokenizer.decode(
-                    torch.cat(generated, dim=1)[0].tolist(), skip_special_tokens=False
-                )
-                if any(st in gen_text for st in stop_texts):
+            if stop is not None:
+                stop_tokens.append(next_token)
+                if stop(torch.cat(tuple(stop_tokens), dim=1)):
                     break
 
         if not generated:

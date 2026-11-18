@@ -175,7 +175,8 @@ class ModelGenerator:
 
     def __call__(self, encoded, max_new_tokens):
         import torch
-        from transformers import GenerationConfig, StoppingCriteria, StoppingCriteriaList
+        from transformers import GenerationConfig, StoppingCriteriaList
+        from ..generation_stopping import GeneratedTextStop
         tokenizer = self.tokenizer
         ids = torch.tensor([encoded['input_ids']], device=next(self.model.parameters()).device)
         stops = [CALL_END, '</answer>', '<|im_end|>']
@@ -191,10 +192,7 @@ class ModelGenerator:
                 generated = out[0].tolist()
             else:
                 start = ids.shape[1]
-                class Stop(StoppingCriteria):
-                    def __call__(self, input_ids, scores, **kwargs):
-                        text = tokenizer.decode(input_ids[0, start:].tolist(), skip_special_tokens=False)
-                        return any(s in text for s in stops)
+                stop = GeneratedTextStop(tokenizer, stops, start_length=start)
                 sampling = dict(temperature=self.temperature, top_p=self.top_p, top_k=0) if self.decoding == 'sample' else {}
                 cache_options = {}
                 if self.plain_state is not None:
@@ -211,7 +209,7 @@ class ModelGenerator:
                         do_sample=self.decoding == 'sample', num_beams=1, repetition_penalty=self.repetition_penalty,
                         bos_token_id=self.model.config.bos_token_id,
                         eos_token_id=eos_ids or None, pad_token_id=tokenizer.pad_token_id, **sampling),
-                    stopping_criteria=StoppingCriteriaList([Stop()]), **cache_options)
+                    stopping_criteria=StoppingCriteriaList([stop]), **cache_options)
                 generated = getattr(out, 'sequences', out)[0, start:].tolist()
                 if self.plain_state is not None:
                     self.plain_state.save_cache(getattr(out, 'past_key_values', None), encoded['input_ids'], generated)
