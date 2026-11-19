@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from search_comp.data.browsecomp_sft import REPO, SHARDS, SOURCE
 
 
 def export_parquet(path, target):
@@ -30,13 +31,15 @@ def run(args):
     from huggingface_hub import HfApi, snapshot_download
     repos = dict(polar='PolarSeeker/OpenSeeker-v1-Data', zephyr='Zephyr271828/openseeker_v1_sft',
                  research='AmanPriyanshu/tool-reasoning-sft-RESEARCH-OpenSeeker-v1-Data')
+    repos[SOURCE] = REPO
     for source, repo in repos.items():
-        if args.source not in ('all', source):
+        if args.source != source and (args.source != 'all' or source == SOURCE):
             continue
         info = HfApi(endpoint=args.endpoint).dataset_info(repo, revision=args.revision)
         directory = args.output / source / info.sha
+        patterns = [*SHARDS, 'README.md'] if source == SOURCE else ['*.jsonl', '*.parquet', 'README.md']
         snapshot_download(repo, repo_type='dataset', revision=info.sha, endpoint=args.endpoint,
-                          local_dir=str(directory), allow_patterns=['*.jsonl','*.parquet','README.md'])
+                          local_dir=str(directory), allow_patterns=patterns)
         files = []
         jsonl_inputs = []
         for path in sorted(directory.rglob('*')):
@@ -48,6 +51,8 @@ def run(args):
             with path.open('rb') as f:
                 for block in iter(lambda:f.read(8*1024*1024),b''): h.update(block)
             files.append(dict(path=str(path),sha256=h.hexdigest(),bytes=path.stat().st_size))
+            if source == SOURCE:
+                continue
             if path.suffix == '.parquet':
                 # Prefer an existing native JSONL of the same stem to avoid
                 # feeding the same representation twice into preprocessing.
@@ -58,8 +63,12 @@ def run(args):
                 jsonl_inputs.append(str(target.resolve()))
             else:
                 jsonl_inputs.append(str(path.resolve()))
-        if not jsonl_inputs:
+        parquet_inputs = [str((directory / name).resolve()) for name in SHARDS] if source == SOURCE else []
+        if source == SOURCE and any(not Path(name).is_file() for name in parquet_inputs):
+            raise ValueError('BrowseComp SFT snapshot is missing a required shard')
+        if not (jsonl_inputs or parquet_inputs):
             raise ValueError('snapshot contains no supported JSONL/Parquet data files')
         (directory/'download_manifest.json').write_text(json.dumps(dict(repo=repo,revision=info.sha,
-            endpoint=args.endpoint,files=files,jsonl_inputs=jsonl_inputs),indent=2)+'\n', encoding='utf-8')
+            endpoint=args.endpoint,files=files,jsonl_inputs=jsonl_inputs,
+            parquet_inputs=parquet_inputs),indent=2)+'\n', encoding='utf-8')
         print(directory)

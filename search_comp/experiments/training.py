@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from search_comp.data.browsecomp_sft import SOURCE
 from .runtime import ROOT, configure, digest, execute, job, path, read_json, slug, stamp, write_json
 
 
 DATASET_SOURCES = {
     "openseeker": {"polar", "zephyr", "combined"},
-    "research": {"research"},
+    "research": {"research", SOURCE},
     "mixed": {"mixed"},
 }
 

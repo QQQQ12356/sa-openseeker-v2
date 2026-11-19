@@ -15,10 +15,12 @@ Plain 和 Beacon 的 BrowseComp、BrowseComp-Plus、HotpotQA 测试入口均支�
 | `SA_TRAINING_RUN` | 当前方法的 OpenSeeker 实验占位路径 | 必填。填训练实验根目录，目录内应有 `job.json`、`experiment.json` 和 `models/model/`。Research 实验通常位于 `artifacts/experiments/<方法>/research/`。 |
 | `SA_CHECKPOINT` | 空字符串 | 留空时读取成功训练的 `models/model/train_summary.json` 中的 `final_model_path`。填 `checkpoint-200` 时使用本实验的 `models/model/checkpoint-200`。也可填指向同一目录的 Linux 绝对路径，或相对项目根目录的完整路径。数字是 optimizer step。 |
 | `SA_MODEL_PATH` | 空字符串 | Plain 和 Beacon 的测试脚本中留空。模型来源由训练实验与 `SA_CHECKPOINT` 确定。 |
-| `SA_PROMPT_DATA` | 空字符串 | OpenSeeker / Research 实验留空，由训练记录定位并核对训练 JSONL。mixed 实验必填，指向所有行渲染后具有一致 system 和工具定义的规范化 JSONL。只读取 system 和工具定义。 |
+| `SA_PROMPT_DATA` | 空字符串 | 通常由训练记录定位。mixed 实验必填。BrowseComp SFT 训练实验在 BrowseComp 系列入口可显式指定。填写具有一致 system 和工具定义的规范化 JSONL。 |
 | `SA_BENCHMARK_DIR` | 对应 benchmark 的 `v1` 目录 | 填已经准备好的版本。离线测试需要同版本的索引，`SA_GENERATION__TITLE_WEIGHT` 应与建索引时一致。 |
 | `SA_RUN_NAME` | `full` | 给测试记录起名，可用 `ckpt200_smoke` 或 `ckpt200_full`。 |
-| `SA_GENERATION__LIMIT` | `-1` | `-1` 测全部题目。新检查点建议先跑前 5 至 10 题验证加载和工具调用，再切换到全量。 |
+| `SA_OVERLAP` | `filter` | 仅两个 BrowseComp 入口提供。加载模型前检查实际训练题，排除重合。设为 `off` 使用完整题集。 |
+| `SA_OVERLAP_THRESHOLD` | `0.30` | BrowseComp 系列改写题匹配阈值。判定细节见 [BrowseComp SFT](21_browsecomp_sft.md#browsecomp-与-browsecomp-plus-测试前筛选)。 |
+| `SA_GENERATION__LIMIT` | `-1` | `-1` 使用筛选后全部题目。正数取筛选后前 N 条。新检查点建议先跑 5 至 10 题验证加载和工具调用。 |
 | `CUDA_VISIBLE_DEVICES` / `SA_GENERATION__NUM_WORKERS` | `0` / `1` | 在线 BrowseComp 按题顺序运行。两个离线入口可用多个 worker，每个 worker 在一张可见 GPU 上加载完整模型，worker 数应与计划使用的 GPU 数匹配。 |
 | `SA_GENERATION__DECODING` | `greedy` | Plain 支持 `greedy` 和 `sample`，Beacon 使用 `greedy`。比较不同训练步数时沿用同一组生成与工具预算。 |
 

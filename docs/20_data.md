@@ -20,6 +20,7 @@ bash scripts/data/sh/01_download_model.sh
 |---|---|---|---|
 | OpenSeeker | `scripts/data/sh/10_download_openseeker.sh` | `polar`，可改 `zephyr` | `PolarSeeker/OpenSeeker-v1-Data` / `Zephyr271828/openseeker_v1_sft` |
 | Research | `scripts/data/sh/11_download_research.sh` | 固定 `research` | `AmanPriyanshu/tool-reasoning-sft-RESEARCH-OpenSeeker-v1-Data` |
+| BrowseComp SFT | `scripts/data/sh/12_download_browsecomp_sft.sh` | 固定 `browsecomp-sft` | `AmanPriyanshu/tool-reasoning-sft-RESEARCH-grill-lab-browsecomp-plus-runs-data-cleaned-rectified` |
 
 编辑 `REVISION` 和镜像设置，再运行选定文件：
 
@@ -29,6 +30,8 @@ bash scripts/data/sh/11_download_research.sh
 ```
 
 每个下载清单记录实际 commit、原文件大小与摘要、导出的全部 `jsonl_inputs`。Parquet 保留原件并导出 JSONL；后续通过清单读取所有 shard。已有相同 commit 的原始快照可续用，操作日志仍独立保存。
+
+BrowseComp SFT 下载入口保留两个 Parquet 原件，清单通过 `parquet_inputs` 指向原件。预处理直接批量读取 Parquet，节省额外的 JSONL 导出空间。接入步骤与字段说明见 [BrowseComp SFT](21_browsecomp_sft.md)。
 
 ## 3. 预处理与划分
 
@@ -79,11 +82,12 @@ Research 优先读取原始字段 `trajectory_correctness`，该字段缺失时�
 |---|---|
 | `PYTHON_BIN` | Linux Python 解释器，默认使用当前环境中的 `python`。也可在启动前设为环境的 `bin/python` 绝对路径。 |
 | `SA_OPENSEEKER_PREPARED` | OpenSeeker 父版本路径，来源可为 polar、zephyr 或 combined。 |
-| `SA_RESEARCH_PREPARED` | Research 父版本路径，来源必须为 research。 |
+| `SA_RESEARCH_PREPARED` | Research 父版本路径。两来源模式可填普通 Research 或 BrowseComp SFT。三来源模式填写普通 Research。 |
+| `SA_BROWSECOMP_SFT_PREPARED` | 可选第三个父版本路径，填写 `25_prepare_browsecomp_sft.sh` 产物。留空使用两来源。 |
 | `SA_PROFILE` | 输出版本名。调整父版本、比例、长度或 seed 后使用新名称。 |
-| `SA_TOKENIZER` | 两边清单中共同的 tokenizer 键，须与训练的 `SA_MODEL_PATH` 一致。混合时比较两边的计长身份与 tokenizer 指纹。 |
+| `SA_TOKENIZER` | 各父版本清单中共同的 tokenizer 键，须与训练的 `SA_MODEL_PATH` 一致。混合时比较计长身份与 tokenizer 指纹。 |
 | `SA_MAX_LENGTH` | 完整轨迹 token 上限，正整数。超长整条排除。调高上限只能使用父划分里已有的轨迹。 |
-| `SA_RATIO` | 按训练**轨迹数**指定 OpenSeeker:Research 的正整数比例。默认 `1:1`，例如 `2:1` 表示每两条 OpenSeeker 配一条 Research。 |
+| `SA_RATIO` | 按训练**轨迹数**指定各来源的正整数比例。两来源顺序 OpenSeeker:Research，默认 `1:1`。三来源顺序 OpenSeeker:Research:BrowseComp SFT，例如 `2:1:1`。 |
 | `SA_SEED` | 整数随机种子，控制无放回抽样和训练文件顺序。固定父文件、参数和 Python 环境时可复现。 |
 
 ```bash

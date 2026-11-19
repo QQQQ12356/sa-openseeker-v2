@@ -282,14 +282,16 @@ def run(args):
     if args.prepare_only:
         print(f"[benchmark] ready: {len(rows)} questions; official revision={revision}")
         return
-    if args.limit > 0:
-        rows = rows[:args.limit]
+    from search_comp.evaluation.training_overlap import select_questions
+    overlap_report = getattr(args, "overlap_report", None)
+    rows = select_questions(rows, args.limit, overlap_report)
     output.mkdir(parents=True)
     dataset = output / "questions.jsonl"
     dataset.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
     manifest = dict(benchmark=args.benchmark, mode=args.mode, official_revision=revision,
                     official_url=OFFICIAL_URL, data_sha256=sha256(args.data),
-                    selection="first N in source order" if args.limit > 0 else "full source order",
+                    selection=("training-overlap filtered; " if overlap_report else "") +
+                              ("first N in source order" if args.limit > 0 else "full source order"),
                     count=len(rows), judge_model=os.environ.get("SCORER_MODEL_NAME") if not args.generate_only else None,
                     search_provider=os.environ.get("SEARCH_PROVIDER", "serper"),
                     arguments={k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},

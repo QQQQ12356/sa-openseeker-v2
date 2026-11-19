@@ -25,16 +25,14 @@ def run(args):
     options=dict(manifest['arguments'])
     options.update({k: v for k, v in vars(args).items() if k not in ('prepared', 'output')})
     # Published split membership must be retained: recover from original input paths.
-    from search_comp.workflows.prepare_openseeker import rows
-    from search_comp.data.openseeker import normalize
-    from search_comp.data.research import normalize_research
-    adapter = normalize_research if options.get('source') == 'research' else normalize
+    from search_comp.workflows.prepare_openseeker import row_adapter, rows
+    adapter = row_adapter(options.get('source'))
     fixed={}
     for s in options['input']:
         path=Path(s)
         if path.stem in ('val','validation','test'):
             for i,row in enumerate(rows(path)):
-                try:fixed[adapter(row,index=i)['question_id']]='test' if path.stem=='test' else 'validation'
+                try:fixed[adapter(row,options['source'],i)['question_id']]='test' if path.stem=='test' else 'validation'
                 except (ValueError,TypeError,KeyError):pass
     if args.tokenizer and args.tokenizer not in manifest['tokenizers']:
         p.error('requested tokenizer was not measured')

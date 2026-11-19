@@ -13,6 +13,8 @@ SCHEMA = {'ENVIRONMENT__HF_ENDPOINT': {'env': 'HF_ENDPOINT', 'type': 'str'},
  'CHECKPOINT': {'env': 'SA_CHECKPOINT', 'type': 'str'},
  'MODEL_PATH': {'env': 'SA_MODEL_PATH', 'type': 'optional'},
  'PROMPT_DATA': {'env': 'SA_PROMPT_DATA', 'type': 'optional'},
+ 'OVERLAP': {'env': 'SA_OVERLAP', 'type': 'str'},
+ 'OVERLAP_THRESHOLD': {'env': 'SA_OVERLAP_THRESHOLD', 'type': 'float'},
  'RUN_NAME': {'env': 'SA_RUN_NAME', 'type': 'str'},
  'GENERATION__LIMIT': {'env': 'SA_GENERATION__LIMIT', 'type': 'int'},
  'GENERATION__MAX_CONTEXT': {'env': 'SA_GENERATION__MAX_CONTEXT', 'type': 'int'},
@@ -41,4 +43,5 @@ if __name__ == "__main__":
     evaluate(method="beacon", benchmark="browsecomp-plus", benchmark_dir=BENCHMARK_DIR,
              training_run=TRAINING_RUN, checkpoint=CHECKPOINT, model_path=MODEL_PATH,
              prompt_data=PROMPT_DATA,
-             run_name=RUN_NAME, generation=GENERATION, environment=ENVIRONMENT)
+             run_name=RUN_NAME, generation=GENERATION, environment=ENVIRONMENT,
+             overlap=OVERLAP, overlap_threshold=OVERLAP_THRESHOLD)

@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from types import SimpleNamespace
 
+from search_comp.data.browsecomp_sft import SOURCE as BROWSECOMP_SFT
 from search_comp.evaluation.checkpoints import resolve_checkpoint
 from .runtime import ROOT, configure, digest, job, path, read_json, slug, stamp, write_json
 
@@ -106,15 +107,20 @@ def resolve_target(method, training_run, model_path, checkpoint=None):
 
 
 def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prompt_data,
-             run_name, generation, environment, checkpoint=None):
+             run_name, generation, environment, checkpoint=None, overlap="off",
+             overlap_threshold=0.30):
     configure(environment)
     if benchmark not in BENCHMARKS:
         raise ValueError("不支持的 benchmark")
     dataset_name, training_run, model, kind, origin = resolve_target(method, training_run, model_path, checkpoint)
+    spec = read_json(training_run / "experiment.json") if training_run else {}
     if dataset_name == "mixed" and not prompt_data:
         raise ValueError("混合训练实验须用 PROMPT_DATA 指定一套 system/tools 提示词")
-    if method != "baseline" and dataset_name != "mixed" and prompt_data:
+    source = spec.get("dataset_manifest", {}).get("arguments", {}).get("source")
+    if method != "baseline" and dataset_name != "mixed" and source != BROWSECOMP_SFT and prompt_data:
         raise ValueError("训练方法的提示词从 TRAINING_RUN 读取，无需覆盖 PROMPT_DATA")
+    if overlap not in {"filter", "off"}:
+        raise ValueError("SA_OVERLAP 必须为 filter 或 off")
     if kind == "beacon" and generation["decoding"] != "greedy":
         raise ValueError("Beacon 当前仅支持 greedy 解码")
     base = training_run if training_run else ROOT / "artifacts/experiments/baseline/untrained"
@@ -122,10 +128,24 @@ def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prom
     settings = dict(method=method, benchmark=benchmark, dataset_name=dataset_name,
                     benchmark_dir=str(path(benchmark_dir)), training_run=training_run, model_path=model,
                     checkpoint=checkpoint or None,
-                    prompt_data=str(path(prompt_data)) if prompt_data else None, generation=generation)
+                    prompt_data=str(path(prompt_data)) if prompt_data else None, generation=generation,
+                    overlap=overlap, overlap_threshold=overlap_threshold)
     common = dict(run_dir=training_run, model=model, kind=kind, model_origin=origin,
                   prompt_data=path(prompt_data) if prompt_data else None, output_dir=directory / "results")
     with job(directory, "evaluate", settings):
+        report_path = None
+        if overlap == "filter" and training_run and benchmark in {"browsecomp", "browsecomp-plus"}:
+            from search_comp.evaluation.training_overlap import audit_training_overlap
+            questions = path(benchmark_dir) / ("questions.jsonl" if benchmark == "browsecomp"
+                                              else "prepared/questions.jsonl")
+            report = audit_training_overlap(
+                questions, path(spec["training_config"]["train_data_path"]),
+                spec["data_fingerprints"]["train_data_path"], overlap_threshold)
+            report_path = directory / "overlap.json"
+            write_json(report_path, report)
+            settings["overlap_report_sha256"] = digest(report_path)
+            common["overlap_report"] = report_path
+            print(f"训练重合筛选排除 {len(report['excluded_ids'])}/{report['benchmark_questions']} 题", flush=True)
         if benchmark == "browsecomp":
             from search_comp.workflows.benchmark_openseeker import run
             options = dict(generation)
@@ -157,6 +177,13 @@ def resolve_evaluation(method, benchmark, evaluation_dir):
         raise ValueError("预测文件已改变，不能与原测试混合归档")
     if digest(directory / "results/manifest.json") != source["engine_manifest_sha256"]:
         raise ValueError("测试 manifest 已改变")
+    if "overlap_report_sha256" in source:
+        report = directory / "overlap.json"
+        if digest(report) != source["overlap_report_sha256"]:
+            raise ValueError("训练重合筛选报告已改变")
+        audit = read_json(report)
+        if digest(audit["questions_file"]) != audit["questions_sha256"]:
+            raise ValueError("评测题目已改变；请恢复原数据版本")
     if benchmark == "browsecomp":
         manifest = read_json(directory / "results/manifest.json")
         if digest(path(source["benchmark_dir"]) / "questions.jsonl") != manifest["data_sha256"]:
@@ -173,6 +200,8 @@ def score(*, method, benchmark, evaluation_dir, run_name, judge, environment):
     with job(output, "score", settings):
         common = dict(predictions=path(source["predictions"]), output_dir=output / "results",
                       limit=source["generation"]["limit"])
+        if "overlap_report_sha256" in source:
+            common["overlap_report"] = directory / "overlap.json"
         if benchmark == "browsecomp":
             from search_comp.workflows.benchmark_openseeker import run
             options = {key: value for key, value in judge.items() if key in {

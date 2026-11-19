@@ -32,14 +32,20 @@ export SA_CHECKPOINT=''
 # MODEL_PATH：留空，由 TRAINING_RUN 与 CHECKPOINT 选择模型。
 export SA_MODEL_PATH=''
 
-# PROMPT_DATA：纯来源实验留空，由 TRAINING_RUN 提供提示词。
-# mixed 实验填写单一 system/tools 的规范化 JSONL；纯来源实验留空。
+# PROMPT_DATA：通常留空，由 TRAINING_RUN 提供提示词。
+# mixed 实验必填；BrowseComp SFT 同时使用两个分片时也可显式选择单一 system/tools 的规范化 JSONL。
 export SA_PROMPT_DATA=''
+
+# OVERLAP：filter 在加载模型前按实际训练集筛掉同题；off 保留全部题。
+export SA_OVERLAP=filter
+
+# OVERLAP_THRESHOLD：(0,1]，四词片段覆盖率阈值。整题与嵌入匹配不受其影响。
+export SA_OVERLAP_THRESHOLD=0.30
 
 # RUN_NAME：测试标签，程序追加 UTC 时间与随机后缀；小样本建议 smoke
 export SA_RUN_NAME=full
 
-# GENERATION.LIMIT：-1 全量，正数取源顺序前 N 条；小样本不能当全量成绩。
+# GENERATION.LIMIT：-1 全量，正数取重合筛选后的前 N 条；小样本不能当全量成绩。
 export SA_GENERATION__LIMIT=-1
 
 # GENERATION.MAX_CONTEXT：单问题完整序列上下文预算；应符合模型能力和显存。

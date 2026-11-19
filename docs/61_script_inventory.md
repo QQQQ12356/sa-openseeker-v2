@@ -233,6 +233,8 @@
 | `SA_CHECKPOINT` | `CHECKPOINT` | str | `空字符串` |
 | `SA_MODEL_PATH` | `MODEL_PATH` | optional | `空字符串` |
 | `SA_PROMPT_DATA` | `PROMPT_DATA` | optional | `空字符串` |
+| `SA_OVERLAP` | `OVERLAP` | str | `filter` |
+| `SA_OVERLAP_THRESHOLD` | `OVERLAP_THRESHOLD` | float | `0.30` |
 | `SA_RUN_NAME` | `RUN_NAME` | str | `full` |
 | `SA_GENERATION__LIMIT` | `GENERATION.LIMIT` | int | `-1` |
 | `SA_GENERATION__MAX_CONTEXT` | `GENERATION.MAX_CONTEXT` | int | `131072` |
@@ -281,6 +283,8 @@
 | `SA_CHECKPOINT` | `CHECKPOINT` | str | `空字符串` |
 | `SA_MODEL_PATH` | `MODEL_PATH` | optional | `空字符串` |
 | `SA_PROMPT_DATA` | `PROMPT_DATA` | optional | `空字符串` |
+| `SA_OVERLAP` | `OVERLAP` | str | `filter` |
+| `SA_OVERLAP_THRESHOLD` | `OVERLAP_THRESHOLD` | float | `0.30` |
 | `SA_RUN_NAME` | `RUN_NAME` | str | `full` |
 | `SA_GENERATION__LIMIT` | `GENERATION.LIMIT` | int | `-1` |
 | `SA_GENERATION__MAX_CONTEXT` | `GENERATION.MAX_CONTEXT` | int | `131072` |
@@ -637,6 +641,8 @@
 | `SA_CHECKPOINT` | `CHECKPOINT` | str | `空字符串` |
 | `SA_MODEL_PATH` | `MODEL_PATH` | optional | `空字符串` |
 | `SA_PROMPT_DATA` | `PROMPT_DATA` | optional | `空字符串` |
+| `SA_OVERLAP` | `OVERLAP` | str | `filter` |
+| `SA_OVERLAP_THRESHOLD` | `OVERLAP_THRESHOLD` | float | `0.30` |
 | `SA_RUN_NAME` | `RUN_NAME` | str | `full` |
 | `SA_GENERATION__LIMIT` | `GENERATION.LIMIT` | int | `-1` |
 | `SA_GENERATION__MAX_CONTEXT` | `GENERATION.MAX_CONTEXT` | int | `131072` |
@@ -685,6 +691,8 @@
 | `SA_CHECKPOINT` | `CHECKPOINT` | str | `空字符串` |
 | `SA_MODEL_PATH` | `MODEL_PATH` | optional | `空字符串` |
 | `SA_PROMPT_DATA` | `PROMPT_DATA` | optional | `空字符串` |
+| `SA_OVERLAP` | `OVERLAP` | str | `filter` |
+| `SA_OVERLAP_THRESHOLD` | `OVERLAP_THRESHOLD` | float | `0.30` |
 | `SA_RUN_NAME` | `RUN_NAME` | str | `full` |
 | `SA_GENERATION__LIMIT` | `GENERATION.LIMIT` | int | `-1` |
 | `SA_GENERATION__MAX_CONTEXT` | `GENERATION.MAX_CONTEXT` | int | `131072` |
@@ -997,6 +1005,10 @@
 | `SA_SOURCE` | `SOURCE` | str | `research` |
 | `SA_REVISION` | `REVISION` | str | `main` |
 
+### 12_download_browsecomp_sft.sh
+
+入口为 `scripts/data/sh/12_download_browsecomp_sft.sh`，执行适配器为 `scripts/data/py/12_download_browsecomp_sft.py`。来源固定为 `browsecomp-sft`，默认 revision 为 `1a67da5e15590e15fc962035a75cd427a47070b2`。见 [下载参数](21_browsecomp_sft.md#下载参数)。
+
 ### 20_prepare_openseeker.sh
 
 入口：`scripts/data/sh/20_prepare_openseeker.sh`；执行适配器：`scripts/data/py/20_prepare_openseeker.py`。
@@ -1093,13 +1105,18 @@
 |---|---|---|---|
 | `SA_OPENSEEKER_PREPARED` | `OPENSEEKER_PREPARED` | str | `artifacts/datasets/openseeker/prepared/qwen35_L16384_s42` |
 | `SA_RESEARCH_PREPARED` | `RESEARCH_PREPARED` | str | `artifacts/datasets/research/prepared/qwen35_L16384_s42` |
+| `SA_BROWSECOMP_SFT_PREPARED` | `BROWSECOMP_SFT_PREPARED` | optional | `空字符串` |
 | `SA_PROFILE` | `PROFILE` | str | `qwen35_L16384_mix_1to1_s42` |
 | `SA_TOKENIZER` | `TOKENIZER` | str | `/models/Qwen3.5-4B` |
 | `SA_MAX_LENGTH` | `MAX_LENGTH` | int | `16384` |
 | `SA_RATIO` | `RATIO` | str | `1:1` |
 | `SA_SEED` | `SEED` | int | `42` |
 
-比例按训练轨迹数计算，顺序为 OpenSeeker:Research。详见 [数据准备](20_data.md#5-可选混合-openseeker-与-research)。
+比例按训练轨迹数计算。第三来源留空时顺序为 OpenSeeker:Research，启用时顺序为 OpenSeeker:Research:BrowseComp SFT。详见 [数据准备](20_data.md#5-可选混合-openseeker-与-research)。
+
+### 25_prepare_browsecomp_sft.sh
+
+入口为 `scripts/data/sh/25_prepare_browsecomp_sft.sh`，执行适配器为 `scripts/data/py/25_prepare_browsecomp_sft.py`。默认预处理 `syn_planner.parquet`，并从训练数据排除默认保护列表中的题。所有变量见 [预处理参数](21_browsecomp_sft.md#预处理参数)。
 
 ### 30_prepare_browsecomp.sh
 

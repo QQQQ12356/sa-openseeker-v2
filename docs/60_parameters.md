@@ -36,6 +36,8 @@ benchmark 评分后的 Excel 导出使用 `scripts/tools/sh/82_benchmark_excel.s
 | PROMPT_DATA | 纯来源训练实验留空，mixed 实验必填，baseline 可选。填写具有统一 system 和工具定义的规范化 JSONL。 |
 
 混合数据脚本 `24_mix_datasets.sh` 的父目录、比例、seed 和长度参数见 [混合 OpenSeeker 与 Research](20_data.md#5-可选混合-openseeker-与-research)。
+
+BrowseComp SFT 的下载、预处理变量及测试前的 `SA_OVERLAP`、`SA_OVERLAP_THRESHOLD` 见 [BrowseComp SFT 数据接入](21_browsecomp_sft.md)。
 | EVALUATION_DIR | 成功测试目录，含 job.json、evaluation.json、results/；不能填单个预测文件。 |
 
 在线页面读取与总结的 ENVIRONMENT 字段：`SUMMARY_ATTEMPTS` 为有限重试次数（1–10，默认 3）；`SUMMARY_MAX_INPUT_CHARS` 为总结输入字符上限（40000）；`SUMMARY_MAX_TOKENS` 为总结输出 token 上限（2048）；`SUMMARY_TIMEOUT` 为总结超时秒数（120）；`JINA_TIMEOUT` 为页面读取超时秒数（50）。`SUMMARY_API_URL` 和 `SCORER_URLS` 填基础地址如 `http://host:8000/v1`，客户端追加 `/chat/completions`。

@@ -13,6 +13,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from search_comp.data.openseeker import normalize, encode, parse_calls, VERSION
 from search_comp.data.research import normalize_research, ADAPTER_VERSION
+from search_comp.data.browsecomp_sft import REPO, SOURCE, normalize_browsecomp_sft
+from search_comp.data.question_overlap import QuestionIndex
 
 MODELS = ['Qwen/Qwen3-4B-Thinking-2507', 'Qwen/Qwen3.5-4B']
 
@@ -51,7 +53,7 @@ def initialize(models, offline):
 def measure(item):
     source, index, raw = item
     try:
-        adapter = normalize_research if source.startswith('research/') else normalize
+        adapter = row_adapter(source.split('/')[0])
         row = adapter(raw, source, index)
         lengths = {}
         for name, tok in TOKENIZERS.items():
@@ -67,15 +69,34 @@ def measure(item):
                      cjk=any('\u4e00' <= c <= '\u9fff' for c in row['question']),
                      correctness=row['correctness'] or 'unspecified')
         return row, facts, None
-    except (ValueError, TypeError, KeyError) as e:
+    except (ValueError, TypeError, KeyError, IndexError, AttributeError) as e:
         return None, None, dict(source=source, index=index, reason=str(e))
 
 
 def dump(f, obj):
     f.write(json.dumps(obj, ensure_ascii=False) + '\n')
 
+def row_adapter(source):
+    return {'research': normalize_research, SOURCE: normalize_browsecomp_sft}.get(source, normalize)
 
 
+def prepare_sft_input(raw, canonical, protected):
+    messages = json.loads(raw['messages']) if isinstance(raw['messages'], str) else raw['messages']
+    question = messages[1]['content']
+    if protected.matches(question):
+        return 'protected_question'
+    if 'data_source' in raw:
+        return None
+    if canonical is None:
+        raise ValueError('data.parquet requires SA_CANONICAL_QUESTIONS')
+    matches = canonical.matches(question)
+    if not matches or (len(matches) > 1 and matches[0][1] - matches[1][1] < 0.10):
+        return 'unresolved_benchmark_question'
+    match = matches[0][0]
+    if protected.matches(match['query']):
+        return 'protected_question'
+    raw.update(canonical_question=match['query'], benchmark_question_id=match['id'])
+    return None
 
 def run(args):
     from search_comp.experiments.validation import ConfigError
@@ -89,6 +110,19 @@ def run(args):
     initialize(args.models, args.offline)
     if args.tokenizer and args.tokenizer not in args.models:
         p.error('requested tokenizer was not measured')
+    if args.source == SOURCE:
+        from search_comp.evaluation.benchmark_data import read_questions, sha256
+        references = [*args.protected_questions]
+        if args.canonical_questions:
+            references.append(args.canonical_questions)
+        reference_digests = {file: sha256(file) for file in references}
+        canonical = (QuestionIndex(read_questions(args.canonical_questions), args.overlap_threshold)
+                     if args.canonical_questions else None)
+        protected = QuestionIndex(
+            (row for file in args.protected_questions for row in read_questions(file)),
+            args.overlap_threshold)
+        if canonical is None and any(file.stem == 'data' for file in args.input):
+            p.error('data.parquet requires SA_CANONICAL_QUESTIONS')
     args.output.mkdir(parents=True, exist_ok=False)
     counters = Counter(); roles = Counter(); tools = Counter(); correctness = Counter()
     metrics = defaultdict(list); seen = set(); known_splits = {}
@@ -97,7 +131,7 @@ def run(args):
         if path.stem in ('val', 'validation', 'test'):
             for i, raw in enumerate(rows(path)):
                 try:
-                    adapter = normalize_research if args.source == 'research' else normalize
+                    adapter = row_adapter(args.source)
                     key = adapter(raw, args.source, i)['question_id']
                     known_splits[key] = 'test' if path.stem == 'test' else 'validation'
                 except (ValueError, KeyError, TypeError):
@@ -108,7 +142,19 @@ def run(args):
             for i, raw in enumerate(rows(path)):
                 if args.limit is not None and n >= args.limit:
                     return
-                yield f'{args.source}/{path.name}', i, raw
+                source = f'{args.source}/{path.name}'
+                if args.source == SOURCE:
+                    try:
+                        reason = prepare_sft_input(raw, canonical, protected)
+                    except (KeyError, IndexError, TypeError, AttributeError, json.JSONDecodeError) as error:
+                        reason = f'invalid_source_row: {error}'
+                    if reason:
+                        counters['input'] += 1
+                        counters[reason.split(':', 1)[0]] += 1
+                        dump(handles['rejected'], dict(source=source, index=i, reason=reason))
+                        n += 1
+                        continue
+                yield source, i, raw
                 n += 1
     handles = {n: (args.output / f'{n}.jsonl').open('w') for n in
                ('normalized', 'train', 'validation', 'test', 'rejected', 'measurements')}
@@ -160,6 +206,9 @@ def run(args):
         manifest.update(adapter_version=ADAPTER_VERSION, training_only=True,
                         dataset_id='AmanPriyanshu/tool-reasoning-sft-RESEARCH-OpenSeeker-v1-Data',
                         note='Held-out demonstrations are not independent benchmark gold answers.')
+    elif args.source == SOURCE:
+        manifest.update(adapter_version='browsecomp-sft-v1', training_only=True,
+                        dataset_id=REPO, question_references=reference_digests)
     for path in args.input:
         h = hashlib.sha256()
         with path.open('rb') as f:

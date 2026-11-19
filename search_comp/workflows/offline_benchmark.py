@@ -289,7 +289,7 @@ def score_phase(args, output, rows, manifest, prediction_path):
     summary.update(benchmark=args.benchmark, prediction_count=len(predictions),
                    missing_predictions=len(rows) - len(predictions),
                    questions_sha256=manifest["questions_sha256"], corpus_sha256=manifest["corpus_sha256"],
-                   subset=args.limit > 0 or not manifest["canonical_corpus"],
+                   subset=args.limit > 0 or len(rows) != manifest["questions"] or not manifest["canonical_corpus"],
                    corpus_scope=manifest["corpus_scope"], offline=True)
     dump(output / "summary.metrics.json", summary)
     print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
@@ -325,6 +325,7 @@ def make_parser():
                         help="one full model replica per GPU; shard questions across explicit CUDA_VISIBLE_DEVICES")
     parser.add_argument("--shard-index", type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument("--shard-count", type=int, default=1, help=argparse.SUPPRESS)
+    parser.add_argument("--overlap-report", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--limit", type=int, default=-1)
     parser.add_argument("--topk", type=int, default=5)
     parser.add_argument("--snippet-tokens", type=int, default=512)
@@ -425,7 +426,9 @@ def run(args):
         print(json.dumps(build_index(args.root, args.title_weight), indent=2))
         if args.action == "index":
             return
-    rows, manifest = prepared_questions(args.root, args.benchmark, args.limit)
+    from search_comp.evaluation.training_overlap import select_questions
+    rows, manifest = prepared_questions(args.root, args.benchmark)
+    rows = select_questions(rows, args.limit, getattr(args, "overlap_report", None))
     rows = rows[args.shard_index::args.shard_count]
     if args.action in {"run", "all"}:
         # Resolve before creating a result directory, and before any large model allocation.
