@@ -14,7 +14,9 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 
+from search_comp.evaluation.benchmark_resume import checked_predictions, resume_prefix, write_predictions
 from search_comp.evaluation.checkpoints import load_evaluation_model, resolve_checkpoint
 from search_comp.offline.assets import DEV_URL, WIKI_URL, digest, download_assets, dump, enforce_offline, verify_official
 from search_comp.offline.data import prepare, records
@@ -70,17 +72,23 @@ def verify_index(args, manifest):
     return metadata
 
 
-def run_phase(args, output, rows, manifest, index_metadata=None):
+def agent_prompt(args):
+    from search_comp.data.agent_prompt import build_system_prompt, resolve_system_prompt
+
+    original_system, source = resolve_system_prompt(getattr(args, "prompt_data", None), args.run_dir)
+    instruction = HOTPOT_INSTRUCTION if args.benchmark == "hotpotqa" else BCP_INSTRUCTION
+    return build_system_prompt(system=original_system, local=True, allow_visit=args.allow_visit,
+                               answer_instruction=instruction), source
+
+
+def run_phase(args, output, rows, manifest, index_metadata=None, prompt=None):
     if args.num_workers > 1:
         return run_parallel(args, output, rows, manifest)
     progress = CompletionProgress((), len(rows), generation_label(args.benchmark))
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
-    from search_comp.data.agent_prompt import build_system_prompt, resolve_system_prompt
     from search_comp.evaluation.tool_agent import decoding_options
     generation_options = decoding_options(args, kind == 'beacon')
-    original_system, prompt_source = resolve_system_prompt(getattr(args, 'prompt_data', None), args.run_dir)
-    system = build_system_prompt(system=original_system, local=True, allow_visit=args.allow_visit,
-        answer_instruction=HOTPOT_INSTRUCTION if args.benchmark == "hotpotqa" else BCP_INSTRUCTION)
+    system, prompt_source = prompt if prompt is not None else agent_prompt(args)
     if index_metadata is None:
         index_metadata = verify_index(args, manifest)
     from search_comp.evaluation.tool_agent import ModelGenerator, run_agent
@@ -136,7 +144,8 @@ def worker_command(args, output, rank, count):
     model, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     command = [sys.executable, "-m", "search_comp.workflows.offline_benchmark", "run"]
     excluded = {"action", "output_dir", "num_workers", "shard_index", "shard_count",
-                "model", "kind", "judge_model", "predictions", "dry_run"}
+                "model", "kind", "judge_model", "predictions", "dry_run", "resume_from",
+                "resume_predictions_sha256", "resume_manifest_sha256"}
     for key, value in vars(args).items():
         if key in excluded or value is None or value is False:
             continue
@@ -266,6 +275,39 @@ def run_parallel(args, output, rows, manifest):
     return predictions
 
 
+def continue_run(args, output, rows, manifest, run_manifest):
+    from search_comp.data.agent_prompt import prompt_metadata
+
+    previous, count = resume_prefix(args.resume_from, rows, run_manifest,
+                                    args.resume_manifest_sha256, args.resume_predictions_sha256)
+    remaining = rows[count:]
+    prompt = agent_prompt(args)
+    prompt_hash = prompt_metadata(prompt[0])["system_prompt_sha256"]
+    run_manifest["resume"] = dict(source=str(args.resume_from), reused=count, newly_generated=len(remaining),
+                                  predictions_sha256=args.resume_predictions_sha256,
+                                  manifest_sha256=args.resume_manifest_sha256)
+    print(f"[offline] reuse {count} predictions; generate {len(remaining)} additional questions", flush=True)
+    start = time.monotonic()
+    partial = output / "predictions.building.jsonl"
+    predictions = output / "predictions.jsonl"
+    extension = output / "extension"
+    try:
+        with partial.open("x", encoding="utf-8") as stream:
+            statuses = write_predictions(stream, checked_predictions(
+                previous, rows[:count], prompt_sha256=prompt_hash, file_sha256=args.resume_predictions_sha256))
+            extension.mkdir()
+            worker_args = SimpleNamespace(**{**vars(args), "question_offset": count})
+            extra = run_phase(worker_args, extension, remaining, manifest, run_manifest["index"], prompt)
+            statuses.update(write_predictions(
+                stream, checked_predictions(extra, remaining, prompt_sha256=prompt_hash), offset=count))
+        partial.rename(predictions)
+    finally:
+        partial.unlink(missing_ok=True)
+    dump(output / "generation.metrics.json", dict(statuses=dict(statuses), count=len(rows),
+         reused=count, newly_generated=len(remaining), seconds=time.monotonic() - start))
+    return predictions
+
+
 def score_phase(args, output, rows, manifest, prediction_path):
     predictions = load_predictions(prediction_path, rows)
     source_manifest = prediction_path.parent / "manifest.json"
@@ -339,6 +381,7 @@ def make_parser():
                         help="one full model replica per GPU; shard questions across explicit CUDA_VISIBLE_DEVICES")
     parser.add_argument("--shard-index", type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument("--shard-count", type=int, default=1, help=argparse.SUPPRESS)
+    parser.add_argument("--question-offset", type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument("--overlap-report", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--limit", type=int, default=-1)
     parser.add_argument("--topk", type=int, default=5)
@@ -453,6 +496,11 @@ def run(args):
     from search_comp.evaluation.training_overlap import select_questions
     rows, manifest = prepared_questions(args.root, args.benchmark)
     rows = select_questions(rows, args.limit, getattr(args, "overlap_report", None))
+    offset = getattr(args, "question_offset", 0)
+    if offset:
+        if args.action != "run" or not 0 < offset < len(rows):
+            parser.error("invalid worker question offset")
+        rows = rows[offset:]
     rows = rows[args.shard_index::args.shard_count]
     if args.action in {"run", "all"}:
         # Resolve before creating a result directory, and before any large model allocation.
@@ -480,8 +528,11 @@ def run(args):
                       *sorted((ROOT / "search_comp/offline").glob("*.py"))]}, status="running")
     dump(output / "manifest.json", run_manifest)
     try:
-        predictions = (run_phase(args, output, rows, manifest, index_metadata)
-                       if args.action in {"run", "all"} else args.predictions)
+        if getattr(args, "resume_from", None):
+            predictions = continue_run(args, output, rows, manifest, run_manifest)
+        else:
+            predictions = (run_phase(args, output, rows, manifest, index_metadata)
+                           if args.action in {"run", "all"} else args.predictions)
         run_manifest["predictions_sha256"] = digest(predictions)
         source_manifest = predictions.parent / "manifest.json"
         if source_manifest.is_file() and source_manifest.parent != output:

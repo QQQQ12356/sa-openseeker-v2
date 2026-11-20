@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 from types import SimpleNamespace
 
 from search_comp.data.browsecomp_sft import SOURCE as BROWSECOMP_SFT
@@ -110,7 +111,7 @@ def resolve_target(method, training_run, model_path, checkpoint=None):
 
 def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prompt_data,
              run_name, generation, environment, checkpoint=None, overlap="off",
-             overlap_threshold=0.30):
+             overlap_threshold=0.30, resume_from=None):
     configure(environment)
     if benchmark not in BENCHMARKS:
         raise ValueError("不支持的 benchmark")
@@ -125,6 +126,8 @@ def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prom
         raise ValueError("SA_OVERLAP 必须为 filter 或 off")
     if kind == "beacon" and generation["decoding"] != "greedy":
         raise ValueError("Beacon 当前仅支持 greedy 解码")
+    if resume_from and benchmark != "browsecomp-plus":
+        raise ValueError("SA_RESUME_FROM 仅用于 BrowseComp-Plus")
     base = training_run if training_run else ROOT / "artifacts/experiments/baseline/untrained"
     directory = base / "evaluation" / benchmark / stamp(run_name)
     settings = dict(method=method, benchmark=benchmark, dataset_name=dataset_name,
@@ -134,9 +137,39 @@ def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prom
                     overlap=overlap, overlap_threshold=overlap_threshold)
     common = dict(run_dir=training_run, model=model, kind=kind, model_origin=origin,
                   prompt_data=path(prompt_data) if prompt_data else None, output_dir=directory / "results")
+    previous_dir = None
+    if resume_from:
+        previous_dir, previous = resolve_evaluation(method, benchmark, resume_from)
+        for key in ("benchmark_dir", "training_run", "dataset_name", "overlap"):
+            if str(previous.get(key)) != str(settings[key]):
+                raise ValueError(f"续测配置与原测试不一致: {key}")
+        old_options = offline_options(benchmark, benchmark_dir, **previous["generation"])
+        new_options = offline_options(benchmark, benchmark_dir, **generation)
+        adjustable = {"limit", "num_workers", "verify_index"}
+        for key in sorted((previous["generation"].keys() | generation.keys()) - adjustable):
+            if getattr(old_options, key, None) != getattr(new_options, key, None):
+                raise ValueError(f"续测生成配置与原测试不一致: {key}")
+        has_overlap = overlap == "filter" and training_run is not None
+        if has_overlap != ("overlap_report_sha256" in previous):
+            raise ValueError("续测需沿用原测试的重合筛选模式和报告")
+        if has_overlap:
+            audit = read_json(previous_dir / "overlap.json")
+            if (audit["threshold"] != overlap_threshold
+                    or audit["train_sha256"] != spec["data_fingerprints"]["train_data_path"]):
+                raise ValueError("续测的重合筛选阈值或训练数据指纹与原测试不一致")
+        settings["resume_from"] = str(previous_dir)
+        common.update(resume_from=previous_dir, resume_predictions_sha256=previous["predictions_sha256"],
+                      resume_manifest_sha256=previous["engine_manifest_sha256"])
     with job(directory, "evaluate", settings):
         report_path = None
-        if overlap == "filter" and training_run and benchmark in {"browsecomp", "browsecomp-plus"}:
+        if previous_dir and "overlap_report_sha256" in previous:
+            report_path = directory / "overlap.json"
+            shutil.copyfile(previous_dir / "overlap.json", report_path)
+            settings["overlap_report_sha256"] = digest(report_path)
+            if settings["overlap_report_sha256"] != previous["overlap_report_sha256"]:
+                raise ValueError("原测试的重合筛选报告在续测期间发生变化")
+            common["overlap_report"] = report_path
+        elif overlap == "filter" and training_run and benchmark in {"browsecomp", "browsecomp-plus"}:
             from search_comp.evaluation.training_overlap import audit_training_overlap
             questions = path(benchmark_dir) / ("questions.jsonl" if benchmark == "browsecomp"
                                               else "prepared/questions.jsonl")
