@@ -34,6 +34,7 @@ def offline_options(benchmark, benchmark_dir, **values):
                    corpus=None, decrypted=False, corpus_limit=None, official_only=False,
                    corpus_revision=None, dev_url=None, wiki_url=None, title_weight=1.0,
                    verify_index=True, run_dir=None, prompt_data=None, model=None,
+                   retriever="bm25", vector_index_dir=None, embedding_model_path=None, embedding_device="cuda:0",
                    model_origin="checkpoint", kind=None, output_dir=None, predictions=None,
                    num_workers=1, shard_index=0, shard_count=1, limit=-1, topk=5,
                    snippet_tokens=512, allow_visit=True, tool_call_retries=1, read_tokens=4096,

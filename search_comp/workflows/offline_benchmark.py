@@ -19,6 +19,7 @@ from search_comp.evaluation.checkpoints import load_evaluation_model, resolve_ch
 from search_comp.offline.assets import DEV_URL, WIKI_URL, digest, download_assets, dump, enforce_offline, verify_official
 from search_comp.offline.data import prepare, records
 from search_comp.offline.index import LocalIndex, build_index
+from search_comp.offline.qwen_embedding import BACKEND as DENSE_BACKEND, DenseIndex, read_vector_manifest
 from search_comp.offline.scoring import LocalJudge, load_predictions, score_browsecomp, score_hotpot
 from search_comp.offline.tools import BCP_INSTRUCTION, HOTPOT_INSTRUCTION, LocalTools
 from search_comp.utils.devices import worker_devices
@@ -60,12 +61,16 @@ def verify_index(args, manifest):
     with LocalIndex(args.root / "index.sqlite", args.verify_index) as index:
         if index.manifest["benchmark"] != args.benchmark or index.manifest["corpus_sha256"] != manifest["corpus_sha256"]:
             raise ValueError("index and dataset have different corpus/benchmark provenance")
-        if index.manifest["title_weight"] != args.title_weight:
+        if getattr(args, "retriever", "bm25") == "bm25" and index.manifest["title_weight"] != args.title_weight:
             raise ValueError("TITLE_WEIGHT differs from the built index; rebuild in a new ROOT")
-        return index.manifest
+        metadata = index.manifest
+    if getattr(args, "retriever", "bm25") == DENSE_BACKEND:
+        dense = read_vector_manifest(args.vector_index_dir, manifest, args.embedding_model_path, args.verify_index)
+        metadata = dict(metadata, retriever=DENSE_BACKEND, vector_index=dense)
+    return metadata
 
 
-def run_phase(args, output, rows, manifest):
+def run_phase(args, output, rows, manifest, index_metadata=None):
     if args.num_workers > 1:
         return run_parallel(args, output, rows, manifest)
     progress = CompletionProgress((), len(rows), generation_label(args.benchmark))
@@ -76,7 +81,8 @@ def run_phase(args, output, rows, manifest):
     original_system, prompt_source = resolve_system_prompt(getattr(args, 'prompt_data', None), args.run_dir)
     system = build_system_prompt(system=original_system, local=True, allow_visit=args.allow_visit,
         answer_instruction=HOTPOT_INSTRUCTION if args.benchmark == "hotpotqa" else BCP_INSTRUCTION)
-    verify_index(args, manifest)
+    if index_metadata is None:
+        index_metadata = verify_index(args, manifest)
     from search_comp.evaluation.tool_agent import ModelGenerator, run_agent
 
     print(f"[offline] loading {kind} checkpoint={model_path}; questions={len(rows)}", flush=True)
@@ -91,7 +97,11 @@ def run_phase(args, output, rows, manifest):
     statuses = Counter()
     start = time.monotonic()
     with LocalIndex(args.root / "index.sqlite") as index, (output / "predictions.jsonl").open("x", encoding="utf-8") as target:
-        tools = LocalTools(index, tokenizer, args.topk, args.snippet_tokens, args.read_tokens,
+        retrieval = index
+        if getattr(args, "retriever", "bm25") == DENSE_BACKEND:
+            retrieval = DenseIndex(index, args.vector_index_dir, args.embedding_model_path,
+                                   args.embedding_device, index_metadata["vector_index"])
+        tools = LocalTools(retrieval, tokenizer, args.topk, args.snippet_tokens, args.read_tokens,
                            args.allow_visit, args.tool_count)
         for position, row in enumerate(rows):
             tools.reset()
@@ -313,6 +323,10 @@ def make_parser():
     parser.add_argument("--wiki-url", default=WIKI_URL, help="Hotpot abstracts mirror; official MD5 is still required")
     parser.add_argument("--title-weight", type=float, default=1.0)
     parser.add_argument("--verify-index", action="store_true", help="SHA256 scan of full index before run")
+    parser.add_argument("--retriever", choices=["bm25", DENSE_BACKEND], default="bm25")
+    parser.add_argument("--vector-index-dir", type=Path)
+    parser.add_argument("--embedding-model-path", type=Path)
+    parser.add_argument("--embedding-device", default="cuda:0")
     parser.add_argument("--run-dir", type=Path)
     parser.add_argument("--prompt-data", type=Path,
                         help="training JSONL providing original system/tools; default: RUN_DIR train_data_path or Polar profile")
@@ -370,6 +384,16 @@ def run(args):
     except ValueError as error:
         parser.error(str(error))
     args.root = args.root or ROOT / "artifacts/benchmarks" / args.benchmark
+    retriever = getattr(args, "retriever", "bm25")
+    if retriever not in {"bm25", DENSE_BACKEND}:
+        parser.error("RETRIEVER must be bm25 or qwen3-embedding-8b")
+    if retriever == DENSE_BACKEND:
+        if args.benchmark != "browsecomp-plus" or args.action not in {"run", "all"}:
+            parser.error("Qwen3-Embedding-8B is supported for BrowseComp-Plus generation only")
+        if not args.vector_index_dir or not args.embedding_model_path:
+            parser.error("dense retrieval requires --vector-index-dir and --embedding-model-path")
+        args.vector_index_dir = Path(args.vector_index_dir)
+        args.embedding_model_path = Path(args.embedding_model_path)
     for key, value in vars(args).items():
         if isinstance(value, Path):
             setattr(args, key, value.expanduser().resolve())
@@ -456,7 +480,8 @@ def run(args):
                       *sorted((ROOT / "search_comp/offline").glob("*.py"))]}, status="running")
     dump(output / "manifest.json", run_manifest)
     try:
-        predictions = run_phase(args, output, rows, manifest) if args.action in {"run", "all"} else args.predictions
+        predictions = (run_phase(args, output, rows, manifest, index_metadata)
+                       if args.action in {"run", "all"} else args.predictions)
         run_manifest["predictions_sha256"] = digest(predictions)
         source_manifest = predictions.parent / "manifest.json"
         if source_manifest.is_file() and source_manifest.parent != output:

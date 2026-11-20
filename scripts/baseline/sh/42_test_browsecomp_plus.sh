@@ -74,10 +74,19 @@ export SA_GENERATION__GENERATION_SEED=42
 # GENERATION.NUM_WORKERS：每 GPU 一个完整模型副本；不要与训练 NPROC 混淆。
 export SA_GENERATION__NUM_WORKERS=1
 
-# GENERATION.TITLE_WEIGHT：必须与已建索引的标题权重一致。
+# 检索器。bm25 用现有 SQLite 排序；qwen3-embedding-8b 用 33 脚本准备的全语料向量。
+export SA_GENERATION__RETRIEVER=bm25
+# 向量模式必填。填 33 脚本输出的 vector_indexes/<INDEX_PROFILE>。
+export SA_GENERATION__VECTOR_INDEX_DIR=''
+# 向量模式必填。填与索引清单一致的本地 Qwen3-Embedding-8B commit 目录。
+export SA_GENERATION__EMBEDDING_MODEL_PATH=''
+# 查询编码设备。cuda:0 是进程内第一张可见卡；显存不足可用 cpu。
+export SA_GENERATION__EMBEDDING_DEVICE=cuda:0
+
+# GENERATION.TITLE_WEIGHT：仅 BM25 使用，须与已建索引的权重一致。
 export SA_GENERATION__TITLE_WEIGHT=1.0
 
-# GENERATION.VERIFY_INDEX：启动时扫描索引摘要，增加大索引读取时间。
+# GENERATION.VERIFY_INDEX：向量模式也校验向量文件与 docid 映射。启动时扫描索引摘要，增加大索引读取时间。
 export SA_GENERATION__VERIFY_INDEX=true
 
 # GENERATION.TOPK：每条查询返回的最高排名文档数，正整数。

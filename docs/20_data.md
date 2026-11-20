@@ -139,6 +139,8 @@ bash scripts/data/sh/31_prepare_browsecomp_plus.sh
 
 已有本地资产时填写 `SA_DATA` / `SA_CORPUS`；已解密题目设 `SA_DECRYPTED=true`。修改来源、语料 revision 或 `SA_TITLE_WEIGHT` 时新建 `SA_VERSION`；测试脚本同步该版本和标题权重。正式测试使用完整独立语料。
 
+BrowseComp-Plus 的 Qwen3-Embedding-8B 资产和测试配置见 [向量检索准备](35_browsecomp_plus_dense.md)。
+
 ## 9. 准备 HotpotQA
 
 使用 `scripts/data/sh/32_prepare_hotpotqa.sh`，同样按 `download → prepare → index` 分三次编辑并运行：

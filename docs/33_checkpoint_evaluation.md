@@ -4,6 +4,8 @@ Plain 和 Beacon 的 BrowseComp、BrowseComp-Plus、HotpotQA 测试入口均支�
 
 用实验训练数据或 prepared 保留划分作为测试题时，使用单独的 [训练数据评测入口](34_training_data_evaluation.md)。
 
+BrowseComp-Plus 测试可通过 `SA_GENERATION__RETRIEVER` 切换 BM25 与 Qwen3-Embedding-8B。向量资产准备、设备参数和对照测试方法见 [BrowseComp-Plus 向量检索](35_browsecomp_plus_dense.md)。
+
 ## 1. 选入口并填写参数
 
 | Benchmark | Plain | Beacon | 准备条件 |

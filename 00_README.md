@@ -25,6 +25,7 @@ Baseline 指未训练的原始 Qwen3.5 基座。Plain 默认使用 LoRA；Beacon
 | 3 | [32 Baseline 指南](docs/32_baseline.md) | 基座与提示词配置、三项测试与评分 |
 | 3 | [33 检查点测试](docs/33_checkpoint_evaluation.md) | 用 Plain 或 Beacon 的周期检查点运行三项 benchmark |
 | 3 | [34 训练数据评测](docs/34_training_data_evaluation.md) | 对 train、validation 或 test 划分重新检索作答 |
+| 3 | [35 BrowseComp-Plus 向量检索](docs/35_browsecomp_plus_dense.md) | 下载、导入或重建 Qwen3-Embedding-8B 索引，并与 BM25 对照 |
 | 4 | [60 参数手册](docs/60_parameters.md) | SH 脚本变量、训练参数、压缩参数及修改提示 |
 | 5 | [70 产物规范](docs/70_artifacts.md) | 目录、命名、运行身份、来源校验、失败归档 |
 | 6 | [82 Excel 导出](docs/82_benchmark_excel.md) | benchmark 评分汇总、逐题明细、完整参数与修改提示 |
