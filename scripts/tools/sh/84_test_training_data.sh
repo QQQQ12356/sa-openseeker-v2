@@ -34,6 +34,9 @@ export SA_RUN_NAME=smoke
 
 # 正数取所选划分的前 N 条；-1 使用全部。建议先跑 10 条。
 export SA_GENERATION__LIMIT=10
+# 续测来源。留空新跑；填同一训练实验下已完成的 evaluation/training-data 任务根目录。
+# LIMIT 填累计目标题数，继续使用原 DATASET_DIR、SPLIT 和 INDEX_DIR。
+export SA_RESUME_FROM=''
 # 每题上下文 token 上限，以及每轮 assistant 的生成 token 上限。
 export SA_GENERATION__MAX_CONTEXT=32768
 export SA_GENERATION__MAX_NEW_TOKENS=4096

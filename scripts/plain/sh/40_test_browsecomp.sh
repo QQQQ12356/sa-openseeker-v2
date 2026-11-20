@@ -84,6 +84,10 @@ export SA_RUN_NAME=full
 # GENERATION.LIMIT：-1 全量，正数取重合筛选后的前 N 条；小样本不能当全量成绩。
 export SA_GENERATION__LIMIT=-1
 
+# 续测来源。留空新跑；填写已完成的原测试根目录（含 job.json 和 evaluation.json）。
+# LIMIT 填累计目标题数，如原测 40、目标 60 则填 60。续测结果写入新目录。
+export SA_RESUME_FROM=''
+
 # GENERATION.MAX_CONTEXT：单问题完整序列上下文预算；应符合模型能力和显存。
 export SA_GENERATION__MAX_CONTEXT=131072
 

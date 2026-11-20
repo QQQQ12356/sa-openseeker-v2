@@ -6,7 +6,7 @@ Plain 和 Beacon 的 BrowseComp、BrowseComp-Plus、HotpotQA 测试入口均支�
 
 BrowseComp-Plus 测试可通过 `SA_GENERATION__RETRIEVER` 切换 BM25 与 Qwen3-Embedding-8B。向量资产准备、设备参数和对照测试方法见 [BrowseComp-Plus 向量检索](35_browsecomp_plus_dense.md)。
 
-需要把已完成的 BrowseComp-Plus 测试扩到更多题目时，在同方法的 42 脚本中填写 `SA_RESUME_FROM`，并提高 `SA_GENERATION__LIMIT`。配置、兼容检查和评分见 [BrowseComp-Plus 续测](36_browsecomp_plus_resume.md)。
+需要把已完成的测试扩到更多题目时，在原 40、42 或 44 测试脚本中填写 `SA_RESUME_FROM`，并提高 `SA_GENERATION__LIMIT`。配置、兼容检查和评分见 [测试续测](36_browsecomp_plus_resume.md)。
 
 ## 1. 选入口并填写参数
 

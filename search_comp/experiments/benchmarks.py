@@ -126,8 +126,7 @@ def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prom
         raise ValueError("SA_OVERLAP 必须为 filter 或 off")
     if kind == "beacon" and generation["decoding"] != "greedy":
         raise ValueError("Beacon 当前仅支持 greedy 解码")
-    if resume_from and benchmark != "browsecomp-plus":
-        raise ValueError("SA_RESUME_FROM 仅用于 BrowseComp-Plus")
+    audit_overlap = overlap == "filter" and training_run is not None and benchmark in {"browsecomp", "browsecomp-plus"}
     base = training_run if training_run else ROOT / "artifacts/experiments/baseline/untrained"
     directory = base / "evaluation" / benchmark / stamp(run_name)
     settings = dict(method=method, benchmark=benchmark, dataset_name=dataset_name,
@@ -149,10 +148,9 @@ def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prom
         for key in sorted((previous["generation"].keys() | generation.keys()) - adjustable):
             if getattr(old_options, key, None) != getattr(new_options, key, None):
                 raise ValueError(f"续测生成配置与原测试不一致: {key}")
-        has_overlap = overlap == "filter" and training_run is not None
-        if has_overlap != ("overlap_report_sha256" in previous):
+        if audit_overlap != ("overlap_report_sha256" in previous):
             raise ValueError("续测需沿用原测试的重合筛选模式和报告")
-        if has_overlap:
+        if audit_overlap:
             audit = read_json(previous_dir / "overlap.json")
             if (audit["threshold"] != overlap_threshold
                     or audit["train_sha256"] != spec["data_fingerprints"]["train_data_path"]):
@@ -169,7 +167,7 @@ def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prom
             if settings["overlap_report_sha256"] != previous["overlap_report_sha256"]:
                 raise ValueError("原测试的重合筛选报告在续测期间发生变化")
             common["overlap_report"] = report_path
-        elif overlap == "filter" and training_run and benchmark in {"browsecomp", "browsecomp-plus"}:
+        elif audit_overlap:
             from search_comp.evaluation.training_overlap import audit_training_overlap
             questions = path(benchmark_dir) / ("questions.jsonl" if benchmark == "browsecomp"
                                               else "prepared/questions.jsonl")
@@ -205,9 +203,9 @@ def resolve_evaluation(method, benchmark, evaluation_dir):
     record = read_json(directory / "job.json")
     source = read_json(directory / "evaluation.json")
     if record["operation"] != "evaluate" or record["status"] != "complete":
-        raise ValueError("仅可评分已成功完成的测试")
+        raise ValueError("评分和续测均要求原测试已成功完成")
     if source["method"] != method or source["benchmark"] != benchmark:
-        raise ValueError("评分脚本的方法/benchmark 与测试记录不一致")
+        raise ValueError("入口的方法或 benchmark 与原测试记录不一致")
     if digest(source["predictions"]) != source["predictions_sha256"]:
         raise ValueError("预测文件已改变，不能与原测试混合归档")
     if digest(directory / "results/manifest.json") != source["engine_manifest_sha256"]:

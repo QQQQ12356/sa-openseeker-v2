@@ -24,6 +24,7 @@ SCHEMA = {'ENVIRONMENT__HF_ENDPOINT': {'env': 'HF_ENDPOINT', 'type': 'str'},
  'TRAINING_RUN': {'env': 'SA_TRAINING_RUN', 'type': 'optional'},
  'MODEL_PATH': {'env': 'SA_MODEL_PATH', 'type': 'str'},
  'PROMPT_DATA': {'env': 'SA_PROMPT_DATA', 'type': 'optional'},
+ 'RESUME_FROM': {'env': 'SA_RESUME_FROM', 'type': 'optional'},
  'RUN_NAME': {'env': 'SA_RUN_NAME', 'type': 'str'},
  'GENERATION__LIMIT': {'env': 'SA_GENERATION__LIMIT', 'type': 'int'},
  'GENERATION__MAX_CONTEXT': {'env': 'SA_GENERATION__MAX_CONTEXT', 'type': 'int'},
@@ -44,4 +45,4 @@ if __name__ == "__main__":
     from search_comp.experiments.benchmarks import evaluate
     evaluate(method="baseline", benchmark="browsecomp", benchmark_dir=BENCHMARK_DIR,
              training_run=TRAINING_RUN, model_path=MODEL_PATH, prompt_data=PROMPT_DATA,
-             run_name=RUN_NAME, generation=GENERATION, environment=ENVIRONMENT)
+             run_name=RUN_NAME, generation=GENERATION, environment=ENVIRONMENT, resume_from=RESUME_FROM)

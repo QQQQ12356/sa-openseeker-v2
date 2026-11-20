@@ -166,7 +166,7 @@ def audit_scores(path, expected):
                 accuracy_all_questions=correct / expected, complete=len(labels) == expected)
 
 
-def native_generate(args, rows, output):
+def native_generate(args, rows, output, prompt=None):
     """Use the shared SFT/native protocol with upstream online search/visit."""
     sys.path.insert(0, str(args.official_dir / "src"))
     from llm_tool_openseeker import Search, Visit
@@ -174,7 +174,8 @@ def native_generate(args, rows, output):
     from search_comp.evaluation.tool_agent import ModelGenerator, Registry, run_agent, decoding_options
 
     progress = CompletionProgress((), len(rows), generation_label(getattr(args, "benchmark", "browsecomp")), key="query")
-    system, prompt_source = resolve_system_prompt(getattr(args, 'prompt_data', None), args.run_dir)
+    system, prompt_source = (prompt if prompt is not None else
+                             resolve_system_prompt(getattr(args, 'prompt_data', None), args.run_dir))
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     generation_options = decoding_options(args, kind == 'beacon')
     origin = getattr(args, 'model_origin', 'checkpoint')
@@ -210,7 +211,41 @@ def native_generate(args, rows, output):
             target.flush()
             progress.record(result)
 
+def resume_native(args, rows, output, manifest, predictions):
+    from search_comp.data.agent_prompt import prompt_metadata, resolve_system_prompt
+    from search_comp.evaluation.benchmark_resume import prefix_length, publish_continuation
 
+    source = args.resume_from / "results"
+    manifest_path = source / "manifest.json"
+    if sha256(manifest_path) != args.resume_manifest_sha256:
+        raise ValueError("原测试结果清单已改变")
+    previous = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for key in ("benchmark", "mode", "model", "kind", "official_revision", "official_script_sha256",
+                "data_sha256", "search_provider", "summary_model"):
+        if key == "summary_model" and key not in previous:
+            continue  # Legacy native runs did not record the summary model.
+        if previous.get(key) != manifest[key]:
+            raise ValueError(f"续测与原测试的结果来源不一致: {key}")
+    original_rows = read_questions(source / "questions.jsonl")
+    count = prefix_length([row["id"] for row in original_rows], rows)
+    if count != previous["count"] or original_rows != rows[:count]:
+        raise ValueError("原测试的选题记录与目标题目前缀不一致")
+    prompt = resolve_system_prompt(getattr(args, "prompt_data", None), args.run_dir)
+    prompt_hash = prompt_metadata(prompt[0])["system_prompt_sha256"]
+    extension = output / "extension"
+
+    def generate(new_rows):
+        extension.mkdir()
+        path = extension / predictions.name
+        native_generate(args, new_rows, path, prompt)
+        return path
+
+    print(f"[benchmark] reuse {count} predictions; generate {len(rows) - count} additional questions", flush=True)
+    publish_continuation(predictions, source / predictions.name, rows, count, prompt_hash,
+                         args.resume_predictions_sha256, generate, require_index=False)
+    manifest["resume"] = dict(source=str(args.resume_from), reused=count, newly_generated=len(rows) - count,
+                              predictions_sha256=args.resume_predictions_sha256,
+                              manifest_sha256=args.resume_manifest_sha256)
 
 
 def run(args):
@@ -242,6 +277,9 @@ def run(args):
         parser.error("official modes use OPENSEEKER_BASE_URL/MODEL; serve Plain via 48, use --mode native for Beacon")
     if args.mode != "native" and args.prompt_data:
         parser.error("--prompt-data is for native mode; official modes retain upstream prompts")
+    resume_from = getattr(args, "resume_from", None)
+    if resume_from and (args.mode != "native" or not args.generate_only or args.prepare_only or args.predictions):
+        parser.error("续测仅支持 native 模式的正式生成入口")
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     output = args.output_dir or ((args.run_dir / "evaluation" if args.run_dir else ROOT / "artifacts/unassigned")
                                  / f"benchmark_{args.mode}_{stamp}")
@@ -294,6 +332,7 @@ def run(args):
                               ("first N in source order" if args.limit > 0 else "full source order"),
                     count=len(rows), judge_model=os.environ.get("SCORER_MODEL_NAME") if not args.generate_only else None,
                     search_provider=os.environ.get("SEARCH_PROVIDER", "serper"),
+                    summary_model=os.environ.get("SUMMARY_MODEL_NAME"),
                     arguments={k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
                     created_at=datetime.now(timezone.utc).isoformat())
     if args.mode == "native" and not args.predictions:
@@ -319,7 +358,10 @@ def run(args):
     (output / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
     raw = args.predictions or output / f"result_tool{args.tool_count}.jsonl"
     if not args.predictions:
-        if args.mode == "native":
+        if resume_from:
+            resume_native(args, rows, output, manifest, raw)
+            (output / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+        elif args.mode == "native":
             native_generate(args, rows, raw)
         else:
             run_logged(generation_command(args, dataset, output), args.official_dir, output / "generation.log",

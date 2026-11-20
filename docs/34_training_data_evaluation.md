@@ -51,6 +51,7 @@ export SA_GENERATION__LIMIT=10
 | SH 变量 | 默认值 | 作用和修改提示 |
 |---|---|---|
 | `SA_GENERATION__LIMIT` | `10` | 正数取当前文件顺序的前 N 条；`-1` 使用全部。全量推理前建议确认少量样本能加载和检索。 |
+| `SA_RESUME_FROM` | 空 | 填同一实验下已完成的训练数据评测根目录，复用原预测，只生成新增题。LIMIT 填累计题数。见 [测试续测](36_browsecomp_plus_resume.md)。 |
 | `SA_GENERATION__MAX_CONTEXT` | `32768` | 每题完整上下文预算，包括提示词、历史生成和实时工具返回。按模型支持长度和设备内存调整。 |
 | `SA_GENERATION__MAX_NEW_TOKENS` | `4096` | 每轮模型生成的最大 token 数，还受剩余上下文约束。 |
 | `SA_GENERATION__MAX_TURNS` | `20` | 每题最大生成轮数。 |

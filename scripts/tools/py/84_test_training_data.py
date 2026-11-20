@@ -15,6 +15,7 @@ SCHEMA = {
     "DATASET_DIR": {"env": "SA_DATASET_DIR", "type": "optional"},
     "SPLIT": {"env": "SA_SPLIT", "type": "str"},
     "INDEX_DIR": {"env": "SA_INDEX_DIR", "type": "str"},
+    "RESUME_FROM": {"env": "SA_RESUME_FROM", "type": "optional"},
     "RUN_NAME": {"env": "SA_RUN_NAME", "type": "str"},
     "GENERATION__LIMIT": {"env": "SA_GENERATION__LIMIT", "type": "int"},
     "GENERATION__MAX_CONTEXT": {"env": "SA_GENERATION__MAX_CONTEXT", "type": "int"},

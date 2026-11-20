@@ -16,7 +16,7 @@ import sys
 import time
 from types import SimpleNamespace
 
-from search_comp.evaluation.benchmark_resume import checked_predictions, resume_prefix, write_predictions
+from search_comp.evaluation.benchmark_resume import publish_continuation, resume_prefix
 from search_comp.evaluation.checkpoints import load_evaluation_model, resolve_checkpoint
 from search_comp.offline.assets import DEV_URL, WIKI_URL, digest, download_assets, dump, enforce_offline, verify_official
 from search_comp.offline.data import prepare, records
@@ -288,21 +288,16 @@ def continue_run(args, output, rows, manifest, run_manifest):
                                   manifest_sha256=args.resume_manifest_sha256)
     print(f"[offline] reuse {count} predictions; generate {len(remaining)} additional questions", flush=True)
     start = time.monotonic()
-    partial = output / "predictions.building.jsonl"
     predictions = output / "predictions.jsonl"
     extension = output / "extension"
-    try:
-        with partial.open("x", encoding="utf-8") as stream:
-            statuses = write_predictions(stream, checked_predictions(
-                previous, rows[:count], prompt_sha256=prompt_hash, file_sha256=args.resume_predictions_sha256))
-            extension.mkdir()
-            worker_args = SimpleNamespace(**{**vars(args), "question_offset": count})
-            extra = run_phase(worker_args, extension, remaining, manifest, run_manifest["index"], prompt)
-            statuses.update(write_predictions(
-                stream, checked_predictions(extra, remaining, prompt_sha256=prompt_hash), offset=count))
-        partial.rename(predictions)
-    finally:
-        partial.unlink(missing_ok=True)
+
+    def generate(new_rows):
+        extension.mkdir()
+        worker_args = SimpleNamespace(**{**vars(args), "question_offset": count})
+        return run_phase(worker_args, extension, new_rows, manifest, run_manifest["index"], prompt)
+
+    statuses = publish_continuation(predictions, previous, rows, count, prompt_hash,
+                                    args.resume_predictions_sha256, generate)
     dump(output / "generation.metrics.json", dict(statuses=dict(statuses), count=len(rows),
          reused=count, newly_generated=len(remaining), seconds=time.monotonic() - start))
     return predictions

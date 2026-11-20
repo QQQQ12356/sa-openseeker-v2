@@ -13,6 +13,7 @@ SCHEMA = {'ENVIRONMENT__HF_ENDPOINT': {'env': 'HF_ENDPOINT', 'type': 'str'},
  'CHECKPOINT': {'env': 'SA_CHECKPOINT', 'type': 'str'},
  'MODEL_PATH': {'env': 'SA_MODEL_PATH', 'type': 'optional'},
  'PROMPT_DATA': {'env': 'SA_PROMPT_DATA', 'type': 'optional'},
+ 'RESUME_FROM': {'env': 'SA_RESUME_FROM', 'type': 'optional'},
  'RUN_NAME': {'env': 'SA_RUN_NAME', 'type': 'str'},
  'GENERATION__LIMIT': {'env': 'SA_GENERATION__LIMIT', 'type': 'int'},
  'GENERATION__MAX_CONTEXT': {'env': 'SA_GENERATION__MAX_CONTEXT', 'type': 'int'},
@@ -41,4 +42,4 @@ if __name__ == "__main__":
     evaluate(method="beacon", benchmark="hotpotqa", benchmark_dir=BENCHMARK_DIR,
              training_run=TRAINING_RUN, checkpoint=CHECKPOINT, model_path=MODEL_PATH,
              prompt_data=PROMPT_DATA,
-             run_name=RUN_NAME, generation=GENERATION, environment=ENVIRONMENT)
+             run_name=RUN_NAME, generation=GENERATION, environment=ENVIRONMENT, resume_from=RESUME_FROM)

@@ -2,7 +2,7 @@ import json
 from contextlib import nullcontext
 from types import SimpleNamespace
 
-from search_comp.data.agent_prompt import DEFAULT_SYSTEM_FILE
+from search_comp.data.agent_prompt import DEFAULT_SYSTEM_FILE, prompt_metadata
 from search_comp.data.openseeker import VERSION
 from search_comp.experiments import training_data_evaluation as evaluation
 from search_comp.experiments.runtime import digest, write_json
@@ -34,21 +34,30 @@ def test_evaluation_uses_fresh_inputs_and_scores_answer_sources_separately(tmp_p
     monkeypatch.setattr(evaluation, "ModelGenerator", lambda *args, **kwargs: SimpleNamespace(metadata={}))
     monkeypatch.setattr(evaluation, "LocalIndex", lambda *args: nullcontext(SimpleNamespace(manifest={})))
 
+    attempts = []
+
     def predict(prompt, tokenizer, generate, tools, *args, **kwargs):
         assert len(prompt) == 2
         assert prompt[1] == messages[1]
         assert "old evidence" not in prompt[0]["content"]
         assert not tools.allow_visit
-        return dict(status="completed", prediction="Paris", messages=prompt)
+        attempts.append(prompt[1]["content"])
+        return dict(status="completed", prediction="Paris", messages=prompt,
+                    **prompt_metadata(prompt[0]["content"]))
 
     monkeypatch.setattr(evaluation, "run_agent", predict)
     generation = dict(max_context=128, max_new_tokens=16, max_turns=2, max_tool_tokens=24,
                       tool_count=2, topk=2, snippet_tokens=8, read_tokens=16,
                       tool_call_retries=1, limit=-1, allow_visit=False, verify_index=True)
-    output = evaluation.evaluate_training_data(method="plain", training_run=str(tmp_path), checkpoint=None,
-               dataset_dir=None, split="train", index_dir=tmp_path, run_name="smoke",
-               generation=generation, environment={})
+    options = dict(method="plain", training_run=str(tmp_path), checkpoint=None, dataset_dir=None,
+                   split="train", index_dir=tmp_path, run_name="smoke", environment={})
+    first = evaluation.evaluate_training_data(**options, generation=dict(generation, limit=1))
+    original = digest(first / "predictions.jsonl")
+    output = evaluation.evaluate_training_data(**options, generation=generation, resume_from=first)
+    assert len(attempts) == 2
+    assert digest(first / "predictions.jsonl") == original
     summary = json.loads((output / "summary.metrics.json").read_text(encoding="utf-8"))
+    assert summary["reused"] == summary["newly_generated"] == 1
     assert summary["by_answer_source"] == {
         "reference": {"count": 1, "em": 1.0, "f1": 1.0},
         "demonstration_final_response": {"count": 1, "em": 0.0, "f1": 0.0},
