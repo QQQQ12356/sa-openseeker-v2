@@ -2,20 +2,16 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from search_comp.data.browsecomp_sft import SOURCE
+from .data import DATASET_SOURCES
 from .runtime import ROOT, configure, digest, execute, job, path, read_json, slug, stamp, write_json
 
 
-DATASET_SOURCES = {
-    "openseeker": {"polar", "zephyr", "combined"},
-    "research": {"research", SOURCE},
-    "mixed": {"mixed"},
-}
+TRAINING_SOURCES = {**DATASET_SOURCES, "mixed": {"mixed"}}
 
 
 def resolve_training(method, dataset_name, dataset_dir, model_path, model_family, training, beacon):
-    if method not in {"plain", "beacon"} or dataset_name not in DATASET_SOURCES:
-        raise ValueError("训练支持 plain/beacon × openseeker/research/mixed")
+    if method not in {"plain", "beacon"} or dataset_name not in TRAINING_SOURCES:
+        raise ValueError("训练支持 plain/beacon × openseeker/research/browsecomp-sft/mixed")
     if model_family not in {"qwen3", "qwen35"}:
         raise ValueError("model_family 必须为 qwen3 或 qwen35")
     dataset = path(dataset_dir)
@@ -24,7 +20,7 @@ def resolve_training(method, dataset_name, dataset_dir, model_path, model_family
     if manifest.get("protocol") != VERSION:
         raise ValueError("数据编码协议不兼容，请从原始数据重新预处理")
     source = manifest["arguments"].get("source")
-    if source not in DATASET_SOURCES[dataset_name]:
+    if source not in TRAINING_SOURCES[dataset_name]:
         raise ValueError(f"数据来源 {source!r} 与 dataset_name={dataset_name} 不符")
     if model_path not in manifest["tokenizers"]:
         raise ValueError("数据没有使用该 MODEL_PATH tokenizer 计长；预处理和训练必须使用相同身份")

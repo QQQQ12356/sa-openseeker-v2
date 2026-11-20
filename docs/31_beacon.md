@@ -14,6 +14,7 @@
 |---|---|---|
 | OpenSeeker | `scripts/beacon/sh/10_train_openseeker.sh` | `artifacts/datasets/openseeker/prepared/<PROFILE>` |
 | Research | `scripts/beacon/sh/11_train_research.sh` | `artifacts/datasets/research/prepared/<PROFILE>` |
+| BrowseComp SFT | `scripts/beacon/sh/11_train_research.sh`，设 `SA_DATASET_NAME=browsecomp-sft` | `artifacts/datasets/browsecomp-sft/prepared/<PROFILE>` |
 
 在选定文件中修改：
 

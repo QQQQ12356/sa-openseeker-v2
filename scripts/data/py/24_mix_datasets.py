@@ -6,8 +6,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 SCHEMA = {
-    "OPENSEEKER_PREPARED": {"env": "SA_OPENSEEKER_PREPARED", "type": "str"},
-    "RESEARCH_PREPARED": {"env": "SA_RESEARCH_PREPARED", "type": "str"},
+    "OPENSEEKER_PREPARED": {"env": "SA_OPENSEEKER_PREPARED", "type": "optional"},
+    "RESEARCH_PREPARED": {"env": "SA_RESEARCH_PREPARED", "type": "optional"},
     "BROWSECOMP_SFT_PREPARED": {"env": "SA_BROWSECOMP_SFT_PREPARED", "type": "optional"},
     "PROFILE": {"env": "SA_PROFILE", "type": "str"},
     "TOKENIZER": {"env": "SA_TOKENIZER", "type": "str"},

@@ -39,6 +39,7 @@ BrowseComp SFT 下载入口保留两个 Parquet 原件，清单通过 `parquet_i
 |---|---|---|---|
 | OpenSeeker | `scripts/data/sh/20_prepare_openseeker.sh` | `Correct`，观测不限 | `qwen35_L16384_s42` |
 | Research | `scripts/data/sh/21_prepare_research.sh` | 正确性不限，有工具观测 | `qwen35_L16384_s42` |
+| BrowseComp SFT | `scripts/data/sh/25_prepare_browsecomp_sft.sh` | 默认辅助分片，有工具观测，排除保护题 | `browsecomp_sft_planner_qwen35_L16384_s42` |
 
 依次修改：
 
@@ -68,7 +69,7 @@ Research 优先读取原始字段 `trajectory_correctness`，该字段缺失时�
 
 ## 4. 可选：重新筛选
 
-使用 `scripts/data/sh/22_select_openseeker.sh` 或 `scripts/data/sh/23_select_research.sh`。设置父版本 `SA_PREPARED`、新 `SA_PROFILE`、`SA_TOKENIZER`、长度和筛选条件后直接运行。Research 二次筛选同样支持 `SA_CORRECTNESS=Correct/Incorrect/any`，使用父版本 normalized.jsonl 中已有的 correctness 标签。程序不重新分词，恢复公开划分并记录父版本。父版本只按预处理时的 tokenizer 计过长度；新增 tokenizer 必须重新预处理。
+使用 `scripts/data/sh/22_select_openseeker.sh`、`scripts/data/sh/23_select_research.sh` 或 `scripts/data/sh/26_select_browsecomp_sft.sh`。设置父版本 `SA_PREPARED`、新 `SA_PROFILE`、`SA_TOKENIZER`、长度和筛选条件后直接运行。Research 二次筛选同样支持 `SA_CORRECTNESS=Correct/Incorrect/any`，使用父版本 normalized.jsonl 中已有的 correctness 标签。程序不重新分词，恢复公开划分并记录父版本。父版本只按预处理时的 tokenizer 计过长度；新增 tokenizer 必须重新预处理。
 
 筛选结果不复制全量 normalized 文件；如要继续扩大/改变范围，应仍从拥有 normalized 文件的原始预处理版本筛选。保留父目录及其原始输入，保证公开划分可恢复。
 
@@ -76,18 +77,18 @@ Research 优先读取原始字段 `trajectory_correctness`，该字段缺失时�
 
 ## 5. 可选：混合 OpenSeeker 与 Research
 
-先分别完成两类数据的预处理。若两边需要不同的正确性或工具观测条件，先各自筛选，再把选好的两个目录填入 [24_mix_datasets.sh](../scripts/data/sh/24_mix_datasets.sh)。可使用原始 prepared 版本或 22/23 二次筛选产物。每个父目录需要 `manifest.json`、`train.jsonl`、`validation.jsonl` 和 `test.jsonl`。
+先完成所需来源的预处理。任选 OpenSeeker、Research、BrowseComp SFT 中两个或三个来源。若两边需要不同的正确性或工具观测条件，先各自筛选，再把选好的两个目录填入 [24_mix_datasets.sh](../scripts/data/sh/24_mix_datasets.sh)。可使用原始 prepared 版本或 22/23 二次筛选产物。每个父目录需要 `manifest.json`、`train.jsonl`、`validation.jsonl` 和 `test.jsonl`。
 
 | SH 变量 | 作用及修改提示 |
 |---|---|
 | `PYTHON_BIN` | Linux Python 解释器，默认使用当前环境中的 `python`。也可在启动前设为环境的 `bin/python` 绝对路径。 |
-| `SA_OPENSEEKER_PREPARED` | OpenSeeker 父版本路径，来源可为 polar、zephyr 或 combined。 |
-| `SA_RESEARCH_PREPARED` | Research 父版本路径。两来源模式可填普通 Research 或 BrowseComp SFT。三来源模式填写普通 Research。 |
-| `SA_BROWSECOMP_SFT_PREPARED` | 可选第三个父版本路径，填写 `25_prepare_browsecomp_sft.sh` 产物。留空使用两来源。 |
+| `SA_OPENSEEKER_PREPARED` | OpenSeeker 父版本路径，来源可为 polar、zephyr 或 combined。留空跳过。 |
+| `SA_RESEARCH_PREPARED` | Research 父版本路径，来源为 `research`。留空跳过。 |
+| `SA_BROWSECOMP_SFT_PREPARED` | BrowseComp SFT 父版本路径，填写 25 或 26 的产物。留空跳过。 |
 | `SA_PROFILE` | 输出版本名。调整父版本、比例、长度或 seed 后使用新名称。 |
 | `SA_TOKENIZER` | 各父版本清单中共同的 tokenizer 键，须与训练的 `SA_MODEL_PATH` 一致。混合时比较计长身份与 tokenizer 指纹。 |
 | `SA_MAX_LENGTH` | 完整轨迹 token 上限，正整数。超长整条排除。调高上限只能使用父划分里已有的轨迹。 |
-| `SA_RATIO` | 按训练**轨迹数**指定各来源的正整数比例。两来源顺序 OpenSeeker:Research，默认 `1:1`。三来源顺序 OpenSeeker:Research:BrowseComp SFT，例如 `2:1:1`。 |
+| `SA_RATIO` | 按训练**轨迹数**指定各来源的正整数比例。按 OpenSeeker、Research、BrowseComp SFT 顺序填写，跳过空目录。例如两路 `1:1`，三路 `2:1:1`。 |
 | `SA_SEED` | 整数随机种子，控制无放回抽样和训练文件顺序。固定父文件、参数和 Python 环境时可复现。 |
 
 ```bash

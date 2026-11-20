@@ -1103,8 +1103,8 @@
 
 | 实际变量 | 逻辑字段 | 类型 | 默认值 |
 |---|---|---|---|
-| `SA_OPENSEEKER_PREPARED` | `OPENSEEKER_PREPARED` | str | `artifacts/datasets/openseeker/prepared/qwen35_L16384_s42` |
-| `SA_RESEARCH_PREPARED` | `RESEARCH_PREPARED` | str | `artifacts/datasets/research/prepared/qwen35_L16384_s42` |
+| `SA_OPENSEEKER_PREPARED` | `OPENSEEKER_PREPARED` | optional | `artifacts/datasets/openseeker/prepared/qwen35_L16384_s42` |
+| `SA_RESEARCH_PREPARED` | `RESEARCH_PREPARED` | optional | `artifacts/datasets/research/prepared/qwen35_L16384_s42` |
 | `SA_BROWSECOMP_SFT_PREPARED` | `BROWSECOMP_SFT_PREPARED` | optional | `空字符串` |
 | `SA_PROFILE` | `PROFILE` | str | `qwen35_L16384_mix_1to1_s42` |
 | `SA_TOKENIZER` | `TOKENIZER` | str | `/models/Qwen3.5-4B` |
@@ -1112,11 +1112,15 @@
 | `SA_RATIO` | `RATIO` | str | `1:1` |
 | `SA_SEED` | `SEED` | int | `42` |
 
-比例按训练轨迹数计算。第三来源留空时顺序为 OpenSeeker:Research，启用时顺序为 OpenSeeker:Research:BrowseComp SFT。详见 [数据准备](20_data.md#5-可选混合-openseeker-与-research)。
+比例按训练轨迹数计算。按 OpenSeeker、Research、BrowseComp SFT 顺序填写，跳过空目录。详见 [数据准备](20_data.md#5-可选混合-openseeker-与-research)。
 
 ### 25_prepare_browsecomp_sft.sh
 
 入口为 `scripts/data/sh/25_prepare_browsecomp_sft.sh`，执行适配器为 `scripts/data/py/25_prepare_browsecomp_sft.py`。默认预处理 `syn_planner.parquet`，并从训练数据排除默认保护列表中的题。所有变量见 [预处理参数](21_browsecomp_sft.md#预处理参数)。
+
+### 26_select_browsecomp_sft.sh
+
+入口为 `scripts/data/sh/26_select_browsecomp_sft.sh`，执行适配器为 `scripts/data/py/26_select_browsecomp_sft.py`。变量同 23，`SA_PREPARED` 指向 BrowseComp SFT 产物，`SA_PROFILE` 使用新的版本名，正确性筛选设为 `any`。
 
 ### 30_prepare_browsecomp.sh
 

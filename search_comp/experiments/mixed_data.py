@@ -1,4 +1,4 @@
-"""Mix the selected splits of two immutable prepared dataset versions."""
+"""Mix selected splits from immutable prepared dataset versions."""
 from collections import Counter
 from contextlib import ExitStack
 import json
@@ -7,12 +7,11 @@ import random
 
 from search_comp.data.openseeker import VERSION, question_key
 from search_comp.data.browsecomp_sft import SOURCE
+from .data import DATASET_SOURCES
 from .runtime import ROOT, digest, job, path, read_json, slug, stamp, write_json
 
 
 SPLITS = ("test", "validation", "train")
-PARENT_SOURCES = {"openseeker": {"polar", "zephyr", "combined"},
-                  "research": {"research", SOURCE}, SOURCE: {SOURCE}}
 
 
 def read_rows(stream):
@@ -25,9 +24,11 @@ def read_rows(stream):
 
 def mix_datasets(*, openseeker_prepared, research_prepared, profile, tokenizer,
                  max_length, ratio, seed, browsecomp_sft_prepared=None):
-    parents = {"openseeker": path(openseeker_prepared), "research": path(research_prepared)}
-    if browsecomp_sft_prepared:
-        parents[SOURCE] = path(browsecomp_sft_prepared)
+    directories = {"openseeker": openseeker_prepared, "research": research_prepared,
+                   SOURCE: browsecomp_sft_prepared}
+    parents = {name: path(directory) for name, directory in directories.items() if directory}
+    if len(parents) < 2:
+        raise ValueError("混合至少需要两个不同来源")
     if len(set(parents.values())) != len(parents):
         raise ValueError("父版本目录必须互不相同")
     parts = ratio.split(":")
@@ -49,8 +50,7 @@ def mix_datasets(*, openseeker_prepared, research_prepared, profile, tokenizer,
         for name, directory in parents.items():
             manifest_path = directory / "manifest.json"
             manifest = read_json(manifest_path)
-            valid_sources = {"research"} if name == "research" and SOURCE in parents else PARENT_SOURCES[name]
-            if manifest.get("protocol") != VERSION or manifest["arguments"]["source"] not in valid_sources:
+            if manifest.get("protocol") != VERSION or manifest["arguments"]["source"] not in DATASET_SOURCES[name]:
                 raise ValueError(f"父版本来源或轨迹协议不匹配: {directory}")
             metadata = manifest["tokenizers"].get(tokenizer)
             if not metadata or not metadata.get("backend_sha256"):
@@ -58,7 +58,8 @@ def mix_datasets(*, openseeker_prepared, research_prepared, profile, tokenizer,
             tokenizers[name] = metadata
             provenance[name] = dict(path=str(directory), manifest_sha256=digest(manifest_path),
                                     splits={split: digest(directory / f"{split}.jsonl") for split in SPLITS})
-        if any(metadata != tokenizers["openseeker"] for metadata in tokenizers.values()):
+        shared_tokenizer = next(iter(tokenizers.values()))
+        if any(metadata != shared_tokenizer for metadata in tokenizers.values()):
             raise ValueError("父版本的 tokenizer 计长身份不一致")
 
         rows = {split: {name: [] for name in parents} for split in SPLITS}
@@ -107,7 +108,7 @@ def mix_datasets(*, openseeker_prepared, research_prepared, profile, tokenizer,
                     target.write(stream.readline().rstrip(b"\r\n") + b"\n")
         actual_ratio = ":".join(str(len(train[name])) for name in parents)
         write_json(output / "manifest.json", dict(
-            protocol=VERSION, arguments=settings, tokenizers={tokenizer: tokenizers["openseeker"]},
+            protocol=VERSION, arguments=settings, tokenizers={tokenizer: shared_tokenizer},
             parents=provenance, counts=counts, available_train=available, excluded=dict(excluded),
             actual_train_ratio=actual_ratio))
         print(f"DATASET_DIR = {str(output)!r}; train {':'.join(parents)} = {actual_ratio}")

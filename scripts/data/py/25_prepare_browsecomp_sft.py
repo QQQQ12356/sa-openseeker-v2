@@ -31,7 +31,7 @@ if __name__ == "__main__":
     from search_comp.experiments.shell_config import load_settings
     globals().update(load_settings(__file__, SCHEMA))
     from search_comp.experiments.data import prepare_dataset
-    prepare_dataset(dataset_name="research", source=SOURCE, snapshot_dir=SNAPSHOT_DIR, inputs=INPUTS,
+    prepare_dataset(dataset_name="browsecomp-sft", source=SOURCE, snapshot_dir=SNAPSHOT_DIR, inputs=INPUTS,
                     profile=PROFILE, models=MODELS, min_length=MIN_LENGTH, max_length=MAX_LENGTH,
                     correctness=CORRECTNESS, observations=OBSERVATIONS, workers=WORKERS, seed=SEED,
                     val_fraction=VAL_FRACTION, test_fraction=TEST_FRACTION, offline=OFFLINE,

@@ -6,12 +6,20 @@ from search_comp.data.browsecomp_sft import REPO, SHARDS, SOURCE
 from .runtime import ROOT, configure, digest, job, path, read_json, slug, stamp, write_json
 
 
+DATASET_SOURCES = {
+    "openseeker": {"polar", "zephyr", "combined"},
+    "research": {"research"},
+    SOURCE: {SOURCE},
+}
+
+
 def download_dataset(*, source, revision, environment):
     configure(environment)
     if source not in {"polar", "zephyr", "research", SOURCE}:
         raise ValueError("source 必须为 polar / zephyr / research / browsecomp-sft")
     from search_comp.workflows.download_openseeker import run
-    directory = ROOT / "artifacts/datasets" / ("research" if source in {"research", SOURCE} else "openseeker")
+    dataset_name = source if source in {"research", SOURCE} else "openseeker"
+    directory = ROOT / "artifacts/datasets" / dataset_name
     with job(directory / "jobs" / stamp("download"), "download_dataset", dict(source=source, revision=revision)):
         run(SimpleNamespace(source=source, revision=revision, endpoint=environment["HF_ENDPOINT"], output=directory / "raw"))
 
@@ -21,9 +29,7 @@ def prepare_dataset(*, dataset_name, source, snapshot_dir, inputs, profile, mode
                     test_fraction, offline, environment, shards=(), canonical_questions=None,
                     protected_questions=(), overlap_threshold=0.30):
     configure(environment)
-    if dataset_name not in {"openseeker", "research"}:
-        raise ValueError("不支持的数据身份")
-    if (source in {"research", SOURCE}) != (dataset_name == "research"):
+    if source not in DATASET_SOURCES.get(dataset_name, ()):
         raise ValueError("SOURCE 与 DATASET_NAME 不一致")
     if snapshot_dir and inputs:
         raise ValueError("SNAPSHOT_DIR 和 INPUTS 只能填写一个")
@@ -59,11 +65,9 @@ def prepare_dataset(*, dataset_name, source, snapshot_dir, inputs, profile, mode
 def select_dataset(*, dataset_name, prepared, profile, tokenizer, min_length, max_length,
                    exact_length, correctness, observations, environment):
     configure(environment)
-    if dataset_name not in {"openseeker", "research"}:
-        raise ValueError("不支持的数据身份")
     parent = path(prepared)
     manifest = read_json(parent / "manifest.json")
-    if (manifest["arguments"]["source"] in {"research", SOURCE}) != (dataset_name == "research"):
+    if manifest["arguments"]["source"] not in DATASET_SOURCES.get(dataset_name, ()):
         raise ValueError("筛选数据来源与 DATASET_NAME 不一致")
     directory = ROOT / "artifacts/datasets" / dataset_name / "prepared" / slug(profile)
     options = dict(prepared=parent, output=directory, max_length=max_length,

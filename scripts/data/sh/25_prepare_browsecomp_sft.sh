@@ -20,7 +20,7 @@ export HF_HUB_OFFLINE=1
 # ENVIRONMENT.CUDA_VISIBLE_DEVICES：GPU 物理编号；多卡示例 0,1,2,3
 export CUDA_VISIBLE_DEVICES=0
 
-# SOURCE：固定 browsecomp-sft，产物使用 Research 训练入口。
+# SOURCE：固定 browsecomp-sft，输出到 artifacts/datasets/browsecomp-sft/prepared/<PROFILE>/。
 export SA_SOURCE=browsecomp-sft
 
 # SNAPSHOT_DIR：必改：下载输出的 commit 目录；自动读取清单内全部 shard；与 INPUTS 互斥

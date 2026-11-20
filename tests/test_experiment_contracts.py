@@ -80,6 +80,18 @@ class ExperimentContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "dataset_name"):
             self.training_spec(source="research")
 
+    def test_browsecomp_sft_has_its_own_training_and_evaluation_identity(self):
+        dataset = self.dataset("browsecomp-sft")
+        options = ("local-model", "qwen35", dict(max_length=128), {})
+        with self.assertRaisesRegex(ValueError, "dataset_name"):
+            resolve_training("plain", "research", dataset, *options)
+        config, _, _ = resolve_training("plain", "browsecomp-sft", dataset, *options)
+        self.assertEqual(config["train_data_path"], str(dataset / "train.jsonl"))
+
+        write_json(self.directory / "job.json", dict(operation="train", status="complete"))
+        write_json(self.directory / "experiment.json", dict(method="plain", dataset_name="browsecomp-sft"))
+        self.assertEqual(resolve_target("plain", self.directory, None)[0], "browsecomp-sft")
+
     def test_wrong_tokenizer_identity_is_rejected(self):
         directory = self.dataset()
         with self.assertRaisesRegex(ValueError, "tokenizer"):

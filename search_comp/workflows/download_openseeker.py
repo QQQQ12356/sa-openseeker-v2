@@ -36,7 +36,7 @@ def run(args):
         if args.source != source and (args.source != 'all' or source == SOURCE):
             continue
         info = HfApi(endpoint=args.endpoint).dataset_info(repo, revision=args.revision)
-        directory = args.output / source / info.sha
+        directory = args.output / info.sha if source == SOURCE else args.output / source / info.sha
         patterns = [*SHARDS, 'README.md'] if source == SOURCE else ['*.jsonl', '*.parquet', 'README.md']
         snapshot_download(repo, repo_type='dataset', revision=info.sha, endpoint=args.endpoint,
                           local_dir=str(directory), allow_patterns=patterns)

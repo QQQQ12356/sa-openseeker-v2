@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from search_comp.data.browsecomp_sft import SOURCE as BROWSECOMP_SFT
 from search_comp.evaluation.checkpoints import resolve_checkpoint
 from .runtime import ROOT, configure, digest, job, path, read_json, slug, stamp, write_json
+from .training import TRAINING_SOURCES
 
 BENCHMARKS = {"browsecomp", "browsecomp-plus", "hotpotqa"}
 CHECKPOINT_NAME = re.compile(r"checkpoint-[1-9][0-9]*")
@@ -89,7 +90,7 @@ def resolve_target(method, training_run, model_path, checkpoint=None):
     run = path(training_run)
     record = read_json(run / "job.json")
     spec = read_json(run / "experiment.json")
-    if spec["method"] != method or spec["dataset_name"] not in {"openseeker", "research", "mixed"}:
+    if spec["method"] != method or spec["dataset_name"] not in TRAINING_SOURCES:
         raise ValueError("训练实验与方法不一致")
     if record["operation"] != "train":
         raise ValueError("必须指定正式训练实验；plan 没有模型权重")

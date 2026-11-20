@@ -7,9 +7,11 @@
 | `syn_planner.parquet` | 19,505 条网页搜索与抓取轨迹，包含 HotpotQA 等六个来源。 | 默认选用。保留实际评测题文件用于去重。 |
 | `data.parquet` | 30,355 条 BrowseComp 运行记录，`user` 消息可能含题目的长改写或原题。已确认与 BrowseComp、BrowseComp-Plus 评测同题。 | 显式选择，并提供原题文件用于归并。只要实验仍用这两套题评测，就把它们保留在受保护列表中。若实验专门研究这些轨迹，可使用独立评测集，按实验范围调整保护列表。 |
 
+`browsecomp-sft` 是独立数据集身份，与 `research`、`openseeker` 同级。新下载、处理结果和任务日志统一归档到 `artifacts/datasets/browsecomp-sft/`。
+
 ## 下载与准备评测题
 
-1. 执行 `bash scripts/data/sh/12_download_browsecomp_sft.sh`。下载产物位于 `artifacts/datasets/research/raw/browsecomp-sft/<commit>/`。保存终端输出路径。两个 Parquet 合计约 2.13 GB，主分片只有一个大 row group。处理主分片时建议先降低 `SA_WORKERS` 并检查 Linux 主机可用内存。
+1. 执行 `bash scripts/data/sh/12_download_browsecomp_sft.sh`。下载产物位于 `artifacts/datasets/browsecomp-sft/raw/<commit>/`。旧快照可继续填写原来的 `SA_SNAPSHOT_DIR`，已有 Parquet 可从 `SA_INPUTS` 读取。两个 Parquet 合计约 2.13 GB，主分片只有一个大 row group。处理主分片时建议先降低 `SA_WORKERS` 并检查 Linux 主机可用内存。
 2. 准备所有计划评测的题目，参照 [模型、训练数据与 benchmark 准备](20_data.md)。默认保护列表包含 BrowseComp、BrowseComp-Plus、HotpotQA。BrowseComp 题目由 30 的 `download` 生成，另两套题目由 31/32 的 `prepare` 生成。已有题目 JSONL 时直接用其真实路径。这个步骤只需题目文件，重合检查无需建立索引。
 3. 修改 `scripts/data/sh/25_prepare_browsecomp_sft.sh`，运行 `bash scripts/data/sh/25_prepare_browsecomp_sft.sh`。
 
@@ -29,7 +31,7 @@
 | SH 变量 | 作用和修改提示 |
 |---|---|
 | `PYTHON_BIN`、`HF_ENDPOINT`、`HF_HUB_OFFLINE`、`CUDA_VISIBLE_DEVICES` | 同下载脚本。预处理默认 `HF_HUB_OFFLINE=1`，使用本地模型文件。 |
-| `SA_SOURCE` | 固定 `browsecomp-sft`。输出归入 Research 训练入口。 |
+| `SA_SOURCE` | 固定 `browsecomp-sft`。输出到 `artifacts/datasets/browsecomp-sft/prepared/<PROFILE>/`。 |
 | `SA_SNAPSHOT_DIR` | 下载输出的 commit 目录。用快照时将 `SA_INPUTS` 留为 `[]`。 |
 | `SA_INPUTS` | 已有本地文件时填写 JSON 路径数组，如 `["/data/syn_planner.parquet"]`，并清空 `SA_SNAPSHOT_DIR`。按数组顺序处理。 |
 | `SA_SHARDS` | 仅在使用快照时生效。默认 `["syn_planner.parquet"]`。选主分片填 `["data.parquet"]`，同时处理时按快照清单顺序读取。 |
@@ -52,8 +54,10 @@
 
 ## 训练与混合
 
-- 单独训练时使用 Plain 或 Beacon 的 `11_train_research.sh`，将 `SA_DATASET_NAME` 设为 `research`，`SA_DATASET_DIR` 指向 `artifacts/datasets/research/prepared/<PROFILE>/`。
-- 混合时使用 `24_mix_datasets.sh`。与 OpenSeeker 两路混合时将 SFT 目录填入 `SA_RESEARCH_PREPARED`。同时加入普通 Research 时，把 SFT 填入 `SA_BROWSECOMP_SFT_PREPARED`，按 OpenSeeker:Research:BrowseComp SFT 顺序设置 `SA_RATIO`，例如 `2:1:1`。混合仍优先保留高优先级的同题划分，按 `test > validation > train` 排除低优先级副本。
+- 二次筛选使用 `26_select_browsecomp_sft.sh`。填写 `SA_PREPARED`、新 `SA_PROFILE`、tokenizer 和筛选条件。程序复用父版本计长，输出仍在 `artifacts/datasets/browsecomp-sft/prepared/`。
+- 单独训练复用 Plain 或 Beacon 的 `11_train_research.sh`。设置 `SA_DATASET_NAME=browsecomp-sft`，`SA_DATASET_DIR` 指向所选 prepared 版本。实验归档到 `artifacts/experiments/<方法>/browsecomp-sft/`。
+- 旧版写在 `artifacts/datasets/research/prepared/` 的 BrowseComp SFT 产物可继续使用。新训练使用 `SA_DATASET_NAME=browsecomp-sft`，旧训练实验可继续从原目录评测。保留旧实验引用的文件路径。
+- 混合时使用 `24_mix_datasets.sh`。把 SFT 目录填入 `SA_BROWSECOMP_SFT_PREPARED`。任选两个或三个来源，空目录对应的比例项省略。与 OpenSeeker 两路混合时清空 `SA_RESEARCH_PREPARED`，比例例如 `1:1`。三路顺序为 OpenSeeker:Research:BrowseComp SFT，例如 `2:1:1`。混合仍优先保留高优先级的同题划分，按 `test > validation > train` 排除低优先级副本。
 - 使用混合训练产物时，将训练脚本的 `SA_DATASET_NAME` 设为 `mixed`。测试脚本中的 `SA_PROMPT_DATA` 选一个与评测工具能力匹配、仅含一种 system/tools 组合的规范化 JSONL。单独训练但同时纳入两个 SFT 分片时，同样可用此变量显式选择一种提示词。
 - 预处理结束先检查 `manifest.json` 的输入文件指纹、题目参考文件指纹、计长分布与划分数量。查看 `rejected.jsonl` 的 `protected_question`、`unresolved_benchmark_question` 和工具格式错误，确认训练集非空后再启动训练。
 
