@@ -2,6 +2,8 @@
 
 Plain 和 Beacon 的 BrowseComp、BrowseComp-Plus、HotpotQA 测试入口均支持选择训练中的 `checkpoint-<step>`。OpenSeeker、Research 和混合数据实验使用同一套测试脚本。数据身份及基座由所属训练实验确定，混合实验通过 `SA_PROMPT_DATA` 显式选择评测提示词。
 
+用实验训练数据或 prepared 保留划分作为测试题时，使用单独的 [训练数据评测入口](34_training_data_evaluation.md)。
+
 ## 1. 选入口并填写参数
 
 | Benchmark | Plain | Beacon | 准备条件 |

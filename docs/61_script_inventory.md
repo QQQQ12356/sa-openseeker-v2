@@ -1,5 +1,7 @@
 # 61 各 SH 脚本的完整参数清单
 
+`scripts/tools/sh/84_test_training_data.sh` 的变量、默认值及修改提示见 [训练数据评测参数表](34_training_data_evaluation.md#参数表)。
+
 所有参数在对应 SH 修改；PY 只定义类型。作用、约束与联动见 [60 参数手册](60_parameters.md)，Shell 写法见 [05 脚本结构](05_script_layout.md)。空值以 `空字符串` 表示，凭证以 `继承服务器环境` 表示。公共 `PYTHON_BIN` 选择解释器，不属于模型超参数。
 
 ## plain
