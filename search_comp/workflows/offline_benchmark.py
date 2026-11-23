@@ -303,7 +303,7 @@ def continue_run(args, output, rows, manifest, run_manifest):
     return predictions
 
 
-def score_phase(args, output, rows, manifest, prediction_path):
+def score_phase(args, output, rows, manifest, prediction_path, *, recovery=None):
     predictions = load_predictions(prediction_path, rows)
     source_manifest = prediction_path.parent / "manifest.json"
     if source_manifest.is_file():
@@ -338,6 +338,8 @@ def score_phase(args, output, rows, manifest, prediction_path):
                    questions_sha256=manifest["questions_sha256"], corpus_sha256=manifest["corpus_sha256"],
                    subset=args.limit > 0 or len(rows) != manifest["questions"] or not manifest["canonical_corpus"],
                    corpus_scope=manifest["corpus_scope"], offline=True)
+    if recovery is not None:
+        summary["recovery"] = recovery
     dump(output / "summary.metrics.json", summary)
     print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
     if not summary["complete"]:

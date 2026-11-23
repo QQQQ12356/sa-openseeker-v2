@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 中断后可用 scripts/tools/sh/85_recover_browsecomp_plus.sh 汇总已落盘预测，并计算临时指标。
 # 独立入口：只修改本文件参数；对应 py 文件负责执行。完整说明：docs/60_parameters.md。
 set -euo pipefail
 

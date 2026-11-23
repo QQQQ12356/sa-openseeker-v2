@@ -2,6 +2,8 @@
 
 `scripts/tools/sh/84_test_training_data.sh` 的变量、默认值及修改提示见 [训练数据评测参数表](34_training_data_evaluation.md#参数表)。
 
+`scripts/tools/sh/85_recover_browsecomp_plus.sh` 用于汇总中断的 42 测试并计算临时指标。见 [恢复评分用法与参数表](36_browsecomp_plus_resume.md#85-从中断的-browsecomp-plus-测试恢复评分)。
+
 `scripts/data/sh/33_prepare_browsecomp_plus_dense.sh` 和三种方法的 `42_test_browsecomp_plus.sh` 向量检索变量见 [BrowseComp-Plus 向量检索说明](35_browsecomp_plus_dense.md)。
 
 三种方法的 40、42、44 测试脚本，以及 `84_test_training_data.sh` 均支持续测变量 `SA_RESUME_FROM`，类型为 optional，默认空。详见 [续测变量说明](36_browsecomp_plus_resume.md#变量说明)。
