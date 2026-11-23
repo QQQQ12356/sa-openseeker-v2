@@ -6,18 +6,24 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from search_comp.experiments.browsecomp_plus_dense import INDEX_REPO, SHARDS, prepare_vectors
+from search_comp.experiments import browsecomp_plus_dense, runtime
+from search_comp.experiments.browsecomp_plus_dense import INDEX_REPO, SHARDS
 from search_comp.experiments.runtime import digest, write_json
 from search_comp.offline import qwen_embedding as dense
 
 
-def test_import_dense_shards_joins_by_docid_and_validates_provenance(tmp_path, monkeypatch):
+@pytest.mark.parametrize("prepared_dir", ["", "shared/prepared"])
+def test_import_dense_shards_joins_by_docid_and_validates_provenance(tmp_path, monkeypatch, prepared_dir):
+    monkeypatch.setattr(browsecomp_plus_dense, "ROOT", tmp_path)
+    monkeypatch.setattr(runtime, "ROOT", tmp_path)
+    monkeypatch.setattr(browsecomp_plus_dense, "configure", lambda environment: None)
+    benchmark = tmp_path / "artifacts/benchmarks/browsecomp-plus/v1"
     model = tmp_path / "model"
     model.mkdir()
     write_json(model / "config.json", {})
     write_json(model / "download_manifest.json", dict(repo_id=dense.MODEL_REPO, revision="test"))
-    prepared = tmp_path / "prepared"
-    prepared.mkdir()
+    prepared = tmp_path / prepared_dir if prepared_dir else benchmark / "prepared"
+    prepared.mkdir(parents=True)
     corpus = prepared / "corpus.jsonl"
     ids = ["a", "b", "c", "d"]
     corpus.write_text("".join(json.dumps(dict(id=docid, text=docid)) + "\n" for docid in ids), encoding="utf-8")
@@ -35,8 +41,12 @@ def test_import_dense_shards_joins_by_docid_and_validates_provenance(tmp_path, m
     write_json(source / "download_manifest.json", dict(repo=INDEX_REPO, revision="test",
                files={name: digest(source / name) for name in SHARDS}))
 
-    target = tmp_path / "vectors"
-    prepare_vectors(tmp_path, target, "official", model, source, "cpu", 1, 128)
+    target = benchmark / "vector_indexes/official"
+    browsecomp_plus_dense.prepare_browsecomp_plus_dense(
+        version="v1", index_profile="official", phase="prepare", source="official",
+        model_revision="main", index_revision="test", embedding_model_path=model, official_index_dir=source,
+        device="cpu", batch_size=1, doc_max_length=128, environment={}, prepared_dir=prepared_dir,
+    )
     metadata = dense.read_vector_manifest(target, manifest, model, verify=True)
     assert metadata["documents"] == 4
 

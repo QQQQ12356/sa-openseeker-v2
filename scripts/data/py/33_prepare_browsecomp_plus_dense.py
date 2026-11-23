@@ -17,6 +17,7 @@ SCHEMA = {
     "INDEX_REVISION": {"env": "SA_INDEX_REVISION", "type": "str"},
     "EMBEDDING_MODEL_PATH": {"env": "SA_EMBEDDING_MODEL_PATH", "type": "optional"},
     "OFFICIAL_INDEX_DIR": {"env": "SA_OFFICIAL_INDEX_DIR", "type": "optional"},
+    "PREPARED_DIR": {"env": "SA_PREPARED_DIR", "type": "str"},
     "DEVICE": {"env": "SA_DEVICE", "type": "str"},
     "BATCH_SIZE": {"env": "SA_BATCH_SIZE", "type": "int"},
     "DOC_MAX_LENGTH": {"env": "SA_DOC_MAX_LENGTH", "type": "int"},

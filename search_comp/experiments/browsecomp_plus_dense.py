@@ -57,10 +57,11 @@ def encode_blocks(corpus, encoder, batch_size, max_length):
         yield encoder.encode([row["text"] for row in batch], max_length), [row["id"] for row in batch]
 
 
-def prepare_vectors(root, directory, source, model_dir, official_index_dir, device, batch_size, doc_max_length):
+def prepare_vectors(root, directory, source, model_dir, official_index_dir, device, batch_size, doc_max_length,
+                    *, prepared_dir=None):
     import numpy as np
 
-    prepared = root / "prepared"
+    prepared = prepared_dir if prepared_dir is not None else root / "prepared"
     corpus = prepared / "corpus.jsonl"
     manifest = read_json(prepared / "manifest.json")
     if manifest["benchmark"] != "browsecomp-plus" or digest(corpus) != manifest["corpus_sha256"]:
@@ -116,7 +117,7 @@ def prepare_vectors(root, directory, source, model_dir, official_index_dir, devi
 
 def prepare_browsecomp_plus_dense(*, version, index_profile, phase, source, model_revision, index_revision,
                                  embedding_model_path, official_index_dir, device, batch_size, doc_max_length,
-                                 environment):
+                                 environment, prepared_dir=None):
     configure(environment)
     if phase not in {"download", "prepare"} or source not in {"official", "encode"}:
         raise ValueError("PHASE 须为 download/prepare，SOURCE 须为 official/encode")
@@ -132,12 +133,13 @@ def prepare_browsecomp_plus_dense(*, version, index_profile, phase, source, mode
         raise ValueError("请填写 EMBEDDING_MODEL_PATH，official 模式还须填写 OFFICIAL_INDEX_DIR")
     if batch_size < 1 or not 1 <= doc_max_length <= 32768:
         raise ValueError("BATCH_SIZE 须为正数，DOC_MAX_LENGTH 须在 1 至 32768")
+    prepared_dir = path(prepared_dir) if prepared_dir else root / "prepared"
     with job(root / "jobs" / stamp("prepare_dense"), "prepare_dense_vectors",
-             dict(source=source, output=output, embedding_model_path=embedding_model_path,
+             dict(source=source, output=output, prepared_dir=prepared_dir, embedding_model_path=embedding_model_path,
                   official_index_dir=official_index_dir, device=device, batch_size=batch_size,
                   doc_max_length=doc_max_length)):
         if output.exists():
             raise FileExistsError(f"向量索引版本已存在；请修改 INDEX_PROFILE: {output}")
         prepare_vectors(root, output, source, path(embedding_model_path),
                         path(official_index_dir) if official_index_dir else None,
-                        device, batch_size, doc_max_length)
+                        device, batch_size, doc_max_length, prepared_dir=prepared_dir)

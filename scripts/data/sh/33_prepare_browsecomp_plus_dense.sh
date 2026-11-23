@@ -33,6 +33,8 @@ export SA_INDEX_REVISION=980cfd0c8250482e8be900326fddca806511d05c
 export SA_EMBEDDING_MODEL_PATH=''
 # official 的 prepare 必填。填下载输出的官方向量快照目录。
 export SA_OFFICIAL_INDEX_DIR=''
+# prepare 可选。填含 manifest.json 和 corpus.jsonl 的目录；留空使用当前版本的 prepared。
+export SA_PREPARED_DIR=''
 # encode 的模型设备。cuda:0 指第一张可见 GPU；也可使用 cpu。
 export SA_DEVICE=cuda:0
 # encode 批大小。显存不足先减小此值。

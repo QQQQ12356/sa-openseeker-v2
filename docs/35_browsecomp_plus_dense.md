@@ -8,7 +8,7 @@ Plain、Beacon 和 Baseline 的 BrowseComp-Plus 测试支持两种检索器。�
 
 用 [BrowseComp-Plus 数据准备流程](20_data.md#8-准备-browsecomp-plus)完成 `31_prepare_browsecomp_plus.sh` 的 `download → prepare → index` 三个阶段。如果对应版本已完成，可直接复用。三种评测入口的 `SA_BENCHMARK_DIR` 和下文 33 脚本的 `SA_VERSION` 应指向同一数据版本。
 
-向量准备读取该版本的 `prepared/corpus.jsonl`。评测仍需要 `index.sqlite` 和 `index.manifest.json`，其中保存按原 `docid` 读取的正文。官方导入要求完整的官方语料及完全匹配的文档 ID。指定自定义或裁剪语料时，走自行编码路径。
+向量准备默认读取该版本 `prepared/` 下的 `manifest.json` 和 `corpus.jsonl`。可用 `SA_PREPARED_DIR` 复用其他位置的已准备语料。评测仍需要与该语料匹配的 `index.sqlite` 和 `index.manifest.json`，其中保存按原 `docid` 读取的正文。官方导入要求完整的官方语料及完全匹配的文档 ID。指定自定义或裁剪语料时，走自行编码路径。
 
 ## 2. 准备向量索引
 
@@ -40,6 +40,7 @@ bash scripts/data/sh/33_prepare_browsecomp_plus_dense.sh
 | `SA_INDEX_REVISION` | `980cfd0c8250482e8be900326fddca806511d05c` | 官方向量快照 revision，只有 `official` 下载阶段使用。切换时检查分片、模型和语料是否匹配。 |
 | `SA_EMBEDDING_MODEL_PATH` | 空 | 准备阶段必填。填模型下载输出的 commit 目录，包含模型文件和 `download_manifest.json`。同目录用于评测的查询编码。 |
 | `SA_OFFICIAL_INDEX_DIR` | 空 | 官方导入必填。填向量下载输出的快照根目录，目录内有 `download_manifest.json`。自行编码可留空。 |
+| `SA_PREPARED_DIR` | 空 | 仅 `prepare` 使用，适用于 `official` 和 `encode`。填含 `manifest.json` 和 `corpus.jsonl` 的目录。相对路径以项目根目录为准。留空使用 `artifacts/benchmarks/browsecomp-plus/<VERSION>/prepared/`。向量索引的输出位置仍由 `SA_VERSION` 和 `SA_INDEX_PROFILE` 决定。 |
 | `SA_DEVICE` | `cuda:0` | 仅用于自行编码。`cuda:0` 是第一张可见 GPU，使用 FP16；`cpu` 用 FP32，编码通常更慢。 |
 | `SA_BATCH_SIZE` | `4` | 自行编码的每批文档数。遇到显存不足先减小该值。 |
 | `SA_DOC_MAX_LENGTH` | `4096` | 自行编码的单篇输入 token 上限，范围 1–32768。影响向量覆盖的文本范围。 |
