@@ -93,7 +93,7 @@ bash scripts/plain/sh/45_score_hotpotqa.sh
 
 评分沿用测试的 benchmark 版本和 `limit`，核对方法、预测和 manifest 摘要。新的裁判设置创建新的评分目录，原结果保留。指标位于 `scores/<评分记录>/results/summary.metrics.json`。失败/缺失生成保持在分母内；裁判不完整会报错，不能将部分分数当作完成结果。
 
-如果 42 在生成期间中断，可用 [85 恢复评分](36_browsecomp_plus_resume.md#85-从中断的-browsecomp-plus-测试恢复评分) 汇总各 worker 已落盘的预测，计算带覆盖率的临时指标。
+如果 42 在生成期间中断，可用 [85 恢复评分](36_browsecomp_plus_resume.md#85-从中断的-browsecomp-plus-测试恢复评分) 汇总各 worker 已落盘的预测。临时指标按已恢复题目计算，原测试的生成覆盖率单独记录。
 
 ## 7. 归档与排查
 

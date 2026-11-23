@@ -18,7 +18,7 @@ export CUDA_VISIBLE_DEVICES=0
 export SA_EVALUATION_DIR=''
 # 恢复评分标签。每次在原测试的 recovery/ 下创建独立记录。
 export SA_RUN_NAME=partial_score
-# true 仅算检索指标；false 同时用本地裁判计算答案准确率。
+# 仅对已恢复的预测计分。true 只算检索指标；false 同时用本地裁判计算答案准确率。
 export SA_RETRIEVAL_ONLY=true
 
 # 仅答案评分必填。使用与正式评分相同的本地裁判模型目录。

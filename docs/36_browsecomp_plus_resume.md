@@ -104,7 +104,7 @@ bash scripts/plain/sh/42_test_browsecomp_plus.sh
 | `CUDA_VISIBLE_DEVICES` | `0` | 答案评分选择获分配的 GPU。仅计算检索指标时无需 GPU。 |
 | `SA_EVALUATION_DIR` | 空 | 必填。填中断的 42 测试根目录，支持项目相对路径和绝对路径。 |
 | `SA_RUN_NAME` | `partial_score` | 输出标签，支持字母、数字、下划线和连字符。程序会追加 UTC 时间和随机后缀。 |
-| `SA_RETRIEVAL_ONLY` | `true` | `true` 只算检索指标。`false` 同时计算答案评分指标，调用本地裁判。 |
+| `SA_RETRIEVAL_ONLY` | `true` | 两种模式都只对已恢复的预测计分。`true` 只算检索指标。`false` 同时调用本地裁判计算答案评分指标。 |
 | `SA_JUDGE__JUDGE_MODEL` | 空 | 答案评分必填，指向已下载的本地模型目录。 |
 | `SA_JUDGE__JUDGE_ATTEMPTS` | `3` | 每条有效答案的最大裁判尝试次数。 |
 | `SA_JUDGE__JUDGE_MAX_TOKENS` | `4096` | 裁判单次输出的 token 上限。 |
@@ -121,7 +121,7 @@ bash scripts/plain/sh/42_test_browsecomp_plus.sh
 
 - 如果 `results/predictions.jsonl` 已生成，直接使用它。否则读取 `results/workers/worker_*/predictions.jsonl`。若中断发生在续测中，复用经 SHA256 校验的原测试预测，再读取 `results/extension/` 下已落盘的新预测。
 - 汇总时跳过文件末尾缺少换行的记录。遇到重复 ID、原题集之外的 ID、题目文本不一致，或完整行的 JSON 无法解析时停止，并报告文件和行号。确定原 benchmark 和筛选报告保持可读时，才能复用原测试的题集。
-- **分母是原计划题数。** 例如原计划 830 题，恢复 600 条记录，`coverage` 为 `600/830`，剩余 230 题的检索召回按 0 计。答案评分只调用裁判处理已有且有效的答案，缺失题仍计入准确率分母。`completed_predictions` 表示有有效答案的题数，可小于已恢复的记录数。评分摘要的 `complete` 表示评分过程成功完成，生成覆盖率见 `recovery.coverage`。
+- **分母是已恢复的预测条数。** 例如原计划 830 题，恢复 600 条预测，检索召回和答案准确率都按这 600 题计算。尚未写出预测的 230 题只计入 `recovery.missing` 和覆盖率 `600/830`。已写入记录的失败或空答案仍按正常评分规则处理。`completed_predictions` 表示有有效答案的题数，可小于已恢复的记录数。评分摘要的 `complete` 表示本次评分过程完成，生成覆盖率见 `recovery.coverage`。
 - 85 只读取预测和原 benchmark 资产，重新计算指标时不会启动生成模型或检索模型，也不会补跑缺失题目。每次评分都创建新目录。原测试记录、预测分片和正式评分目录保留原样。
 
 | 文件 | 内容 |
@@ -130,8 +130,8 @@ bash scripts/plain/sh/42_test_browsecomp_plus.sh
 | `recovery/<运行标签>/console.log` | 各预测文件恢复条数、末行跳过情况、汇总进度及评分日志。 |
 | `recovery/<运行标签>/predictions.jsonl` | 汇总后的逐题预测。评分按原题目顺序输出。 |
 | `recovery/<运行标签>/recovery.json` | 计划题数、恢复题数、覆盖率、缺失 ID、各文件统计、生成状态计数及合并文件 SHA256。 |
-| `recovery/<运行标签>/results/summary.metrics.json` | 检索或答案评分摘要，包含 `prediction_count`、`missing_predictions` 和 `recovery` 字段。 |
-| `recovery/<运行标签>/results/judge.jsonl` | 逐题指标、缺失状态及适用时的裁判结果。 |
+| `recovery/<运行标签>/results/summary.metrics.json` | `count` 和 `prediction_count` 对应本次评分题数，`missing_predictions` 对应本次评分范围内的缺失记录（为 `0`）。原测试未生成题数见 `recovery.missing`。 |
+| `recovery/<运行标签>/results/judge.jsonl` | 每条已恢复预测的逐题指标及适用时的裁判结果。 |
 
 ### 常见情况
 

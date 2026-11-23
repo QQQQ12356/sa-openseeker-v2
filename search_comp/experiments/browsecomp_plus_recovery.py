@@ -125,15 +125,17 @@ def recover_browsecomp_plus(*, evaluation_dir, run_name, retrieval_only, judge, 
     with job(output, "recover_browsecomp_plus", recovery_settings):
         predictions = output / "predictions.jsonl"
         seen, statuses, inputs = recover_predictions(sources, rows, predictions)
-        coverage = dict(original_evaluation=str(evaluation), original_status=status, planned=len(rows),
+        coverage = dict(original_evaluation=str(evaluation), original_status=status,
+                        score_scope="recovered_predictions", planned=len(rows),
                         recovered=len(seen), missing=len(rows) - len(seen), coverage=len(seen) / len(rows))
         write_json(output / "recovery.json", dict(
             **coverage, missing_ids=[qid for qid in selected_ids if qid not in seen],
             prediction_sources=inputs, statuses=statuses, predictions_sha256=digest(predictions),
         ))
         print(f"[recovery] recovered={len(seen)}/{len(rows)}; missing={coverage['missing']}", flush=True)
+        scored_rows = [row for row in rows if row["id"] in seen]
         score_output = output / "results"
         score_output.mkdir()
-        score_phase(args, score_output, rows, prepared, predictions, recovery=coverage)
+        score_phase(args, score_output, scored_rows, prepared, predictions, recovery=coverage)
     print(f"[recovery] metrics: {score_output / 'summary.metrics.json'}", flush=True)
     return output

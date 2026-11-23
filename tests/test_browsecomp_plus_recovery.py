@@ -11,7 +11,7 @@ def write_predictions(path, *rows, tail=b""):
     path.write_bytes(b"".join((json.dumps(row) + "\n").encode() for row in rows) + tail)
 
 
-def test_recover_worker_predictions_uses_original_question_scope(tmp_path, monkeypatch):
+def test_recovery_scores_only_recovered_questions_and_reports_original_coverage(tmp_path, monkeypatch):
     benchmark = tmp_path / "benchmark"
     prepared = benchmark / "prepared"
     prepared.mkdir(parents=True)
@@ -49,8 +49,14 @@ def test_recover_worker_predictions_uses_original_question_scope(tmp_path, monke
     assert [source["predictions"] for source in report["prediction_sources"]] == [1, 1]
     assert report["prediction_sources"][0]["skipped_unterminated_line"] is True
     metrics = read_json(output / "results/summary.metrics.json")
-    assert metrics["prediction_count"] == 2 and metrics["missing_predictions"] == 1
-    assert metrics["recovery"]["coverage"] == metrics["evidence_recall"] == 2 / 3
+    assert metrics["count"] == metrics["prediction_count"] == 2
+    assert metrics["missing_predictions"] == 0
+    assert metrics["recovery"]["score_scope"] == "recovered_predictions"
+    assert metrics["recovery"]["missing"] == 1
+    assert metrics["recovery"]["coverage"] == 2 / 3
+    assert metrics["evidence_recall"] == metrics["gold_recall"] == 1.0
+    scored = (output / "results/judge.jsonl").read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["id"] for line in scored] == ["0", "2"]
 
 
 def test_recover_predictions_rejects_duplicates_without_publishing(tmp_path):
