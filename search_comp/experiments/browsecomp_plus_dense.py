@@ -1,6 +1,7 @@
 """Download official assets or encode the prepared corpus into an exact dense index."""
 from itertools import islice
 import pickle
+from time import monotonic
 
 from search_comp.offline.data import records
 from search_comp.offline.qwen_embedding import (
@@ -80,6 +81,7 @@ def prepare_vectors(root, directory, source, model_dir, official_index_dir, devi
             raise ValueError("OFFICIAL_INDEX_DIR must be a downloaded official vector snapshot")
         blocks = official_blocks(official_index_dir, provenance)
     else:
+        print(f"[dense index] loading encoder on {device}; documents={count}", flush=True)
         blocks = encode_blocks(corpus, Encoder(model_dir, device), batch_size, doc_max_length)
 
     directory.mkdir(parents=True, exist_ok=False)
@@ -87,6 +89,9 @@ def prepare_vectors(root, directory, source, model_dir, official_index_dir, devi
     ids = []
     vectors = np.lib.format.open_memmap(vectors_file, mode="w+", dtype=np.float32, shape=(count, DIMENSION))
     try:
+        if source == "encode":
+            print(f"[dense index] encoding documents=0/{count}; batch_size={batch_size}", flush=True)
+        next_report = monotonic()
         for matrix, block_ids in blocks:
             matrix = np.asarray(matrix, dtype=np.float32)
             end = len(ids) + len(block_ids)
@@ -97,8 +102,10 @@ def prepare_vectors(root, directory, source, model_dir, official_index_dir, devi
                 raise ValueError("expected unit-normalized document embeddings")
             vectors[len(ids):end] = matrix
             ids.extend(block_ids)
-            if source == "official" or end % (batch_size * 100) == 0 or end == count:
+            now = monotonic()
+            if source == "official" or now >= next_report or end == count:
                 print(f"[dense index] documents={end}/{count}", flush=True)
+                next_report = now + 30
         vectors.flush()
     finally:
         del vectors
