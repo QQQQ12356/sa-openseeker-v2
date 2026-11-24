@@ -28,11 +28,19 @@
 | `qwen3-embedding-8b` | 用 [33 脚本](35_browsecomp_plus_dense.md) 准备向量索引。设置 `VECTOR_INDEX_DIR`、`EMBEDDING_MODEL_PATH` 和查询编码设备 `EMBEDDING_DEVICE`。 |
 | `search-service` | 使用参考仓库的 HTTP 检索服务，可选择其 Lucene BM25、Qwen3-Embedding-8B 或 AgentIR-4B。设置 `SEARCH_SERVICE_URL` 和 `SEARCH_SERVICE_TIMEOUT`。服务先在 Linux 上启动，使用与本项目相同版本的文档语料。 |
 
-例如，在 **参考仓库**目录按其说明安装并下载索引后启动 AgentIR：
+AgentIR 的 `scripts/start_search_service.sh` 位于 **observation-masking** 仓库。首次部署时，从当前 `sa-reconstruction` 目录把它克隆到同级目录，并在独立子 shell 中安装和启动：
 
 ```bash
-bash scripts/start_search_service.sh agentir 8007 0
+git clone https://github.com/i-DeepSearch/observation-masking.git ../observation-masking
+(
+  cd ../observation-masking || exit 1
+  unset HF_HUB_OFFLINE HF_DATASETS_OFFLINE TRANSFORMERS_OFFLINE
+  bash setup.sh &&
+    bash scripts/start_search_service.sh agentir 8007 0
+)
 ```
+
+已有该仓库和服务依赖时，在 `sa-reconstruction` 目录可直接运行 `bash ../observation-masking/scripts/start_search_service.sh agentir 8007 0`。服务在前台运行，在同一台 Linux 机器的另一个终端执行 `curl -fsS http://127.0.0.1:8007/`，确认返回的 `endpoints` 包含 `/search`。
 
 然后在 **本项目**的 46 脚本设 `SA_GENERATION__RETRIEVER=search-service` 和 `SA_GENERATION__SEARCH_SERVICE_URL=http://127.0.0.1:8007`。查询带上可提取的当前 `<think>…</think>`，AgentIR 可将它用于排序。服务返回的 URL 用来查本地索引，转换为官方 docid。排名沿用服务顺序，工具观察和访问仍由本地语料生成。每个 URL 应唯一对应一篇本地文档。服务和生成共用一台机器时，按显存需要分配不同 GPU。 [参考仓库检索部署](https://github.com/i-DeepSearch/observation-masking#deploy-search)
 
