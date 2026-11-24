@@ -1,4 +1,4 @@
-"""Disk-backed SQLite FTS5 BM25 index; no pickles, Java or in-memory corpus copy."""
+"""Disk-backed document storage, official Lucene retrieval and legacy FTS5."""
 from __future__ import annotations
 
 import json
@@ -9,15 +9,20 @@ import sqlite3
 import time
 from urllib.parse import quote
 
-from .assets import digest, dump
+from .assets import BCP_LUCENE_DIR, digest, dump
 
 VERSION = "sqlite-fts5-bm25-v1"
+CORPUS_VERSION = "sqlite-corpus-v1"
 
 
 def build_index(root, title_weight=1.0):
     root = Path(root)
     prepared = root / "prepared"
     manifest = json.loads((prepared / "manifest.json").read_text())
+    documents_only = (manifest["canonical_corpus"] and
+                      bool(manifest.get("assets", {}).get("bm25_files")))
+    if documents_only:
+        lucene_metadata(root, manifest["assets"])
     corpus = prepared / "corpus.jsonl"
     if digest(corpus) != manifest["corpus_sha256"]:
         raise ValueError("prepared corpus checksum changed")
@@ -37,17 +42,19 @@ def build_index(root, title_weight=1.0):
             PRAGMA cache_size=-65536;
             CREATE TABLE documents(rowid INTEGER PRIMARY KEY, docid TEXT UNIQUE NOT NULL,
                 title TEXT NOT NULL, text TEXT NOT NULL, source_url TEXT, sentences TEXT);
-            CREATE VIRTUAL TABLE corpus_fts USING fts5(title, text, content='documents',
-                content_rowid='rowid', tokenize='unicode61 remove_diacritics 2');
             CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
         """)
+        if not documents_only:
+            connection.execute("""CREATE VIRTUAL TABLE corpus_fts USING fts5(title, text, content='documents',
+                content_rowid='rowid', tokenize='unicode61 remove_diacritics 2')""")
         with corpus.open(encoding="utf-8") as source:
             for line in source:
                 row = json.loads(line)
                 cursor = connection.execute("INSERT INTO documents(docid,title,text,source_url,sentences) VALUES(?,?,?,?,?)",
                     (row["id"], row["title"], row["text"], row["source_url"], json.dumps(row["sentences"], ensure_ascii=False)))
-                connection.execute("INSERT INTO corpus_fts(rowid,title,text) VALUES(?,?,?)",
-                                   (cursor.lastrowid, row["title"], row["text"]))
+                if not documents_only:
+                    connection.execute("INSERT INTO corpus_fts(rowid,title,text) VALUES(?,?,?)",
+                                       (cursor.lastrowid, row["title"], row["text"]))
                 count += 1
                 if count % 10000 == 0:
                     connection.commit()
@@ -68,12 +75,15 @@ def build_index(root, title_weight=1.0):
             if missing_relevant and manifest["canonical_corpus"]:
                 raise ValueError("official corpus is missing qrel documents")
         connection.execute("CREATE INDEX document_urls ON documents(source_url)")
-        connection.execute("INSERT INTO corpus_fts(corpus_fts) VALUES('optimize')")
-        record = dict(version=VERSION, benchmark=manifest["benchmark"], count=count,
+        if not documents_only:
+            connection.execute("INSERT INTO corpus_fts(corpus_fts) VALUES('optimize')")
+        record = dict(version=CORPUS_VERSION if documents_only else VERSION,
+                      benchmark=manifest["benchmark"], count=count,
                       corpus_sha256=manifest["corpus_sha256"], sqlite_version=sqlite3.sqlite_version,
-                      title_weight=title_weight, text_weight=1.0, k1=1.2, b=0.75,
-                      missing_relevant_documents=len(missing_relevant),
-                      tokenizer="unicode61 remove_diacritics 2", seconds=time.monotonic() - start)
+                      missing_relevant_documents=len(missing_relevant), seconds=time.monotonic() - start)
+        if not documents_only:
+            record.update(title_weight=title_weight, text_weight=1.0, k1=1.2, b=0.75,
+                          tokenizer="unicode61 remove_diacritics 2")
         connection.execute("INSERT INTO metadata VALUES('manifest',?)", (json.dumps(record),))
         connection.commit()
     finally:
@@ -96,10 +106,10 @@ class LocalIndex:
                 raise ValueError("index build is incomplete")
             self.manifest = json.loads(row[0])
             sidecar = json.loads(self.path.with_name("index.manifest.json").read_text())
-            if self.manifest["version"] != VERSION:
+            if self.manifest["version"] not in {VERSION, CORPUS_VERSION}:
                 raise ValueError("unsupported index version")
             for name in ("version", "benchmark", "count", "corpus_sha256", "title_weight"):
-                if self.manifest[name] != sidecar[name]:
+                if self.manifest.get(name) != sidecar.get(name):
                     raise ValueError(f"index manifest differs: {name}")
             if verify and digest(self.path) != sidecar["index_sha256"]:
                 raise ValueError("index checksum changed")
@@ -118,6 +128,8 @@ class LocalIndex:
         self.close()
 
     def search(self, query, topk=5):
+        if self.manifest["version"] == CORPUS_VERSION:
+            raise ValueError("this document store requires the official Lucene or FAISS index for search")
         if not isinstance(query, str) or not query.strip() or topk < 1:
             raise ValueError("query must be text and topk must be positive")
         # Treat every query term literally; no FTS operators, URL syntax or SQL injection.
@@ -144,3 +156,48 @@ class LocalIndex:
         if result is None:
             raise ValueError(f"document not found: {docid}")
         return self._document(result)
+
+
+def lucene_metadata(root, assets, verify=False):
+    directory = root / BCP_LUCENE_DIR
+    files = assets["bm25_files"]
+    actual = {file.relative_to(directory).as_posix() for file in directory.rglob("*")
+              if file.is_file() and file.name != "write.lock"}
+    if actual != files.keys():
+        raise ValueError(f"official Lucene BM25 files are incomplete or differ: {directory}")
+    if verify and any(digest(directory / name) != checksum for name, checksum in files.items()):
+        raise ValueError(f"official Lucene BM25 checksum changed: {directory}")
+    return dict(backend="lucene", revision=assets["index_revision"], files=files)
+
+
+class LuceneIndex:
+    """Rank with the official Lucene index and look up bodies by original docid."""
+
+    def __init__(self, documents, directory):
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            # Pyserini can import optional encoders that expect a key at import time.
+            os.environ["OPENAI_API_KEY"] = "local-lucene-unused"
+        try:
+            from pyserini.search.lucene import LuceneSearcher
+        except ImportError as error:
+            raise RuntimeError("official BM25 requires Pyserini and Java 21; see docs/35_browsecomp_plus_dense.md") from error
+        finally:
+            if api_key is None:
+                os.environ.pop("OPENAI_API_KEY", None)
+            elif not api_key:
+                os.environ["OPENAI_API_KEY"] = api_key
+        self.documents = documents
+        self.searcher = LuceneSearcher(str(directory))
+        if self.searcher.num_docs != documents.manifest["count"]:
+            self.close()
+            raise ValueError("Lucene BM25 document count differs from the prepared corpus")
+
+    def search(self, query, topk):
+        return [self.get(hit.docid) for hit in self.searcher.search(query, k=topk)]
+
+    def get(self, docid):
+        return self.documents.get(docid)
+
+    def close(self):
+        self.searcher.close()

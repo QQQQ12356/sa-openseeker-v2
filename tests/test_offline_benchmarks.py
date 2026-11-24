@@ -249,6 +249,52 @@ def test_parquet_encrypted_bcp_uses_official_canary(tmp_path):
     assert 'do not prompt' not in json.dumps(rows)
 
 
+def test_bcp_official_lucene_ranks_original_ids_and_checks_assets(tmp_path, monkeypatch):
+    from search_comp.offline.assets import BCP_LUCENE_DIR
+    from search_comp.offline.index import LuceneIndex, lucene_metadata
+
+    root = prepared_bcp(tmp_path)
+    directory = root / BCP_LUCENE_DIR
+    directory.mkdir(parents=True)
+    segments = directory / "segments_3"
+    segments.write_bytes(b"synthetic segments")
+    (directory / "write.lock").touch()
+    assets = dict(index_revision="test", bm25_files={segments.name: digest(segments)})
+    assert lucene_metadata(root, assets, verify=True)["revision"] == "test"
+    segments.write_bytes(b"corrupt")
+    with pytest.raises(ValueError, match="checksum changed"):
+        lucene_metadata(root, assets, verify=True)
+
+    class Searcher:
+        def __init__(self, path):
+            assert path == str(directory)
+            self.num_docs = db.manifest["count"]
+
+        def search(self, query, *, k):
+            assert (query, k) == ("find evidence", 15)
+            return [SimpleNamespace(docid=docid)]
+
+        def close(self):
+            pass
+
+    monkeypatch.setitem(sys.modules, "pyserini.search.lucene", SimpleNamespace(LuceneSearcher=Searcher))
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with LocalIndex(root / "index.sqlite") as db:
+        docid = db.search("bridge", 1)[0]["docid"]
+        index = LuceneIndex(db, directory)
+        assert index.search("find evidence", 15) == [db.get(docid)]
+        index.close()
+    import os
+    assert "OPENAI_API_KEY" not in os.environ
+
+
+def test_bcp_official_document_uses_frontmatter_title_and_body():
+    raw = dict(docid=42, url="https://example.invalid/", title="separate field",
+               text="---\ntitle: Article title\nauthor: An author\ndate: 2026-01-01\n---\n Body text. ")
+    parsed = document(raw, "browsecomp-plus", aligned_parquet=True)
+    assert (parsed["id"], parsed["title"], parsed["text"]) == ("42", "Article title", "Body text.")
+
+
 def test_hotpot_prepare_skips_empty_bodies_and_preserves_valid_sentences(tmp_path, capsys):
     data, corpus = hotpot_sources(tmp_path)
     title = 'Albert Alcibiades, Margrave of Brandenburg-Kulmbach'

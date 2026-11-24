@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-from contextlib import ExitStack
+from contextlib import ExitStack, closing
 from datetime import datetime, timezone
 import gc
 import heapq
@@ -18,11 +18,11 @@ from types import SimpleNamespace
 
 from search_comp.evaluation.benchmark_resume import publish_continuation, resume_prefix
 from search_comp.evaluation.checkpoints import load_evaluation_model, resolve_checkpoint
-from search_comp.offline.assets import (DEV_URL, WIKI_URL, benchmark_request, digest, download_assets,
+from search_comp.offline.assets import (BCP_LUCENE_DIR, DEV_URL, WIKI_URL, benchmark_request, digest, download_assets,
                                         dump, enforce_offline, http_endpoint, verify_official)
 from search_comp.offline.browsecomp_plus import extract_exact_answer, system_prompt
 from search_comp.offline.data import prepare, records
-from search_comp.offline.index import LocalIndex, build_index
+from search_comp.offline.index import CORPUS_VERSION, LocalIndex, LuceneIndex, build_index, lucene_metadata
 from search_comp.offline.qwen_embedding import BACKEND as DENSE_BACKEND, DenseIndex, read_vector_manifest
 from search_comp.offline.scoring import LocalJudge, load_predictions, score_browsecomp, score_hotpot
 from search_comp.offline.tools import BCP_INSTRUCTION, HOTPOT_INSTRUCTION, LocalTools
@@ -65,12 +65,19 @@ def verify_index(args, manifest):
     with LocalIndex(args.root / "index.sqlite", args.verify_index) as index:
         if index.manifest["benchmark"] != args.benchmark or index.manifest["corpus_sha256"] != manifest["corpus_sha256"]:
             raise ValueError("index and dataset have different corpus/benchmark provenance")
-        if getattr(args, "retriever", "bm25") == "bm25" and index.manifest["title_weight"] != args.title_weight:
-            raise ValueError("TITLE_WEIGHT differs from the built index; rebuild in a new ROOT")
         metadata = index.manifest
-    if getattr(args, "retriever", "bm25") == DENSE_BACKEND:
+    if getattr(args, "retriever", "bm25") == "bm25":
+        assets = manifest.get("assets", {})
+        if manifest["canonical_corpus"] and assets.get("bm25_files"):
+            lucene = lucene_metadata(args.root, assets, args.verify_index)
+            metadata = dict(metadata, retriever="bm25", ranking=lucene)
+        elif metadata["version"] == CORPUS_VERSION:
+            raise ValueError("missing official Lucene BM25 provenance; restore the downloaded snapshot")
+        elif metadata["title_weight"] != args.title_weight:
+            raise ValueError("TITLE_WEIGHT differs from the built index; rebuild in a new ROOT")
+    else:
         dense = read_vector_manifest(args.vector_index_dir, manifest, args.embedding_model_path, args.verify_index)
-        metadata = dict(metadata, retriever=DENSE_BACKEND, vector_index=dense)
+        metadata = dict(metadata, retriever=DENSE_BACKEND, vector_index=dense, ranking="faiss-index-flat-ip")
     return metadata
 
 
@@ -111,11 +118,15 @@ def run_phase(args, output, rows, manifest, index_metadata=None, prompt=None):
         generate.metadata['base_model_path'] = model_path
     statuses = Counter()
     start = time.monotonic()
-    with LocalIndex(args.root / "index.sqlite") as index, (output / "predictions.jsonl").open("x", encoding="utf-8") as target:
+    with ExitStack() as stack:
+        index = stack.enter_context(LocalIndex(args.root / "index.sqlite"))
         retrieval = index
         if getattr(args, "retriever", "bm25") == DENSE_BACKEND:
             retrieval = DenseIndex(index, args.vector_index_dir, args.embedding_model_path,
                                    args.embedding_device, index_metadata["vector_index"])
+        elif isinstance(index_metadata.get("ranking"), dict):
+            retrieval = stack.enter_context(closing(LuceneIndex(index, args.root / BCP_LUCENE_DIR)))
+        target = stack.enter_context((output / "predictions.jsonl").open("x", encoding="utf-8"))
         tools = LocalTools(retrieval, tokenizer, args.topk, args.snippet_tokens, args.read_tokens,
                            args.allow_visit, args.tool_count)
         for position, row in enumerate(rows):
@@ -384,6 +395,8 @@ def make_parser():
     parser.add_argument("--corpus-limit", type=int, help="SMOKE ONLY: index the first N documents")
     parser.add_argument("--official-only", action="store_true", help="download only evaluator/license/qrels assets")
     parser.add_argument("--corpus-revision", help="Hugging Face corpus revision for explicit download")
+    parser.add_argument("--query-revision", help="BrowseComp-Plus question revision for explicit download")
+    parser.add_argument("--index-revision", help="BrowseComp-Plus official retrieval index revision for explicit download")
     parser.add_argument("--dev-url", default=DEV_URL)
     parser.add_argument("--wiki-url", default=WIKI_URL, help="Hotpot abstracts mirror; official MD5 is still required")
     parser.add_argument("--title-weight", type=float, default=1.0)
@@ -513,7 +526,8 @@ def run(args):
         resolve_checkpoint(args.run_dir, args.model, args.kind)
     if args.action == "download":
         print(json.dumps(download_assets(args.benchmark, args.root, args.corpus_revision, args.official_only,
-                                        args.dev_url, args.wiki_url), indent=2))
+                                        args.dev_url, args.wiki_url, query_revision=getattr(args, "query_revision", None),
+                                        index_revision=getattr(args, "index_revision", None)), indent=2))
         return
     enforce_offline()
     if args.action in {"prepare", "all"}:

@@ -1154,11 +1154,13 @@ Baseline、Plain、Beacon 各自目录下 `sh/46_run_browsecomp_plus.sh` 的模�
 | `HF_ENDPOINT` | `ENVIRONMENT.HF_ENDPOINT` | str | `https://huggingface.co` |
 | `HF_HUB_OFFLINE` | `ENVIRONMENT.HF_HUB_OFFLINE` | str | `0` |
 | `CUDA_VISIBLE_DEVICES` | `ENVIRONMENT.CUDA_VISIBLE_DEVICES` | str | `0` |
-| `SA_VERSION` | `VERSION` | str | `v1` |
+| `SA_VERSION` | `VERSION` | str | `v2` |
 | `SA_PHASE` | `PHASE` | str | `download` |
 | `SA_DATA` | `DATA` | optional | `空字符串` |
 | `SA_CORPUS` | `CORPUS` | optional | `空字符串` |
+| `SA_QUERY_REVISION` | `QUERY_REVISION` | optional | `空字符串` |
 | `SA_CORPUS_REVISION` | `CORPUS_REVISION` | optional | `空字符串` |
+| `SA_INDEX_REVISION` | `INDEX_REVISION` | optional | `空字符串` |
 | `SA_DECRYPTED` | `DECRYPTED` | bool | `false` |
 | `SA_TITLE_WEIGHT` | `TITLE_WEIGHT` | float | `1.0` |
 

@@ -5,7 +5,7 @@ Baseline、Plain 和 Beacon 各有一个 `46_run_browsecomp_plus.sh`。每次执
 ## 1. Linux 上准备环境与资产
 
 1. 激活 [Linux 运行环境](10_environment.md)，把原始 Qwen3.5-4B 权重与 tokenizer 准备到本地。Baseline 直接加载该目录。Plain、Beacon 使用本项目训练实验的最终模型或周期检查点，原训练基座路径和提示词数据须能在 Linux 上访问。 [检查点格式](33_checkpoint_evaluation.md)
-2. 按 [数据准备流程](20_data.md#8-准备-browsecomp-plus) 用 `scripts/data/sh/31_prepare_browsecomp_plus.sh` 依次完成 `download → prepare → index`。题目 Parquet 只读取 `query_id`、`query` 和 `answer`，本地解密后写入 `prepared/questions.jsonl`。官方 qrels 提供相关文档 ID，独立语料用于检索。推理只接收问题，标准答案和 qrels 用于离线评分。三种方法共用一个 `SA_BENCHMARK_DIR`，已有同版本资产可直接复用。
+2. 按 [检索依赖说明](35_browsecomp_plus_dense.md#1-准备题目语料和文档库) 在 Linux 安装 Pyserini／FAISS。使用官方 BM25 时启用 Java 21。按 [数据准备流程](20_data.md#8-准备-browsecomp-plus) 运行 31 的 `download → prepare → index`，三个方法默认共用 `v2`。题目 Parquet 只读取 `query_id`、`query` 和 `answer`，本地解密后写入 `prepared/questions.jsonl`。官方 qrels 提供相关文档 ID。推理只接收问题，标准答案和 qrels 用于评分。
 3. 默认裁判为 `gpt-5-mini`。运行前从 Linux 环境或作业密钥管理器导出 `OPENAI_API_KEY`。选择 `openai` 会向指定裁判端点发送题目、模型回答和标准答案。需要全离线评分时，将 `SA_JUDGE__JUDGE_BACKEND=local`，并把 `SA_JUDGE__JUDGE_MODEL` 改为本地裁判目录。仅生成预测时设 `SA_SCORE_AFTER_GENERATION=false`。
 
 ## 2. 编辑一次测试的配置
@@ -30,14 +30,14 @@ Plain 和 Beacon 的 `SA_CHECKPOINT` 留空时使用最终模型，也可填如 
 
 | `SA_GENERATION__RETRIEVER` | 准备与参数 |
 |---|---|
-| `bm25` | 默认。本项目的 SQLite FTS5 索引，由 31 构建。设置与建索引一致的 `TITLE_WEIGHT`。 |
-| `qwen3-embedding-8b` | 用 [33 脚本](35_browsecomp_plus_dense.md) 准备向量索引。设置 `VECTOR_INDEX_DIR`、`EMBEDDING_MODEL_PATH` 和查询编码设备 `EMBEDDING_DEVICE`。 |
+| `bm25` | 默认。使用 31 下载的官方 Lucene 索引，由 Pyserini 排序。`TITLE_WEIGHT` 只用于旧版或自定义数据的 SQLite FTS5。 |
+| `qwen3-embedding-8b` | 用 [33 脚本](35_browsecomp_plus_dense.md) 导入同一索引 commit 的官方分片，运行时用 FAISS `IndexFlatIP`。设置 `VECTOR_INDEX_DIR`、`EMBEDDING_MODEL_PATH` 和查询编码设备 `EMBEDDING_DEVICE`。 |
 
 两个检索器都在评测进程内读取本地资产，准备和运行命令均从 `sa-reconstruction` 执行。默认 BM25 在 31 完成后可直接运行 46。测试 Qwen3-Embedding-8B 时，用相同的 `SA_VERSION` 执行 33 的 `download → prepare`，再在 46 脚本填入 33 打印的路径。例如：
 
 ```bash
 export SA_GENERATION__RETRIEVER=qwen3-embedding-8b
-export SA_GENERATION__VECTOR_INDEX_DIR=artifacts/benchmarks/browsecomp-plus/v1/vector_indexes/qwen3-embedding-8b-official
+export SA_GENERATION__VECTOR_INDEX_DIR=artifacts/benchmarks/browsecomp-plus/v2/vector_indexes/qwen3-embedding-8b-official
 export SA_GENERATION__EMBEDDING_MODEL_PATH=/path/to/Qwen3-Embedding-8B/commit
 export SA_GENERATION__EMBEDDING_DEVICE=cuda:0
 ```
@@ -60,7 +60,7 @@ export SA_GENERATION__EMBEDDING_DEVICE=cuda:0
 
 对同一方法做 No CM / CM 对照时，只切换窗口及用于识别结果的 `SA_RUN_NAME`。旧的工具返回会在送入模型的新一轮上下文中变成占位符。原始调用及完整返回仍存于轨迹。Plain 在窗口滚动时重建被改写的缓存前缀。Beacon 可同时使用自己的观测压缩与外部窗口，比较 Beacon 压缩本身时将外部窗口设为 0。
 
-本实现沿用项目的 OpenSeeker `search/visit` 工具格式、Transformers 和 Beacon 推理入口。检索资产和执行参数按本项目清单归档，便于核对方法之间的实验条件。
+本实现沿用项目的 OpenSeeker `search/visit` 工具格式、摘录 token 预算、Transformers 和 Beacon 推理入口。官方索引来源和执行参数按本项目清单归档。若要对照另一台机器或参考实验，先核对题目、语料、索引和 embedding 模型的 commit。
 
 ### 设置评分
 

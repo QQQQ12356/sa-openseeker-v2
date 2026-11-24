@@ -14,6 +14,7 @@ from search_comp.offline import qwen_embedding as dense
 
 @pytest.mark.parametrize("prepared_dir", ["", "shared/prepared"])
 def test_import_dense_shards_joins_by_docid_and_validates_provenance(tmp_path, monkeypatch, prepared_dir):
+    pytest.importorskip("faiss")
     monkeypatch.setattr(browsecomp_plus_dense, "ROOT", tmp_path)
     monkeypatch.setattr(runtime, "ROOT", tmp_path)
     monkeypatch.setattr(browsecomp_plus_dense, "configure", lambda environment: None)
@@ -28,7 +29,7 @@ def test_import_dense_shards_joins_by_docid_and_validates_provenance(tmp_path, m
     ids = ["a", "b", "c", "d"]
     corpus.write_text("".join(json.dumps(dict(id=docid, text=docid)) + "\n" for docid in ids), encoding="utf-8")
     manifest = dict(benchmark="browsecomp-plus", canonical_corpus=True,
-                    corpus_sha256=digest(corpus), documents=len(ids), assets={})
+                    corpus_sha256=digest(corpus), documents=len(ids), assets={"index_revision": "test"})
     write_json(prepared / "manifest.json", manifest)
 
     source = tmp_path / "official"
@@ -53,7 +54,7 @@ def test_import_dense_shards_joins_by_docid_and_validates_provenance(tmp_path, m
     def encode(queries, max_length):
         assert queries == [dense.QUERY_PREFIX + "test"]
         assert max_length == dense.QUERY_MAX_LENGTH
-        return vectors[1:2]
+        return vectors[1:2] + 0.25 * vectors[0:1]
 
     monkeypatch.setattr(dense, "Encoder", lambda *args: SimpleNamespace(encode=encode))
     index = dense.DenseIndex(SimpleNamespace(get=lambda docid: {"docid": docid}), target, model, "cpu", metadata)
@@ -61,6 +62,8 @@ def test_import_dense_shards_joins_by_docid_and_validates_provenance(tmp_path, m
     assert index.get("a") == {"docid": "a"}
     with pytest.raises(ValueError, match="different provenance"):
         dense.read_vector_manifest(target, dict(manifest, corpus_sha256="other"), model)
+    with pytest.raises(ValueError, match="share the pinned index revision"):
+        dense.read_vector_manifest(target, dict(manifest, assets={"index_revision": "other"}), model)
     write_json(Path(target) / "docids.json", ids)
     with pytest.raises(ValueError, match="checksum changed"):
         dense.read_vector_manifest(target, manifest, model, verify=True)

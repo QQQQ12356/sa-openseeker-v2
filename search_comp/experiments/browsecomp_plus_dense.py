@@ -3,6 +3,7 @@ from itertools import islice
 import pickle
 from time import monotonic
 
+from search_comp.offline.assets import BCP_INDEX_REPO
 from search_comp.offline.data import records
 from search_comp.offline.qwen_embedding import (
     BACKEND, DIMENSION, MODEL_REPO, QUERY_MAX_LENGTH, QUERY_PREFIX, VERSION, Encoder, model_identity,
@@ -11,7 +12,7 @@ from .data import download_model
 from .runtime import ROOT, configure, digest, job, path, read_json, slug, stamp, write_json
 
 
-INDEX_REPO = "Tevatron/browsecomp-plus-indexes"
+INDEX_REPO = BCP_INDEX_REPO
 SHARDS = tuple(f"{BACKEND}/corpus.shard{i}_of_4.pkl" for i in range(1, 5))
 
 
@@ -33,7 +34,11 @@ class VectorUnpickler(pickle.Unpickler):
 def download_vectors(root, revision, endpoint):
     from huggingface_hub import HfApi, snapshot_download
 
-    commit = HfApi(endpoint=endpoint).dataset_info(INDEX_REPO, revision=revision).sha
+    assets = root / "assets.json"
+    recorded = read_json(assets).get("index_revision") if assets.is_file() else None
+    commit = HfApi(endpoint=endpoint).dataset_info(INDEX_REPO, revision=revision or recorded or "main").sha
+    if recorded and commit != recorded:
+        raise ValueError("official vector revision differs from 31's BM25 snapshot; use the same index revision")
     directory = root / "raw" / BACKEND / commit
     snapshot_download(INDEX_REPO, repo_type="dataset", revision=commit, endpoint=endpoint,
                       allow_patterns=list(SHARDS), local_dir=directory)
@@ -79,6 +84,9 @@ def prepare_vectors(root, directory, source, model_dir, official_index_dir, devi
         provenance = read_json(official_index_dir / "download_manifest.json")
         if provenance.get("repo") != INDEX_REPO or not provenance.get("revision"):
             raise ValueError("OFFICIAL_INDEX_DIR must be a downloaded official vector snapshot")
+        expected_revision = manifest["assets"].get("index_revision")
+        if expected_revision and provenance["revision"] != expected_revision:
+            raise ValueError("official vectors and BM25 must come from the same index snapshot")
         blocks = official_blocks(official_index_dir, provenance)
     else:
         print(f"[dense index] loading encoder on {device}; documents={count}", flush=True)

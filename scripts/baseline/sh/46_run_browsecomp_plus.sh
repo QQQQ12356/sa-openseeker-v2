@@ -13,7 +13,7 @@ cd -- "$PROJECT_ROOT"
 export HF_ENDPOINT=https://huggingface.co
 export HF_HUB_OFFLINE=1
 export CUDA_VISIBLE_DEVICES=0
-export SA_BENCHMARK_DIR=artifacts/benchmarks/browsecomp-plus/v1
+export SA_BENCHMARK_DIR=artifacts/benchmarks/browsecomp-plus/v2
 
 # 未训练的本地 Qwen3.5-4B 权重目录。
 export SA_MODEL_PATH=/models/Qwen3.5-4B
@@ -43,13 +43,13 @@ export SA_GENERATION__TEMPERATURE=1.0
 export SA_GENERATION__TOP_P=1.0
 export SA_GENERATION__GENERATION_SEED=42
 
-# bm25=本地 SQLite（31）；qwen3-embedding-8b=本地向量（31、33）。
+# bm25=官方 Lucene（31）；qwen3-embedding-8b=官方向量 + FAISS（31、33）。
 export SA_GENERATION__RETRIEVER=bm25
 export SA_GENERATION__VECTOR_INDEX_DIR=''  # 本地向量模式填 33 的输出目录。
 export SA_GENERATION__EMBEDDING_MODEL_PATH=''  # 本地向量模式填匹配的 Qwen3-Embedding-8B。
 export SA_GENERATION__EMBEDDING_DEVICE=cuda:0
 export SA_GENERATION__VERIFY_INDEX=true
-export SA_GENERATION__TITLE_WEIGHT=1.0
+export SA_GENERATION__TITLE_WEIGHT=1.0  # 仅旧版或自定义语料的 SQLite BM25 使用。
 export SA_GENERATION__TOPK=15
 export SA_GENERATION__SNIPPET_TOKENS=512
 export SA_GENERATION__READ_TOKENS=4096

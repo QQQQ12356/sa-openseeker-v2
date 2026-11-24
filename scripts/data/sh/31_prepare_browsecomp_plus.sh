@@ -21,9 +21,9 @@ export HF_HUB_OFFLINE=0
 export CUDA_VISIBLE_DEVICES=0
 
 # VERSION：共享 benchmark 版本名；改变语料/来源/索引权重时新建版本
-export SA_VERSION=v1
+export SA_VERSION=v2
 
-# PHASE：依次运行 download（题目、独立语料、qrels）、prepare（解密与规范化）、index（BM25）。
+# PHASE：依次运行 download（题目、语料、qrels、预建 Lucene BM25）、prepare（解密与规范化）、index（文档库）。
 export SA_PHASE=download
 
 # DATA：可选本地官方题目路径；空字符串 使用 download 阶段的默认文件
@@ -32,13 +32,15 @@ export SA_DATA=''
 # CORPUS：可选独立本地语料；空字符串 使用下载的全量语料，不能用题目候选段落替代
 export SA_CORPUS=''
 
-# CORPUS_REVISION：BrowseComp-Plus 语料 commit；空字符串 下载时解析并记录
+# 三项 revision 留空时首次下载取各自 main，后续按 assets.json 复用。
+export SA_QUERY_REVISION=''
 export SA_CORPUS_REVISION=''
+export SA_INDEX_REVISION=''
 
 # DECRYPTED：BrowseComp-Plus 题目已解密时改 true；HotpotQA 保持 false
 export SA_DECRYPTED=false
 
-# TITLE_WEIGHT：必须与已建索引的标题权重一致。
+# TITLE_WEIGHT：旧版或自定义语料的 SQLite BM25 标题权重。
 export SA_TITLE_WEIGHT=1.0
 
 # ===== 内部身份与单次 Python 调用；无需修改 =====

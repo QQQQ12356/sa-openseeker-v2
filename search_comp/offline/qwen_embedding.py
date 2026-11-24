@@ -45,9 +45,10 @@ class Encoder:
         features = self.tokenizer(texts, padding=True, truncation=True,
                                   max_length=max_length, return_tensors="pt").to(self.device)
         # With left padding the final position is the last non-padding token of each input.
-        with torch.inference_mode():
-            last = self.model(**features, use_cache=False).last_hidden_state[:, -1].float()
-            return torch.nn.functional.normalize(last, p=2, dim=1).cpu().numpy()
+        with torch.inference_mode(), torch.autocast("cuda", dtype=torch.float16,
+                                                    enabled=self.device.type == "cuda"):
+            last = self.model(**features, use_cache=False).last_hidden_state[:, -1]
+            return torch.nn.functional.normalize(last, p=2, dim=-1).float().cpu().numpy()
 
 
 def read_vector_manifest(directory, corpus, model_dir, verify=False):
@@ -60,6 +61,9 @@ def read_vector_manifest(directory, corpus, model_dir, verify=False):
         raise ValueError("vector index and SQLite corpus have different provenance or dimensions")
     if manifest["model"] != model_identity(model_dir):
         raise ValueError("query encoder snapshot does not match the vector index manifest")
+    expected_revision = corpus.get("assets", {}).get("index_revision")
+    if manifest.get("source") == "official" and expected_revision and manifest["upstream"]["revision"] != expected_revision:
+        raise ValueError("official vector index and Lucene BM25 must share the pinned index revision")
     if manifest.get("query_prefix") != QUERY_PREFIX or manifest.get("query_max_length") != QUERY_MAX_LENGTH:
         raise ValueError("query encoding configuration differs from the vector index manifest")
     if verify:
@@ -74,13 +78,19 @@ class DenseIndex:
 
     def __init__(self, documents, directory, model_dir, device, manifest):
         import numpy as np
+        try:
+            import faiss
+        except ImportError as error:
+            raise RuntimeError("dense retrieval requires FAISS; install requirements.browsecomp-plus.txt") from error
 
         self.documents = documents
-        self.vectors = np.load(Path(directory) / "vectors.npy", mmap_mode="r", allow_pickle=False)
+        vectors = np.load(Path(directory) / "vectors.npy", mmap_mode="r", allow_pickle=False)
         self.docids = json.loads((Path(directory) / "docids.json").read_text(encoding="utf-8"))
-        if (self.vectors.shape != (manifest["documents"], DIMENSION) or self.vectors.dtype != np.float32
+        if (vectors.shape != (manifest["documents"], DIMENSION) or vectors.dtype != np.float32
                 or len(self.docids) != manifest["documents"] or len(set(self.docids)) != len(self.docids)):
             raise ValueError("invalid dense index shape, dtype or document IDs")
+        self.index = faiss.IndexFlatIP(DIMENSION)
+        self.index.add(vectors)
         self.encoder = Encoder(model_dir, device)
 
     def search(self, query, topk=5):
@@ -88,11 +98,9 @@ class DenseIndex:
 
         if not isinstance(query, str) or not query.strip() or topk < 1:
             raise ValueError("query must be text and topk must be positive")
-        vector = self.encoder.encode([QUERY_PREFIX + query], QUERY_MAX_LENGTH)[0]
-        scores = self.vectors @ vector
-        # Stable ties use the persisted vector order.
-        ranking = np.argsort(-scores, kind="stable")[:topk]
-        return [self.get(self.docids[i]) for i in ranking]
+        vector = self.encoder.encode([QUERY_PREFIX + query], QUERY_MAX_LENGTH)
+        _, ranking = self.index.search(np.ascontiguousarray(vector, dtype=np.float32), min(topk, len(self.docids)))
+        return [self.get(self.docids[i]) for i in ranking[0]]
 
     def get(self, docid):
         return self.documents.get(docid)

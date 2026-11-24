@@ -18,7 +18,7 @@ export HF_HUB_OFFLINE=0
 export CUDA_VISIBLE_DEVICES=0
 
 # BrowseComp-Plus 数据版本，与 31_prepare_browsecomp_plus.sh 一致。
-export SA_VERSION=v1
+export SA_VERSION=v2
 # 向量索引版本名。切换来源、模型或编码配置时改名，禁止覆盖。
 export SA_INDEX_PROFILE=qwen3-embedding-8b-official
 # 先 download 下载资产，再 prepare 导入向量或编码本地语料。
@@ -27,8 +27,8 @@ export SA_PHASE=download
 export SA_SOURCE=official
 # download 阶段的模型 revision，main 会被解析为实际 commit。
 export SA_MODEL_REVISION=main
-# download 阶段的官方向量 revision，仅 official 使用。
-export SA_INDEX_REVISION=980cfd0c8250482e8be900326fddca806511d05c
+# 下载官方向量时留空沿用同版本 31 记录的索引 commit。
+export SA_INDEX_REVISION=''
 # prepare 必填。填下载输出的本地 embedding 模型 commit 目录。
 export SA_EMBEDDING_MODEL_PATH=''
 # official 的 prepare 必填。填下载输出的官方向量快照目录。

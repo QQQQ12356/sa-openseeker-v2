@@ -14,8 +14,10 @@ import urllib.request
 
 BCP_REV = "046949032b0328319cc9a02663a759ec601d9402"
 HOTPOT_REV = "3635853403a8735609ee997664e1528f4480762a"
-BCP_QUERY_REV = "144cff8e35b5eaef7e526346aa60774a9deb941f"
-# Corpus revision is resolved once during explicit download and saved in assets.json.
+BCP_QUERY_REPO = "Tevatron/browsecomp-plus"
+BCP_CORPUS_REPO = "Tevatron/browsecomp-plus-corpus"
+BCP_INDEX_REPO = "Tevatron/browsecomp-plus-indexes"
+BCP_LUCENE_DIR = "raw/indexes/bm25"
 WIKI_URL = "https://nlp.stanford.edu/projects/hotpotqa/enwiki-20171001-pages-meta-current-withlinks-abstracts.tar.bz2"
 WIKI_MD5 = "01edf64cd120ecc03a2745352779514c"
 DEV_URL = "https://curtis.ml.cmu.edu/datasets/hotpot/hotpot_dev_fullwiki_v1.json"
@@ -89,7 +91,50 @@ def install_official(root, benchmark):
     return record
 
 
-def download_assets(benchmark, root, corpus_revision=None, official_only=False, dev_url=DEV_URL, wiki_url=WIKI_URL):
+def download_browsecomp_plus(root, records, query_revision, corpus_revision, index_revision):
+    from huggingface_hub import HfApi, snapshot_download
+
+    api = HfApi()
+    snapshots = (
+        ("query_revision", BCP_QUERY_REPO, query_revision, root / "raw/queries", ["data/*.parquet"]),
+        ("corpus_revision", BCP_CORPUS_REPO, corpus_revision, root / "raw/corpus", ["data/*.parquet"]),
+        ("index_revision", BCP_INDEX_REPO, index_revision, root / "raw/indexes", ["bm25/*"]),
+    )
+    for key, repo, requested, _, _ in snapshots:
+        if key not in records or requested:
+            resolved = api.dataset_info(repo, revision=requested or "main").sha
+            if records.get(key, resolved) != resolved:
+                raise ValueError(f"{key} differs from assets.json; use a new benchmark version")
+            records[key] = resolved
+    # Publish the resolved revisions before downloads so a retry uses the same snapshots.
+    dump(root / "assets.json", records)
+    for key, repo, _, directory, patterns in snapshots:
+        snapshot_download(repo, repo_type="dataset", revision=records[key],
+                          allow_patterns=patterns, local_dir=directory)
+    from .data import source_fingerprint
+    raw_files = {}
+    for kind, key, repo in (("queries", "query_revision", BCP_QUERY_REPO),
+                            ("corpus", "corpus_revision", BCP_CORPUS_REPO)):
+        files = source_fingerprint(root / "raw" / kind)
+        names = api.list_repo_files(repo, repo_type="dataset", revision=records[key])
+        expected = {name for name in names if name.startswith("data/") and name.endswith(".parquet")}
+        if not expected or files.keys() != expected:
+            raise ValueError(f"{kind} files differ from the pinned BrowseComp-Plus snapshot")
+        raw_files[kind] = files
+    revision = records["index_revision"]
+    names = api.list_repo_files(BCP_INDEX_REPO, repo_type="dataset", revision=revision)
+    bm25_files = {name.removeprefix("bm25/"): digest(root / "raw/indexes" / name)
+                  for name in sorted(names) if name.startswith("bm25/") and not name.endswith("/write.lock")}
+    if not any(name.startswith("segments_") for name in bm25_files):
+        raise ValueError("official BM25 snapshot does not contain Lucene segments")
+    for key, value in (("raw_parquet_sha256", raw_files), ("bm25_files", bm25_files)):
+        if key in records and records[key] != value:
+            raise ValueError(f"downloaded {key} differs from assets.json; restore the archived files")
+        records[key] = value
+
+
+def download_assets(benchmark, root, corpus_revision=None, official_only=False, dev_url=DEV_URL, wiki_url=WIKI_URL,
+                    *, query_revision=None, index_revision=None):
     root = Path(root)
     records = install_official(root, benchmark)
     previous = root / "assets.json"
@@ -133,15 +178,7 @@ def download_assets(benchmark, root, corpus_revision=None, official_only=False, 
         records.update(dev_sha256=digest(dev), wiki_sha256=digest(wiki), wiki_md5=WIKI_MD5,
                        dev_url=dev_url, wiki_url=wiki_url)
     else:
-        from huggingface_hub import HfApi, snapshot_download
-        if corpus_revision and records.get("corpus_revision") not in (None, corpus_revision):
-            raise ValueError("corpus revision changed; use a new ROOT")
-        corpus_revision = corpus_revision or records.get("corpus_revision") or HfApi().dataset_info("Tevatron/browsecomp-plus-corpus").sha
-        for name, rev, folder in (("Tevatron/browsecomp-plus", BCP_QUERY_REV, "queries"),
-                                  ("Tevatron/browsecomp-plus-corpus", corpus_revision, "corpus")):
-            snapshot_download(name, repo_type="dataset", revision=rev,
-                              allow_patterns=["*.parquet", "data/*.parquet"], local_dir=root / "raw" / folder)
-        records.update(query_revision=BCP_QUERY_REV, corpus_revision=corpus_revision)
+        download_browsecomp_plus(root, records, query_revision, corpus_revision, index_revision)
     dump(previous, records)
     return records
 

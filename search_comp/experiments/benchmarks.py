@@ -52,13 +52,15 @@ def offline_options(benchmark, benchmark_dir, **values):
 
 
 def prepare_benchmark(*, benchmark, version, phase, environment, data=None, corpus=None,
-                      decrypted=False, corpus_revision=None, title_weight=1.0, csv=None):
+                      decrypted=False, query_revision=None, corpus_revision=None,
+                      index_revision=None, title_weight=1.0, csv=None):
     configure(environment)
     if benchmark not in BENCHMARKS or phase not in {"download", "prepare", "index"}:
         raise ValueError("无效 benchmark 或 PHASE")
     directory = ROOT / "artifacts/benchmarks" / benchmark / slug(version)
     settings = dict(benchmark=benchmark, version=version, phase=phase, data=data, corpus=corpus,
-                    decrypted=decrypted, corpus_revision=corpus_revision, title_weight=title_weight, csv=csv)
+                    decrypted=decrypted, query_revision=query_revision, corpus_revision=corpus_revision,
+                    index_revision=index_revision, title_weight=title_weight, csv=csv)
     with job(directory / "jobs" / stamp(phase), "prepare_benchmark", settings):
         if benchmark == "browsecomp":
             if phase != "download":
@@ -79,7 +81,8 @@ def prepare_benchmark(*, benchmark, version, phase, environment, data=None, corp
             from search_comp.workflows.offline_benchmark import run
             run(offline_options(benchmark, directory, action=phase,
                 data=path(data) if data else None, corpus=path(corpus) if corpus else None,
-                decrypted=decrypted, corpus_revision=corpus_revision, title_weight=title_weight,
+                decrypted=decrypted, query_revision=query_revision, corpus_revision=corpus_revision,
+                index_revision=index_revision, title_weight=title_weight,
                 dev_url=DEV_URL, wiki_url=WIKI_URL))
 
 

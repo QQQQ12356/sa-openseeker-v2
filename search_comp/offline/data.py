@@ -6,6 +6,7 @@ import gzip
 from html.parser import HTMLParser
 import json
 from pathlib import Path
+import re
 import tarfile
 
 from .assets import digest, dump, verify_official
@@ -84,13 +85,24 @@ class EmptyDocumentError(ValueError):
     """A structurally valid Wikipedia record has no body after normalization."""
 
 
-def document(row, benchmark):
+_BCP_FRONTMATTER = re.compile(
+    r"---\s*title:\s*(?P<title>.+?)\s*(?:author:\s*.+?\s*)?"
+    r"(?:date:\s*.+?\s*)?---\s*(?P<body>.*?)(?=---|$)", re.S,
+)
+
+
+def document(row, benchmark, *, aligned_parquet=False):
     docid = str(row.get("docid", row.get("id", "")))
     if not docid:
         raise ValueError("document missing docid/id")
     if benchmark == "browsecomp-plus":
         text = required_text(row.get("text"), "document.text")
-        return dict(id=docid, title=str(row.get("title") or docid), text=text,
+        title = str(row.get("title") or docid)
+        if aligned_parquet:
+            header = _BCP_FRONTMATTER.search(text)
+            title = header["title"].strip() if header else f"Doc {docid}"
+            text = header["body"].strip() if header else text.strip()
+        return dict(id=docid, title=title, text=text,
                     source_url=str(row.get("url") or ""), sentences=[])
     title = required_text(row.get("title"), "Wikipedia title")
     text = row.get("text")
@@ -198,6 +210,12 @@ def prepare(benchmark, root, data, corpus, encrypted=False, corpus_limit=None):
         raise FileExistsError(f"prepared directory exists: {output}; choose a new ROOT")
     # Validate source files before creating outputs; no data download occurs here.
     source_data, source_corpus = source_fingerprint(data), source_fingerprint(corpus)
+    downloaded_bcp = (benchmark == "browsecomp-plus" and
+                      Path(data).resolve() == (root / "raw/queries").resolve() and
+                      Path(corpus).resolve() == (root / "raw/corpus").resolve())
+    snapshot_hashes = assets.get("raw_parquet_sha256") if downloaded_bcp else None
+    if snapshot_hashes and snapshot_hashes != {"queries": source_data, "corpus": source_corpus}:
+        raise ValueError("BrowseComp-Plus Parquet files differ from the downloaded snapshots")
     qrels = {}
     if benchmark == "browsecomp-plus":
         qrels = {kind: read_qrels(root / ("official/topics-qrels/qrel_evidence.txt" if kind == "evidence"
@@ -219,11 +237,12 @@ def prepare(benchmark, root, data, corpus, encrypted=False, corpus_limit=None):
     skipped_path = output / "skipped_documents.jsonl"
     with ((output / "corpus.jsonl").open("x", encoding="utf-8") as target,
           skipped_path.open("x", encoding="utf-8") as skip_log):
-        for position, row in enumerate(records(corpus), 1):
+        columns = ["docid", "url", "text"] if snapshot_hashes else None
+        for position, row in enumerate(records(corpus, parquet_columns=columns), 1):
             if corpus_limit is not None and count >= corpus_limit:
                 break
             try:
-                value = document(row, benchmark)
+                value = document(row, benchmark, aligned_parquet=bool(snapshot_hashes))
             except EmptyDocumentError:
                 skipped += 1
                 skip_log.write(json.dumps(dict(record_index=position,
@@ -244,9 +263,10 @@ def prepare(benchmark, root, data, corpus, encrypted=False, corpus_limit=None):
     canonical = ("wiki_sha256" in assets and str(Path(corpus).resolve()) == str((root / "raw/wiki-abstracts.tar.bz2").resolve())
                  and source_corpus.get("wiki-abstracts.tar.bz2") == assets["wiki_sha256"]
                  and qcount == 7405) if benchmark == "hotpotqa" else (
-                 "corpus_revision" in assets and Path(data).resolve() == (root / "raw/queries").resolve()
-                 and Path(corpus).resolve() == (root / "raw/corpus").resolve() and qcount == 830 and count == 100195)
+                 "corpus_revision" in assets and downloaded_bcp and qcount == 830 and count == 100195)
     canonical = canonical and corpus_limit is None and skipped == 0
+    if snapshot_hashes and corpus_limit is None and not canonical:
+        raise ValueError(f"expected 830 official questions and 100195 documents, got {qcount} and {count}")
     manifest = dict(benchmark=benchmark, canonical_corpus=canonical, split="dev" if benchmark == "hotpotqa" else "test",
                     questions=qcount, documents=count, corpus_limit=corpus_limit,
                     skipped_documents=skipped, skipped_documents_sha256=digest(skipped_path),

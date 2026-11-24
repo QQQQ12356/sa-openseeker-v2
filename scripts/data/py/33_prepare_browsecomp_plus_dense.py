@@ -14,7 +14,7 @@ SCHEMA = {
     "PHASE": {"env": "SA_PHASE", "type": "str"},
     "SOURCE": {"env": "SA_SOURCE", "type": "str"},
     "MODEL_REVISION": {"env": "SA_MODEL_REVISION", "type": "str"},
-    "INDEX_REVISION": {"env": "SA_INDEX_REVISION", "type": "str"},
+    "INDEX_REVISION": {"env": "SA_INDEX_REVISION", "type": "optional"},
     "EMBEDDING_MODEL_PATH": {"env": "SA_EMBEDDING_MODEL_PATH", "type": "optional"},
     "OFFICIAL_INDEX_DIR": {"env": "SA_OFFICIAL_INDEX_DIR", "type": "optional"},
     "PREPARED_DIR": {"env": "SA_PREPARED_DIR", "type": "str"},

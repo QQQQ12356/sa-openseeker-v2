@@ -1,0 +1,4 @@
+# Official BrowseComp-Plus retrieval. Install into the existing Linux eval environment.
+# Pyserini also needs Java 21 available through JAVA_HOME or PATH.
+pyserini==1.5.0
+faiss-cpu==1.13.2
