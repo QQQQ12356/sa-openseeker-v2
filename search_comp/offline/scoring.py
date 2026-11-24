@@ -214,7 +214,7 @@ def retrieval_metrics(questions, predictions):
 
 
 def score_browsecomp(root, questions, predictions, output, judge=None, retrieval_only=False,
-                     judge_attempts=3, judge_preflight=True):
+                     judge_attempts=3, judge_preflight=True, judge_backend="local"):
     verify_official(root, "browsecomp-plus")
     script = Path(root) / "official/scripts_evaluation/evaluate_run.py"
     funcs = load_official_functions(script, {"GRADER_TEMPLATE", "create_judge_prompt", "parse_judge_response",
@@ -243,7 +243,7 @@ def score_browsecomp(root, questions, predictions, output, judge=None, retrieval
                    for p in predictions.values())
     if not retrieval_only and judge_preflight and eligible:
         if judge is None:
-            raise ValueError("full BrowseComp-Plus scoring requires a local judge model")
+            raise ValueError("full BrowseComp-Plus scoring requires a judge")
         def calibration_check(query, response, answer):
             parsed, history = check(query, response, answer)
             return (parsed["correct"] if parsed else None), history
@@ -269,7 +269,7 @@ def score_browsecomp(root, questions, predictions, output, judge=None, retrieval
             result = dict(id=row["id"], completed=completed, correct=False, **per_query[row["id"]])
             if completed and not retrieval_only:
                 if judge is None:
-                    raise ValueError("full BrowseComp-Plus scoring requires a local judge model")
+                    raise ValueError("full BrowseComp-Plus scoring requires a judge")
                 parsed, history = check(row["query"], response, row["answer"])
                 result["judge_attempts"] = history
                 result["judge_response"] = history[-1].get("raw", "")
@@ -298,7 +298,8 @@ def score_browsecomp(root, questions, predictions, output, judge=None, retrieval
     metrics = dict(recalls, count=len(questions), judge_errors=errors, complete=errors == 0,
                    judge_policy=POLICY, judge_attempts=judge_attempts, judge_preflight=judge_preflight,
                    completed_predictions=sum(d["completed"] for d in details),
-                   score_mode="retrieval-only" if retrieval_only else "official prompt with validated local HF judge",
+                   score_mode="retrieval-only" if retrieval_only else
+                   "official prompt with validated " + {"local": "local HF", "openai": "OpenAI API"}[judge_backend] + " judge",
                    metric="BrowseComp-Plus", official_evaluator_sha256=digest(script),
                    avg_tool_stats={key: value / len(questions) for key, value in counts.items()})
     if not retrieval_only:

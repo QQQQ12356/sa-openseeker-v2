@@ -18,12 +18,13 @@ from types import SimpleNamespace
 
 from search_comp.evaluation.benchmark_resume import publish_continuation, resume_prefix
 from search_comp.evaluation.checkpoints import load_evaluation_model, resolve_checkpoint
-from search_comp.offline.assets import DEV_URL, WIKI_URL, digest, download_assets, dump, enforce_offline, verify_official
+from search_comp.offline.assets import (DEV_URL, WIKI_URL, benchmark_request, digest, download_assets,
+                                        dump, enforce_offline, http_endpoint, verify_official)
 from search_comp.offline.data import prepare, records
 from search_comp.offline.index import LocalIndex, build_index
 from search_comp.offline.qwen_embedding import BACKEND as DENSE_BACKEND, DenseIndex, read_vector_manifest
 from search_comp.offline.scoring import LocalJudge, load_predictions, score_browsecomp, score_hotpot
-from search_comp.offline.tools import BCP_INSTRUCTION, HOTPOT_INSTRUCTION, LocalTools
+from search_comp.offline.tools import BCP_INSTRUCTION, HOTPOT_INSTRUCTION, LocalTools, SearchServiceIndex
 from search_comp.utils.devices import worker_devices
 from search_comp.utils.progress import CompletionProgress, generation_label
 
@@ -66,6 +67,10 @@ def verify_index(args, manifest):
         if getattr(args, "retriever", "bm25") == "bm25" and index.manifest["title_weight"] != args.title_weight:
             raise ValueError("TITLE_WEIGHT differs from the built index; rebuild in a new ROOT")
         metadata = index.manifest
+        if getattr(args, "retriever", "bm25") == "search-service":
+            service = SearchServiceIndex(index, args.search_service_url, args.search_service_timeout)
+            metadata = dict(metadata, retriever="search-service", search_service_url=args.search_service_url,
+                            active_searcher=service.check_endpoint())
     if getattr(args, "retriever", "bm25") == DENSE_BACKEND:
         dense = read_vector_manifest(args.vector_index_dir, manifest, args.embedding_model_path, args.verify_index)
         metadata = dict(metadata, retriever=DENSE_BACKEND, vector_index=dense)
@@ -109,6 +114,8 @@ def run_phase(args, output, rows, manifest, index_metadata=None, prompt=None):
         if getattr(args, "retriever", "bm25") == DENSE_BACKEND:
             retrieval = DenseIndex(index, args.vector_index_dir, args.embedding_model_path,
                                    args.embedding_device, index_metadata["vector_index"])
+        elif getattr(args, "retriever", "bm25") == "search-service":
+            retrieval = SearchServiceIndex(index, args.search_service_url, args.search_service_timeout)
         tools = LocalTools(retrieval, tokenizer, args.topk, args.snippet_tokens, args.read_tokens,
                            args.allow_visit, args.tool_count)
         for position, row in enumerate(rows):
@@ -118,7 +125,9 @@ def run_phase(args, output, rows, manifest, index_metadata=None, prompt=None):
             messages = [dict(role="system", content=system), dict(role="user", content=row["query"])]
             result = run_agent(messages, tokenizer, generate, tools, args.max_turns,
                                args.max_context, args.max_new_tokens, args.max_tool_tokens,
-                               max_call_retries=args.tool_call_retries)
+                               max_call_retries=args.tool_call_retries,
+                               observation_window=getattr(args, "observation_window", 0),
+                               record_turn_stats=args.benchmark == "browsecomp-plus")
             result.update(id=row["id"], sample_index=args.shard_index + position * args.shard_count,
                           prompt_source=prompt_source,
                           query=row["query"], answer=row["answer"], final_response=result["prediction"],
@@ -144,7 +153,8 @@ def worker_command(args, output, rank, count):
     model, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     command = [sys.executable, "-m", "search_comp.workflows.offline_benchmark", "run"]
     excluded = {"action", "output_dir", "num_workers", "shard_index", "shard_count",
-                "model", "kind", "judge_model", "predictions", "dry_run", "resume_from",
+                "model", "kind", "judge_model", "judge_backend", "judge_url", "judge_timeout",
+                "predictions", "dry_run", "resume_from",
                 "resume_predictions_sha256", "resume_manifest_sha256"}
     for key, value in vars(args).items():
         if key in excluded or value is None or value is False:
@@ -313,9 +323,19 @@ def score_phase(args, output, rows, manifest, prediction_path, *, recovery=None)
         if source.get("selected_ids") != [row["id"] for row in rows]:
             raise ValueError("prediction selection differs; set the same --limit as the original run")
     judge = None
+    judge_backend = getattr(args, "judge_backend", "local")
     needs_judge = (args.benchmark == 'browsecomp-plus' and not args.retrieval_only
                    or args.benchmark == 'hotpotqa' and (getattr(args, 'llm_judge', False) or args.judge_model))
-    if needs_judge:
+    if needs_judge and judge_backend == "openai":
+        from search_comp.evaluation.judging import ChatJudge
+        client = ChatJudge(args.judge_url, args.judge_model, os.environ["OPENAI_API_KEY"],
+                           max_tokens=args.judge_max_tokens, timeout=args.judge_timeout,
+                           openai_api=True)
+
+        def judge(prompt):
+            with benchmark_request():
+                return client([dict(role="user", content=prompt)])
+    elif needs_judge:
         if not args.judge_model or not args.judge_model.is_dir():
             raise ValueError("LLM answer scoring needs --judge-model pointing to a local model directory")
         # Lazy load: failed/empty generation needs no judge invocation.
@@ -332,12 +352,12 @@ def score_phase(args, output, rows, manifest, prediction_path, *, recovery=None)
                                args.judge_attempts, not args.skip_judge_preflight)
     else:
         summary = score_browsecomp(args.root, rows, predictions, output, judge, args.retrieval_only,
-                                   args.judge_attempts, not args.skip_judge_preflight)
+                                   args.judge_attempts, not args.skip_judge_preflight, judge_backend)
     summary.update(benchmark=args.benchmark, prediction_count=len(predictions),
                    missing_predictions=len(rows) - len(predictions),
                    questions_sha256=manifest["questions_sha256"], corpus_sha256=manifest["corpus_sha256"],
                    subset=args.limit > 0 or len(rows) != manifest["questions"] or not manifest["canonical_corpus"],
-                   corpus_scope=manifest["corpus_scope"], offline=True)
+                   corpus_scope=manifest["corpus_scope"], offline=judge_backend != "openai")
     if recovery is not None:
         summary["recovery"] = recovery
     dump(output / "summary.metrics.json", summary)
@@ -362,7 +382,9 @@ def make_parser():
     parser.add_argument("--wiki-url", default=WIKI_URL, help="Hotpot abstracts mirror; official MD5 is still required")
     parser.add_argument("--title-weight", type=float, default=1.0)
     parser.add_argument("--verify-index", action="store_true", help="SHA256 scan of full index before run")
-    parser.add_argument("--retriever", choices=["bm25", DENSE_BACKEND], default="bm25")
+    parser.add_argument("--retriever", choices=["bm25", DENSE_BACKEND, "search-service"], default="bm25")
+    parser.add_argument("--search-service-url")
+    parser.add_argument("--search-service-timeout", type=float, default=90)
     parser.add_argument("--vector-index-dir", type=Path)
     parser.add_argument("--embedding-model-path", type=Path)
     parser.add_argument("--embedding-device", default="cuda:0")
@@ -391,6 +413,7 @@ def make_parser():
     parser.add_argument("--max-context", type=int, default=131072)
     parser.add_argument("--max-new-tokens", type=int, default=8192)
     parser.add_argument("--max-tool-tokens", type=int, default=32768)
+    parser.add_argument("--observation-window", type=int, default=0)
     parser.add_argument("--judge-model", type=Path)
     parser.add_argument('--llm-judge', action='store_true', help='Add HotpotQA semantic judging alongside official EM/F1')
     parser.add_argument("--retrieval-only", action="store_true")
@@ -425,8 +448,14 @@ def run(args):
         parser.error(str(error))
     args.root = args.root or ROOT / "artifacts/benchmarks" / args.benchmark
     retriever = getattr(args, "retriever", "bm25")
-    if retriever not in {"bm25", DENSE_BACKEND}:
-        parser.error("RETRIEVER must be bm25 or qwen3-embedding-8b")
+    if retriever not in {"bm25", DENSE_BACKEND, "search-service"}:
+        parser.error("RETRIEVER must be bm25, qwen3-embedding-8b or search-service")
+    if retriever == "search-service":
+        if args.benchmark != "browsecomp-plus" or args.action not in {"run", "all"}:
+            parser.error("search-service is supported for BrowseComp-Plus generation only")
+        if not args.search_service_url or not 0 < args.search_service_timeout < float("inf"):
+            parser.error("search-service requires a URL and a positive finite timeout")
+        args.search_service_url = http_endpoint(args.search_service_url)
     if retriever == DENSE_BACKEND:
         if args.benchmark != "browsecomp-plus" or args.action not in {"run", "all"}:
             parser.error("Qwen3-Embedding-8B is supported for BrowseComp-Plus generation only")
@@ -460,6 +489,16 @@ def run(args):
         parser.error("score requires --predictions")
     if args.tool_call_retries < 0:
         parser.error("--tool-call-retries must be nonnegative")
+    window = getattr(args, "observation_window", 0)
+    if window < 0 or window and args.benchmark != "browsecomp-plus":
+        parser.error("observation-window must be nonnegative and is only supported for BrowseComp-Plus")
+    judge_backend = getattr(args, "judge_backend", "local")
+    if judge_backend == "openai":
+        if args.benchmark != "browsecomp-plus" or args.action != "score" or not args.judge_model:
+            parser.error("OpenAI judging requires a model name and BrowseComp-Plus score action")
+        if not os.environ.get("OPENAI_API_KEY"):
+            parser.error("OpenAI judging requires OPENAI_API_KEY")
+        args.judge_url = http_endpoint(args.judge_url)
     if (args.action in {'all', 'score'} and args.llm_judge and not args.judge_model
             and not args.dry_run):
         parser.error('--llm-judge requires --judge-model (local directory)')
@@ -470,8 +509,6 @@ def run(args):
         return
     if args.action in {"run", "all"}:
         resolve_checkpoint(args.run_dir, args.model, args.kind)
-    if args.action in {"all", "score"} and args.judge_model and not args.judge_model.is_dir():
-        parser.error("judge-model must be an existing local model directory")
     if args.action == "download":
         print(json.dumps(download_assets(args.benchmark, args.root, args.corpus_revision, args.official_only,
                                         args.dev_url, args.wiki_url), indent=2))
@@ -502,17 +539,18 @@ def run(args):
         index_metadata = verify_index(args, manifest)
     else:
         model, kind, index_metadata = None, None, None
-    if args.judge_model and not args.judge_model.is_dir():
+    if judge_backend == "local" and args.judge_model and not args.judge_model.is_dir():
         parser.error("judge-model must be a local model directory")
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     output = args.output_dir or ((args.run_dir / "evaluation" if args.run_dir else ROOT / "artifacts/unassigned") /
                                  f"offline_{args.benchmark}_{stamp}")
     output.mkdir(parents=True, exist_ok=False)
-    run_manifest = dict(benchmark=args.benchmark, offline=True, model=model, kind=kind,
+    run_manifest = dict(benchmark=args.benchmark, offline=retriever != "search-service" and judge_backend != "openai",
+        model=model, kind=kind,
         cuda_visible_devices=os.environ.get("CUDA_VISIBLE_DEVICES"),
         created_at=datetime.now(timezone.utc).isoformat(), selected_ids=[row["id"] for row in rows],
         questions_sha256=manifest["questions_sha256"], prepared_manifest=manifest, index=index_metadata,
-        judge_model=str(args.judge_model) if args.judge_model else None,
+        judge_model=str(args.judge_model) if args.judge_model else None, judge_backend=judge_backend,
         arguments={key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
         code_sha256={str(path.relative_to(ROOT)): digest(path) for path in
                      [Path(__file__), ROOT / "search_comp/evaluation/judging.py",

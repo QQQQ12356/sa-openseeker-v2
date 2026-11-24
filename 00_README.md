@@ -27,6 +27,7 @@ Baseline 指未训练的原始 Qwen3.5 基座。Plain 默认使用 LoRA；Beacon
 | 3 | [34 训练数据评测](docs/34_training_data_evaluation.md) | 对 train、validation 或 test 划分重新检索作答 |
 | 3 | [35 BrowseComp-Plus 向量检索](docs/35_browsecomp_plus_dense.md) | 下载、导入或重建 Qwen3-Embedding-8B 索引，并与 BM25 对照 |
 | 3 | [36 测试续测](docs/36_browsecomp_plus_resume.md) | 对三个 benchmark 和训练数据评测复用预测，只生成新增题目 |
+| 3 | [37 BrowseComp-Plus 一次运行生成与评分](docs/37_browsecomp_plus_run.md) | 用 Qwen3.5-4B 运行 Baseline、Plain、Beacon，切换检索器和 CM 窗口 |
 | 4 | [60 参数手册](docs/60_parameters.md) | SH 脚本变量、训练参数、压缩参数及修改提示 |
 | 5 | [70 产物规范](docs/70_artifacts.md) | 目录、命名、运行身份、来源校验、失败归档 |
 | 6 | [82 Excel 导出](docs/82_benchmark_excel.md) | benchmark 评分汇总、逐题明细、完整参数与修改提示 |
@@ -39,7 +40,7 @@ Baseline 指未训练的原始 Qwen3.5 基座。Plain 默认使用 LoRA；Beacon
 2. 激活环境后直接运行该文件，例如 `bash scripts/plain/sh/10_train_openseeker.sh`。不需要追加参数或设置命令行覆盖。
 3. 方法 SH 各自包含完整配置，仅调用同目录体系内的同名 PY，不调用其他方法的 SH。公共数据和 benchmark 版本可以复用。
 4. 将训练实验目录填入测试脚本的 `SA_TRAINING_RUN`。测试周期检查点时填写 `SA_CHECKPOINT`，留空测试成功训练的最终模型。
-5. 测试完成后，将测试目录复制到对应评分脚本的 `SA_EVALUATION_DIR`。评分自动沿用数据版本与题目范围。
+5. BrowseComp-Plus 可用 [46 共用入口](docs/37_browsecomp_plus_run.md) 一次运行生成与评分。使用分步入口时，将测试目录填入对应评分脚本的 `SA_EVALUATION_DIR`，评分自动沿用数据版本与题目范围。
 6. 所有运行产物写入 `artifacts/`。每次运行创建独立目录；失败保留清单和日志，修正后重新运行。
 7. 评分完成后，编辑并运行 `bash scripts/tools/sh/82_benchmark_excel.sh`，将一份或多份 benchmark 评分结果汇总到 Excel；详细步骤见 [82 Excel 导出](docs/82_benchmark_excel.md)。
 

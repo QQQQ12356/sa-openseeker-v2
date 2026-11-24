@@ -1,12 +1,15 @@
 """Explicit download phase and pinned official evaluator provenance."""
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
 import hashlib
 import json
 import os
 from pathlib import Path
 import socket
 import sys
+from urllib.parse import urlsplit
 import urllib.request
 
 BCP_REV = "046949032b0328319cc9a02663a759ec601d9402"
@@ -155,12 +158,35 @@ def verify_official(root, benchmark):
     return record
 
 
+_ALLOW_BENCHMARK_REQUEST = ContextVar("allow_benchmark_request", default=False)
+
+
+def http_endpoint(value):
+    url = urlsplit(value)
+    if (url.scheme not in {"http", "https"} or not url.hostname or url.username is not None
+            or url.query or url.fragment):
+        raise ValueError("benchmark endpoint must be an HTTP(S) URL without credentials, query or fragment")
+    return value.rstrip("/")
+
+
+@contextmanager
+def benchmark_request():
+    """Allow network only for an explicit search service or remote judge request."""
+    token = _ALLOW_BENCHMARK_REQUEST.set(True)
+    try:
+        yield
+    finally:
+        _ALLOW_BENCHMARK_REQUEST.reset(token)
+
+
 def enforce_offline():
     """No automatic model downloads, telemetry, or IP socket connections in this process."""
     os.environ.update(HF_HUB_OFFLINE="1", HF_DATASETS_OFFLINE="1", TRANSFORMERS_OFFLINE="1",
                       HF_HUB_DISABLE_TELEMETRY="1", WANDB_MODE="offline")
 
     def audit(event, arguments):
-        if event == "socket.getaddrinfo" or (event == "socket.connect" and arguments[0].family in (socket.AF_INET, socket.AF_INET6)):
+        if ((event == "socket.getaddrinfo"
+             or event == "socket.connect" and arguments[0].family in (socket.AF_INET, socket.AF_INET6))
+                and not _ALLOW_BENCHMARK_REQUEST.get()):
             raise RuntimeError("offline evaluation forbids network sockets; use ACTION=download beforehand")
     sys.addaudithook(audit)

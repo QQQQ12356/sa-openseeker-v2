@@ -93,7 +93,8 @@ def attempt_judgment(call, parse, attempts=3, delay=0.5):
 
 class ChatJudge:
     """Standard-library OpenAI-compatible client; explicit timeout and no SDK retries."""
-    def __init__(self, urls, model, key, max_tokens=1024, timeout=120, enable_thinking=False):
+    def __init__(self, urls, model, key, max_tokens=1024, timeout=120, enable_thinking=False,
+                 *, openai_api=False):
         self.urls = [url.strip().rstrip('/') for url in urls.split(',') if url.strip()]
         if not self.urls:
             raise ValueError('judge requires at least one URL')
@@ -101,11 +102,15 @@ class ChatJudge:
             raise ValueError('judge max_tokens/timeout must be positive and finite')
         self.model, self.key = model, key
         self.max_tokens, self.timeout, self.enable_thinking = max_tokens, timeout, enable_thinking
+        self.openai_api = openai_api
 
     def __call__(self, messages, endpoint=0):
-        payload = dict(model=self.model, messages=messages, temperature=0, max_tokens=self.max_tokens,
-                       stream=False, skip_special_tokens=False,
-                       chat_template_kwargs=dict(enable_thinking=self.enable_thinking))
+        payload = dict(model=self.model, messages=messages, stream=False)
+        if self.openai_api:
+            payload['max_completion_tokens'] = self.max_tokens
+        else:
+            payload.update(temperature=0, max_tokens=self.max_tokens, skip_special_tokens=False,
+                           chat_template_kwargs=dict(enable_thinking=self.enable_thinking))
         request = urllib.request.Request(self.urls[endpoint % len(self.urls)] + '/chat/completions',
             data=json.dumps(payload).encode(),
             headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + self.key})

@@ -1,5 +1,7 @@
 # 61 各 SH 脚本的完整参数清单
 
+`scripts/tools/sh/46_run_browsecomp_plus.sh` 的模型、检索、生成与裁判参数见 [BrowseComp-Plus 一次运行生成与评分](37_browsecomp_plus_run.md)。
+
 `scripts/tools/sh/84_test_training_data.sh` 的变量、默认值及修改提示见 [训练数据评测参数表](34_training_data_evaluation.md#参数表)。
 
 `scripts/tools/sh/85_recover_browsecomp_plus.sh` 用于汇总中断的 42 测试并计算临时指标。见 [恢复评分用法与参数表](36_browsecomp_plus_resume.md#85-从中断的-browsecomp-plus-测试恢复评分)。

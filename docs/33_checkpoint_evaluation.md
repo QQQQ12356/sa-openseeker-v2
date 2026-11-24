@@ -2,6 +2,8 @@
 
 Plain 和 Beacon 的 BrowseComp、BrowseComp-Plus、HotpotQA 测试入口均支持选择训练中的 `checkpoint-<step>`。OpenSeeker、Research 和混合数据实验使用同一套测试脚本。数据身份及基座由所属训练实验确定，混合实验通过 `SA_PROMPT_DATA` 显式选择评测提示词。
 
+Qwen3.5-4B 的 BrowseComp-Plus 检查点也可用 [46 共用入口](37_browsecomp_plus_run.md) 自动生成和评分。
+
 用实验训练数据或 prepared 保留划分作为测试题时，使用单独的 [训练数据评测入口](34_training_data_evaluation.md)。
 
 BrowseComp-Plus 测试可通过 `SA_GENERATION__RETRIEVER` 切换 BM25 与 Qwen3-Embedding-8B。向量资产准备、设备参数和对照测试方法见 [BrowseComp-Plus 向量检索](35_browsecomp_plus_dense.md)。

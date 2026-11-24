@@ -36,6 +36,7 @@ def offline_options(benchmark, benchmark_dir, **values):
                    corpus_revision=None, dev_url=None, wiki_url=None, title_weight=1.0,
                    verify_index=True, run_dir=None, prompt_data=None, model=None,
                    retriever="bm25", vector_index_dir=None, embedding_model_path=None, embedding_device="cuda:0",
+                   search_service_url=None, search_service_timeout=90, observation_window=0,
                    model_origin="checkpoint", kind=None, output_dir=None, predictions=None,
                    num_workers=1, shard_index=0, shard_count=1, limit=-1, topk=5,
                    snippet_tokens=512, allow_visit=True, tool_call_retries=1, read_tokens=4096,
@@ -240,7 +241,67 @@ def score(*, method, benchmark, evaluation_dir, run_name, judge, environment):
             run(online_options(source["benchmark_dir"], **common, **options))
         else:
             from search_comp.workflows.offline_benchmark import run
-            options = {key: value for key, value in judge.items() if key not in {"judge_workers", "judge_timeout"}}
-            options["judge_model"] = path(options["judge_model"]) if options.get("judge_model") else None
+            options = {key: value for key, value in judge.items() if key != "judge_workers"}
+            if options.get("judge_backend") != "openai":
+                options["judge_model"] = path(options["judge_model"]) if options.get("judge_model") else None
             run(offline_options(benchmark, source["benchmark_dir"], action="score", **common, **options))
     return output
+
+
+def evaluate_and_score_browsecomp_plus(*, method, benchmark_dir, training_run, model_path,
+                                      checkpoint, prompt_data, run_name, overlap,
+                                      overlap_threshold, resume_from, evaluation_dir,
+                                      generation, judge, environment):
+    """Run a single BrowseComp-Plus configuration or rescore an existing evaluation."""
+    import os
+
+    from search_comp.offline.assets import http_endpoint
+
+    benchmark = "browsecomp-plus"
+    if method not in {"baseline", "plain", "beacon"}:
+        raise ValueError("SA_METHOD must be baseline, plain or beacon")
+    judge = dict(judge)
+    if judge["judge_backend"] == "openai":
+        if not os.environ.get("OPENAI_API_KEY"):
+            raise ValueError("OpenAI judging requires OPENAI_API_KEY")
+        judge["judge_url"] = http_endpoint(judge["judge_url"])
+    elif judge["judge_backend"] == "local":
+        if not judge["judge_model"] or not path(judge["judge_model"]).is_dir():
+            raise ValueError("local judging requires SA_JUDGE__JUDGE_MODEL to point to a directory")
+        judge.pop("judge_url")
+    else:
+        raise ValueError("SA_JUDGE__JUDGE_BACKEND must be openai or local")
+    if not judge["judge_model"] or min(judge["judge_attempts"], judge["judge_max_tokens"]) < 1:
+        raise ValueError("judge model, token budget and attempts must be configured")
+    if not 0 < judge["judge_timeout"] < float("inf"):
+        raise ValueError("judge timeout must be positive and finite")
+
+    if not evaluation_dir:
+        if method == "baseline":
+            base = model_path
+        else:
+            if not training_run:
+                raise ValueError("plain/beacon requires SA_TRAINING_RUN")
+            spec = read_json(path(training_run) / "experiment.json")
+            base = spec["training_config"]["model_name_or_path"]
+        if not base:
+            raise ValueError("SA_MODEL_PATH must point to the original Qwen3.5-4B for baseline")
+        if method == "baseline" or base != "Qwen/Qwen3.5-4B":
+            config = read_json(path(base) / "config.json")
+            text = config.get("text_config", config)
+            if (config.get("model_type") not in {"qwen3_5", "qwen3_5_text"}
+                    or (text.get("hidden_size"), text.get("intermediate_size"),
+                        text.get("num_hidden_layers")) != (2560, 9216, 32)):
+                raise ValueError("BrowseComp-Plus requires a Qwen3.5-4B backbone")
+        generation = dict(generation)
+        if generation["retriever"] == "search-service":
+            generation["search_service_url"] = http_endpoint(generation["search_service_url"])
+        evaluation_dir = evaluate(method=method, benchmark=benchmark, benchmark_dir=benchmark_dir,
+                                  training_run=training_run, model_path=model_path, checkpoint=checkpoint,
+                                  prompt_data=prompt_data, run_name=run_name, generation=generation,
+                                  environment=environment, overlap=overlap,
+                                  overlap_threshold=overlap_threshold, resume_from=resume_from)
+    score_dir = score(method=method, benchmark=benchmark, evaluation_dir=evaluation_dir,
+                      run_name="judge", judge=judge, environment=environment)
+    print(f"BrowseComp-Plus summary: {score_dir / 'results/summary.metrics.json'}", flush=True)
+    return score_dir

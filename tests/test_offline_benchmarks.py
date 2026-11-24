@@ -37,6 +37,88 @@ class CharacterTokenizer:
         return bytes(tokens).decode('utf-8', errors='ignore')
 
 
+@pytest.mark.parametrize("window", [0, 1])
+def test_observation_masking_changes_model_context_and_preserves_trace(window):
+    from search_comp.evaluation.plain_generation import PlainGenerationState
+    from search_comp.evaluation.tool_agent import ModelGenerator, Registry, run_agent
+
+    tokenizer = CharacterTokenizer()
+
+    def reply(*queries):
+        return "<tool_calls_begin>" + "".join(
+            '<tool_call>' + json.dumps(dict(name="search", arguments={"query": query})) + '</tool_call>'
+            for query in queries) + "</tool_calls_end>"
+
+    class Generator:
+        def __init__(self):
+            self.plain_state = PlainGenerationState(tokenizer)
+            self.responses = iter([reply("early-one", "early-two"), reply("late"), "<answer>OK</answer>"])
+            self.inputs = []
+
+        encode_turn = ModelGenerator.encode_turn
+        invalidate_history = ModelGenerator.invalidate_history
+
+        def __call__(self, encoded, budget):
+            self.inputs.append(tokenizer.decode(encoded["input_ids"]))
+            return next(self.responses), True, 1
+
+    generate = Generator()
+    generate.tokenizer = tokenizer
+    tools = Registry({"search": lambda query: "BODY:" + query})
+    result = run_agent([dict(role="system", content="Test"), dict(role="user", content="question")],
+                       tokenizer, generate, tools, observation_window=window, record_turn_stats=True)
+    assert result["prediction"] == "OK"
+    assert "BODY:early-one" in generate.inputs[1]
+    assert "BODY:late" in generate.inputs[2]
+    assert ("BODY:early-one" in generate.inputs[2]) == (window == 0)
+    assert any("BODY:early-two" in message["content"] for message in result["messages"])
+    assert len(result["turn_stats"]) == 3
+    if window:
+        assert generate.inputs[2].count("[Auto-archived search result]") == 2
+        assert result["masked_observations"] == 2
+    else:
+        assert "final_messages" not in result
+
+
+def test_bcp_search_service_resolves_rankings_against_official_ids(tmp_path, monkeypatch):
+    from search_comp.offline import tools as module
+
+    root = prepared_bcp(tmp_path)
+    with LocalIndex(root / "index.sqlite") as index:
+        doc = index.search("bridge")[0]
+
+        def request_body(request, timeout):
+            assert request.full_url == "http://127.0.0.1:8007/search"
+            assert timeout == 5
+            assert json.loads(request.data) == dict(query="bridge", topn=3, reasoning="Look for a bridge.")
+            return io.BytesIO(json.dumps({"results": [{"url": doc["source_url"]}]}).encode())
+
+        monkeypatch.setattr(module, "urlopen", request_body)
+        retrieval = module.SearchServiceIndex(index, "http://127.0.0.1:8007", 5)
+        tools = LocalTools(retrieval, CharacterTokenizer(), topk=3)
+        tools.set_reasoning("<think>Look for a bridge.</think>")
+        results = json.loads(tools.search(["bridge"]))[0]["results"]
+        assert [item["docid"] for item in results] == [doc["docid"]]
+        assert tools.retrieved == {doc["docid"]}
+
+
+def test_bcp_openai_judge_uses_reasoning_model_request_format(monkeypatch):
+    from search_comp.evaluation import judging
+
+    def request_body(request, timeout):
+        assert request.full_url == "https://judge.invalid/v1/chat/completions"
+        assert timeout == 30
+        assert json.loads(request.data) == dict(model="gpt-5-mini",
+            messages=[dict(role="user", content="Prompt")], stream=False, max_completion_tokens=4096)
+        reply = dict(choices=[dict(finish_reason="stop", message=dict(content="correct: yes"))])
+        return io.BytesIO(json.dumps(reply).encode())
+
+    monkeypatch.setattr(judging.urllib.request, "urlopen", request_body)
+    judge = judging.ChatJudge("https://judge.invalid/v1", "gpt-5-mini", "test-key",
+                             max_tokens=4096, timeout=30, openai_api=True)
+    assert judge([dict(role="user", content="Prompt")]) == "correct: yes"
+
+
 def hotpot_sources(tmp_path):
     data = tmp_path / 'dev.json'
     data.write_text(json.dumps([

@@ -11,6 +11,7 @@ import math
 import re
 import time
 import urllib.request
+from collections import deque
 from types import SimpleNamespace
 from ..data.openseeker import (encode, parse_calls, json_text, CALL_END, RESPONSE_RE)
 from ..data.agent_prompt import prompt_metadata, render_system
@@ -171,6 +172,10 @@ class ModelGenerator:
             return self.plain_state.encode_turn(history)
         return encode(history, self.tokenizer, generation_prompt=True, allow_invalid_calls=allow_invalid_calls)
 
+    def invalidate_history(self):
+        if self.plain_state is not None:
+            self.plain_state = PlainGenerationState(self.tokenizer)
+
     def __call__(self, encoded, max_new_tokens):
         import torch
         from transformers import GenerationConfig, StoppingCriteriaList
@@ -243,10 +248,20 @@ def extract_response(text):
 
 def run_agent(messages, tokenizer, generate, tools, max_turns=32,
               max_context=16384, max_new_tokens=8192, max_tool_tokens=8192, tool_schemas=None,
-              log=None, max_call_retries=0):
+              log=None, max_call_retries=0, observation_window=0, record_turn_stats=False):
     # Only the original system/question enter inference; no reference is injected.
     history = [dict(message) for message in messages[:2]]
     history[0]['content'] = render_system(history[0]['content'], tool_schemas)
+    context = history.copy() if observation_window else history
+    recent_observations = deque()
+    turn_stats = []
+    masked_observations = 0
+
+    def append(replies):
+        history.extend(replies)
+        if context is not history:
+            context.extend(replies)
+
     if hasattr(generate, 'start_question'):
         generate.start_question(history[1]['content'])
     encode_turn = getattr(generate, 'encode_turn', None)
@@ -254,10 +269,19 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
     events = []; status = 'turn_limit'; prediction = ''; generated_tokens = 0
     call_retries = 0
     for turn in range(max_turns):
+        if observation_window and len(recent_observations) > observation_window:
+            first, calls = recent_observations.popleft()
+            for index, call in enumerate(calls, first):
+                context[index] = dict(role='user',
+                    content=f"<tool_response>[Auto-archived {call['name']} result]</tool_response>")
+            masked_observations += len(calls)
+            invalidate = getattr(generate, 'invalidate_history', None)
+            if invalidate is not None:
+                invalidate()
         if encode_turn is None:
-            encoded = encode(history, tokenizer, generation_prompt=True, allow_invalid_calls=max_call_retries > 0)
+            encoded = encode(context, tokenizer, generation_prompt=True, allow_invalid_calls=max_call_retries > 0)
         else:
-            encoded = encode_turn(history, allow_invalid_calls=max_call_retries > 0)
+            encoded = encode_turn(context, allow_invalid_calls=max_call_retries > 0)
         available = max_context - len(encoded['input_ids'])
         if available <= 0:
             status = 'context_limit'; break
@@ -273,13 +297,17 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
             raise
         cached = getattr(generate, 'cached_input_tokens', None)
         if reused_tokens is not None:
-            reused_tokens += cached
+            reused_tokens += cached or 0
+        if record_turn_stats:
+            turn_stats.append(dict(round=turn + 1, input_tokens=len(encoded['input_ids']),
+                                   output_tokens=n_tokens, cached_input_tokens=cached,
+                                   latency_s=time.monotonic() - start))
         if log:
             cache_log = f" cached_input_tokens={cached}" if cached is not None else ""
             log(f"turn={turn + 1}/{max_turns} generation end output_tokens={n_tokens} ended={ended} "
                 f"elapsed={time.monotonic() - start:.2f}s{cache_log}")
         generated_tokens += n_tokens
-        history.append(dict(role='assistant', content=text))
+        append([dict(role='assistant', content=text)])
         if not ended:
             status = 'generation_limit'; break
         try:
@@ -290,9 +318,9 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
             if call_retries < max_call_retries and turn + 1 < max_turns:
                 call_retries += 1
                 event['retry_requested'] = True
-                history.append(dict(role='user', content='<tool_response>Invalid tool-call format. '
+                append([dict(role='user', content='<tool_response>Invalid tool-call format. '
                     'No tools were executed. Retry using valid JSON with name and arguments object, '
-                    'inside the required tool-call tags. Escape quotes inside JSON strings.</tool_response>'))
+                    'inside the required tool-call tags. Escape quotes inside JSON strings.</tool_response>')])
                 continue
             status = 'invalid_call'
             break
@@ -303,6 +331,9 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
             if log:
                 log(f"turn={turn + 1}/{max_turns} tools start calls={len(calls)}")
             start = time.monotonic()
+            set_reasoning = getattr(tools, 'set_reasoning', None)
+            if set_reasoning is not None:
+                set_reasoning(text)
             replies = tools.execute(calls)
         except ToolError as error:
             if log:
@@ -314,7 +345,9 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
         # Do not silently cut observations: filtering during training also preserves bodies.
         if any(n > max_tool_tokens for n in lengths):
             status = 'tool_budget'; events.append(dict(calls=calls, tokens=lengths)); break
-        history.extend(replies)
+        if observation_window:
+            recent_observations.append((len(context), calls))
+        append(replies)
         events.append(dict(calls=calls, observation_tokens=lengths))
     result = dict(prediction=prediction, status=status, messages=history, events=events,
                   **prompt_metadata(history[0]['content']),
@@ -322,6 +355,11 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
                   generated_tokens=generated_tokens, turns=len(events))
     if reused_tokens is not None:
         result['cached_input_tokens'] = reused_tokens
+    if observation_window:
+        result.update(final_messages=context, masked_observations=masked_observations)
+    if record_turn_stats:
+        result.update(turn_stats=turn_stats,
+                      total_input_tokens=sum(stats['input_tokens'] for stats in turn_stats))
     return result
 
 
