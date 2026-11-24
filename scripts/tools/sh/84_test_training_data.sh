@@ -48,7 +48,7 @@ export SA_GENERATION__MAX_TOOL_TOKENS=16384
 export SA_GENERATION__TOOL_COUNT=20
 # 遇到非法调用格式时允许模型修正的次数；0 表示立即停止。
 export SA_GENERATION__TOOL_CALL_RETRIES=1
-# greedy 或 sample；Beacon 使用 greedy。
+# 解码模式可选 greedy 或 sample。
 export SA_GENERATION__DECODING=greedy
 # 重复惩罚，1.0 不施加额外惩罚。
 export SA_GENERATION__REPETITION_PENALTY=1.0

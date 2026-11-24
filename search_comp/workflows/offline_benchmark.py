@@ -87,7 +87,7 @@ def run_phase(args, output, rows, manifest, index_metadata=None, prompt=None):
     progress = CompletionProgress((), len(rows), generation_label(args.benchmark))
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
     from search_comp.evaluation.tool_agent import decoding_options
-    generation_options = decoding_options(args, kind == 'beacon')
+    generation_options = decoding_options(args)
     system, prompt_source = prompt if prompt is not None else agent_prompt(args)
     if index_metadata is None:
         index_metadata = verify_index(args, manifest)
@@ -420,7 +420,7 @@ def run(args):
     parser = ConfigError()
     from search_comp.evaluation.tool_agent import decoding_options
     try:
-        decoding_options(args, args.kind == 'beacon')
+        decoding_options(args)
     except ValueError as error:
         parser.error(str(error))
     args.root = args.root or ROOT / "artifacts/benchmarks" / args.benchmark
@@ -469,11 +469,7 @@ def run(args):
         print(json.dumps({key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()}, indent=2))
         return
     if args.action in {"run", "all"}:
-        _, resolved_kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
-        try:
-            decoding_options(args, resolved_kind == 'beacon')
-        except ValueError as error:
-            parser.error(str(error))
+        resolve_checkpoint(args.run_dir, args.model, args.kind)
     if args.action in {"all", "score"} and args.judge_model and not args.judge_model.is_dir():
         parser.error("judge-model must be an existing local model directory")
     if args.action == "download":

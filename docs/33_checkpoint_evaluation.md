@@ -28,7 +28,7 @@ BrowseComp-Plus 测试可通过 `SA_GENERATION__RETRIEVER` 切换 BM25 与 Qwen3
 | `SA_OVERLAP_THRESHOLD` | `0.30` | BrowseComp 系列改写题匹配阈值。判定细节见 [BrowseComp SFT](21_browsecomp_sft.md#browsecomp-与-browsecomp-plus-测试前筛选)。 |
 | `SA_GENERATION__LIMIT` | `-1` | `-1` 使用筛选后全部题目。正数取筛选后前 N 条。新检查点建议先跑 5 至 10 题验证加载和工具调用。 |
 | `CUDA_VISIBLE_DEVICES` / `SA_GENERATION__NUM_WORKERS` | `0` / `1` | 在线 BrowseComp 按题顺序运行。两个离线入口可用多个 worker，每个 worker 在一张可见 GPU 上加载完整模型，worker 数应与计划使用的 GPU 数匹配。 |
-| `SA_GENERATION__DECODING` | `greedy` | Plain 支持 `greedy` 和 `sample`，Beacon 使用 `greedy`。比较不同训练步数时沿用同一组生成与工具预算。 |
+| `SA_GENERATION__DECODING` | `greedy` | Plain 和 Beacon 都支持 `greedy` 与 `sample`。比较不同训练步数时沿用同一组生成与工具预算。 |
 
 例如，编辑 `scripts/beacon/sh/44_test_hotpotqa.sh` 中对应的参数行：
 

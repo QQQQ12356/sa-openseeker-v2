@@ -65,7 +65,7 @@ def evaluate_training_data(*, method, training_run, checkpoint, dataset_dir, spl
     if (any(getattr(args, name) < 1 for name in positive)
             or args.tool_call_retries < 0 or args.limit == 0 or args.limit < -1):
         raise ValueError("生成与读取预算须为正数，重试次数须非负，LIMIT 须为 -1 或正数")
-    decoding = decoding_options(args, method == "beacon")
+    decoding = decoding_options(args)
     dataset_name, run, model, kind, origin = resolve_target(method, training_run, None, checkpoint)
     spec = read_json(run / "experiment.json")
     key = SPLIT_KEYS[split]

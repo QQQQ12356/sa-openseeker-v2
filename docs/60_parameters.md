@@ -82,7 +82,7 @@ BrowseComp SFT 的下载、预处理变量及测试前的 `SA_OVERLAP`、`SA_OVE
 | max_tool_tokens | 全部 | 32768 | 单条工具返回编码长度上限；超限终止，不截断观测。 |
 | tool_count | 全部 | 200 | 每题工具调用对象数量上限；批量 query 仍属于一个 search 调用。 |
 | tool_call_retries | 全部 | 1 | 工具调用格式非法时允许的修正次数，不重试真实工具失败。 |
-| decoding | 全部 | greedy | greedy/sample；Beacon 只支持 greedy。 |
+| decoding | 全部 | greedy | 支持 greedy 和 sample。 |
 | repetition_penalty | 全部 | 1.0 | 重复惩罚，正有限值；1.0 不施加额外惩罚。 |
 | temperature | 全部 | 1.0 | sample 时的正温度；greedy 不采样。 |
 | top_p | 全部 | 1.0 | sample 的 nucleus 概率阈值，范围 (0,1]。 |

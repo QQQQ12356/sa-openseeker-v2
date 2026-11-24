@@ -124,8 +124,6 @@ def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prom
         raise ValueError("训练方法的提示词从 TRAINING_RUN 读取，无需覆盖 PROMPT_DATA")
     if overlap not in {"filter", "off"}:
         raise ValueError("SA_OVERLAP 必须为 filter 或 off")
-    if kind == "beacon" and generation["decoding"] != "greedy":
-        raise ValueError("Beacon 当前仅支持 greedy 解码")
     audit_overlap = overlap == "filter" and training_run is not None and benchmark in {"browsecomp", "browsecomp-plus"}
     base = training_run if training_run else ROOT / "artifacts/experiments/baseline/untrained"
     directory = base / "evaluation" / benchmark / stamp(run_name)

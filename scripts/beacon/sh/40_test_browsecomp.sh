@@ -106,7 +106,7 @@ export SA_GENERATION__TOOL_COUNT=200
 # GENERATION.TOOL_CALL_RETRIES：工具调用格式非法时允许的修正次数，不重试真实工具失败。
 export SA_GENERATION__TOOL_CALL_RETRIES=1
 
-# GENERATION.DECODING：greedy/sample；Beacon 只支持 greedy。
+# GENERATION.DECODING 可选 greedy 或 sample。
 export SA_GENERATION__DECODING=greedy
 
 # GENERATION.REPETITION_PENALTY：重复惩罚，正有限值；1.0 不施加额外惩罚。

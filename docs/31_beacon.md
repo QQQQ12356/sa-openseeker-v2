@@ -38,7 +38,7 @@
 | 输出蒸馏 | `beacon_output_distill_weight`、teacher 参数 | 大于 0 会额外加载 teacher；预留内存与显存 |
 | 显存优化 | `beacon_checkpoint_blocks`、`beacon_checkpoint_loss`、CPU offload | 训练默认开启；不用普通 gradient_checkpointing 代替 |
 
-逐项默认值和字段说明见 [60 参数手册](60_parameters.md)。多卡使用 DDP 或 ZeRO-2；当前不支持 Beacon ZeRO-3。推理仅支持 greedy。
+逐项默认值和字段说明见 [60 参数手册](60_parameters.md)。Beacon 多卡训练支持 DDP 和 ZeRO-2。评测默认使用 `greedy`，设置 `SA_GENERATION__DECODING=sample` 可启用按题设种子的采样，并用 `SA_GENERATION__TEMPERATURE` 和 `SA_GENERATION__TOP_P` 调整采样。
 
 ## 4. 校验计划与训练
 

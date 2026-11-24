@@ -111,7 +111,7 @@ def add_decoding_arguments(parser):
     parser.add_argument('--generation-seed', type=int, default=42)
 
 
-def decoding_options(args, beacon=False):
+def decoding_options(args):
     """Validate shared native options; omit defaults for existing integrations."""
     values = dict(decoding=getattr(args, 'decoding', 'greedy'),
                   repetition_penalty=getattr(args, 'repetition_penalty', 1.0),
@@ -128,8 +128,6 @@ def decoding_options(args, beacon=False):
         raise ValueError('top-p must be in (0, 1]')
     if values['seed'] < 0 or values['seed'] > 2**31 - 1:
         raise ValueError('generation-seed must be between 0 and 2147483647')
-    if beacon and values['decoding'] != 'greedy':
-        raise ValueError('native sampling currently supports Plain only; Beacon requires greedy')
     defaults = dict(decoding='greedy', repetition_penalty=1.0, temperature=1.0, top_p=1.0, seed=42)
     return {} if values == defaults else values
 
@@ -144,7 +142,7 @@ class ModelGenerator:
         self.decoding, self.repetition_penalty = decoding, repetition_penalty
         self.temperature, self.top_p, self.seed = temperature, top_p, seed
         decoding_options(SimpleNamespace(decoding=decoding, repetition_penalty=repetition_penalty,
-                                        temperature=temperature, top_p=top_p, generation_seed=seed), beacon)
+                                        temperature=temperature, top_p=top_p, generation_seed=seed))
         config = model.config.to_dict()
         self.metadata = dict(kind='beacon' if beacon else 'plain', do_sample=decoding == 'sample',
                              decoding=decoding, repetition_penalty=repetition_penalty,
@@ -186,9 +184,11 @@ class ModelGenerator:
             if self.beacon:
                 penalty = ({'repetition_penalty': self.repetition_penalty}
                            if self.repetition_penalty != 1.0 else {})
+                sampling = (dict(do_sample=True, temperature=self.temperature, top_p=self.top_p)
+                            if self.decoding == 'sample' else {})
                 out = self.model.beacon_generate(input_ids=ids, attention_mask=torch.ones_like(ids),
                     regions=encoded['regions'], max_new_tokens=max_new_tokens, tokenizer=tokenizer,
-                    stop_texts=stops, eos_token_ids=eos_ids, reuse_cache=False, **penalty)
+                    stop_texts=stops, eos_token_ids=eos_ids, reuse_cache=False, **sampling, **penalty)
                 generated = out[0].tolist()
             else:
                 start = ids.shape[1]
@@ -203,8 +203,7 @@ class ModelGenerator:
                 # Full IDs are used by stopping and repetition penalty. With
                 # past_key_values, Transformers forwards only the uncached suffix.
                 out = self.model.generate(input_ids=ids, attention_mask=torch.ones_like(ids),
-                    # Do not inherit checkpoint-specific sampling, beam or penalty defaults
-                    # that the Beacon argmax loop does not implement.
+                    # Use the benchmark decoding settings instead of checkpoint defaults.
                     generation_config=GenerationConfig(max_new_tokens=max_new_tokens,
                         do_sample=self.decoding == 'sample', num_beams=1, repetition_penalty=self.repetition_penalty,
                         bos_token_id=self.model.config.bos_token_id,

@@ -165,10 +165,12 @@ def test_plain_repetition_penalty_changes_greedy_choice():
     assert penalized.metadata['repetition_penalty'] == 2.0
 
 
-def test_sampling_configuration_and_question_seed_are_reproducible():
+@pytest.mark.parametrize('beacon', [False, True])
+def test_sampling_configuration_and_question_seed_are_reproducible(beacon):
     import torch
     from transformers import Qwen3Config
     from search_comp.evaluation.tool_agent import ModelGenerator
+    from search_comp.models.beacon_config import BeaconConfig
 
     class Tokenizer:
         pad_token_id = 0
@@ -179,12 +181,19 @@ def test_sampling_configuration_and_question_seed_are_reproducible():
             super().__init__()
             self.weight = torch.nn.Parameter(torch.zeros(1))
             self.config = Qwen3Config(eos_token_id=9)
+            self.beacon_config = BeaconConfig()
         def generate(self, input_ids, generation_config, **kwargs):
             assert generation_config.do_sample and generation_config.temperature == 0.7
             assert generation_config.top_p == 0.9 and generation_config.top_k == 0
             sample = torch.randint(1, 9, (1, 8))
             return torch.cat([input_ids, sample], dim=1)
-    gen = ModelGenerator(Model(), Tokenizer(), decoding='sample', temperature=0.7, top_p=0.9, seed=7)
+
+        def beacon_generate(self, do_sample, temperature, top_p, **kwargs):
+            assert do_sample and temperature == 0.7 and top_p == 0.9
+            return torch.randint(1, 9, (1, 8))
+
+    gen = ModelGenerator(Model(), Tokenizer(), beacon=beacon, decoding='sample',
+                         temperature=0.7, top_p=0.9, seed=7)
     gen.start_question('same question')
     first = gen({'input_ids': [1], 'regions': []}, 8)
     gen.start_question('same question')
@@ -199,10 +208,3 @@ def test_invalid_native_decoding_options_fail(kwargs):
     from search_comp.evaluation.tool_agent import ModelGenerator
     with pytest.raises(ValueError):
         ModelGenerator(SimpleNamespace(), None, **kwargs)
-
-
-def test_beacon_rejects_sampling_override():
-    from types import SimpleNamespace
-    from search_comp.evaluation.tool_agent import ModelGenerator
-    with pytest.raises(ValueError, match='Plain only'):
-        ModelGenerator(SimpleNamespace(), None, beacon=True, decoding='sample')

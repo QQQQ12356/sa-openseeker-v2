@@ -58,7 +58,7 @@ export SA_GENERATION__LIMIT=10
 | `SA_GENERATION__MAX_TOOL_TOKENS` | `16384` | 完整单条工具返回的 token 预算。超出时结束该题并记录 `tool_budget`。 |
 | `SA_GENERATION__TOOL_COUNT` | `20` | 每题最多执行的工具调用对象数。批量 search 仍按一个调用对象计。 |
 | `SA_GENERATION__TOOL_CALL_RETRIES` | `1` | 非法调用格式的修正次数，可设 0。 |
-| `SA_GENERATION__DECODING` | `greedy` | Plain 支持 `greedy` 或 `sample`，Beacon 使用 `greedy`。 |
+| `SA_GENERATION__DECODING` | `greedy` | Plain 和 Beacon 都支持 `greedy` 与 `sample`。 |
 | `SA_GENERATION__REPETITION_PENALTY` | `1.0` | 正有限值，1.0 表示无额外重复惩罚。 |
 | `SA_GENERATION__TEMPERATURE` | `1.0` | `sample` 模式的温度，使用正有限值。 |
 | `SA_GENERATION__TOP_P` | `1.0` | `sample` 模式的 nucleus 阈值，范围 `(0,1]`。 |

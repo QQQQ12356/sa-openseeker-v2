@@ -177,7 +177,7 @@ def native_generate(args, rows, output, prompt=None):
     system, prompt_source = (prompt if prompt is not None else
                              resolve_system_prompt(getattr(args, 'prompt_data', None), args.run_dir))
     model_path, kind = resolve_checkpoint(args.run_dir, args.model, args.kind)
-    generation_options = decoding_options(args, kind == 'beacon')
+    generation_options = decoding_options(args)
     origin = getattr(args, 'model_origin', 'checkpoint')
     if origin == 'base-qwen35':
         generation_options['reuse_plain_cache'] = False
@@ -253,7 +253,7 @@ def run(args):
     from search_comp.evaluation.tool_agent import decoding_options
     parser = ConfigError()
     try:
-        generation_options = decoding_options(args, args.kind == 'beacon')
+        generation_options = decoding_options(args)
     except ValueError as error:
         parser.error(str(error))
     if args.mode != 'native' and generation_options:
