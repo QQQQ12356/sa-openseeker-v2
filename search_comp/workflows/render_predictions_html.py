@@ -68,6 +68,43 @@ def resolve_score_file(evaluation_dir, score_dir=None):
     return max(matches)[2] if matches else None
 
 
+def resolve_report_inputs(method, benchmark, evaluation_dir, score_dir=None):
+    """Resolve a completed evaluation or an existing BrowseComp-Plus recovery."""
+    from search_comp.experiments.benchmarks import resolve_evaluation
+    from search_comp.experiments.runtime import digest, path, read_json
+
+    directory = path(evaluation_dir)
+    record = read_json(directory / 'job.json')
+    if record.get('operation') != 'recover_browsecomp_plus':
+        directory, evaluation = resolve_evaluation(method, benchmark, directory)
+        return directory, path(evaluation['predictions']), resolve_score_file(directory, score_dir)
+
+    if record.get('status') != 'complete':
+        raise ValueError(f'{directory}: recovery must finish before generating a prediction report')
+    if score_dir and path(score_dir) != directory:
+        raise ValueError(f'{directory}: SCORE_DIR must be empty or point to the same recovery directory')
+
+    recovery = read_json(directory / 'recovery.json')
+    original = path(record['settings']['evaluation_dir'])
+    source = read_json(original / 'job.json')
+    if (path(recovery['original_evaluation']) != original
+            or source.get('operation') != 'evaluate'
+            or benchmark != 'browsecomp-plus'
+            or source['settings'].get('benchmark') != benchmark
+            or source['settings'].get('method') != method):
+        raise ValueError(f'{directory}: recovery does not match the original evaluation, method, or benchmark')
+
+    predictions = directory / 'predictions.jsonl'
+    if digest(predictions) != recovery['predictions_sha256']:
+        raise ValueError(f'{predictions}: recovered predictions SHA256 does not match recovery.json')
+    judge_path = None
+    if not record['settings']['retrieval_only']:
+        judge_path = directory / 'results' / 'judge.jsonl'
+        if not judge_path.is_file():
+            raise FileNotFoundError(f'{judge_path}: no per-question LLM Judge results')
+    return directory, predictions, judge_path
+
+
 def judge_summary(row):
     parsed = row.get('judge_result') or {}
     source = row.get('score_source')

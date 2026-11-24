@@ -16,13 +16,11 @@ SCHEMA = {'ENVIRONMENT__HF_ENDPOINT': {'env': 'HF_ENDPOINT', 'type': 'str'},
 if __name__ == "__main__":
     from search_comp.experiments.shell_config import load_settings
     globals().update(load_settings(__file__, SCHEMA))
-    from search_comp.experiments.runtime import configure, job, path, stamp
-    from search_comp.experiments.benchmarks import resolve_evaluation
-    from search_comp.workflows.render_predictions_html import render_report, resolve_score_file
+    from search_comp.experiments.runtime import configure, job, stamp
+    from search_comp.workflows.render_predictions_html import render_report, resolve_report_inputs
     configure(ENVIRONMENT)
-    directory, source = resolve_evaluation(METHOD, BENCHMARK, EVALUATION_DIR)
-    judge_path = resolve_score_file(directory, SCORE_DIR)
+    directory, predictions, judge_path = resolve_report_inputs(METHOD, BENCHMARK, EVALUATION_DIR, SCORE_DIR)
     with job(directory / "reports" / stamp("html"), "prediction_report",
              dict(evaluation_dir=directory, judge_source=judge_path)) as output:
-        render_report(path(source["predictions"]), output / "predictions.html", title=TITLE, judge_path=judge_path)
+        render_report(predictions, output / "predictions.html", title=TITLE, judge_path=judge_path)
         print(f"LLM Judge 来源: {judge_path or '未找到匹配评分；报告显示未评分'}")

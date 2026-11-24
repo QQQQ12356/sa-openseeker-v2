@@ -95,6 +95,8 @@ bash scripts/plain/sh/42_test_browsecomp_plus.sh
    bash scripts/tools/sh/85_recover_browsecomp_plus.sh
    ```
 
+5. 查看恢复轨迹时，在 `scripts/tools/sh/81_prediction_report.sh` 中填写对应的 `SA_METHOD` 和 `SA_BENCHMARK=browsecomp-plus`，将 `SA_EVALUATION_DIR` 指向 85 输出的 `recovery/<运行标签>` 根目录，`SA_SCORE_DIR` 留空。报告读取该目录的恢复预测和本次 Judge 结果，输出到其 `reports/` 下。只恢复检索指标时，报告中的 Judge 状态显示为未评分。已有的恢复目录可以直接使用。
+
 ### 恢复评分参数表
 
 | 变量 | 默认值 | 作用和修改提示 |

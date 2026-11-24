@@ -166,3 +166,48 @@ def test_report_launcher_has_optional_score_selection():
     schema = runpy.run_path(str(root / 'scripts/tools/py/81_prediction_report.py'))['SCHEMA']
     defaults = launcher_defaults(root / 'scripts/tools/sh/81_prediction_report.sh', schema)
     assert defaults['SCORE_DIR'] is None
+
+
+@pytest.mark.parametrize('retrieval_only', [False, True])
+def test_report_launcher_reads_existing_recovery(tmp_path, monkeypatch, retrieval_only):
+    import runpy
+    from search_comp.experiments import runtime, shell_config
+
+    evaluation = tmp_path / 'evaluation'
+    recovery = evaluation / 'recovery' / 'partial_score'
+    results = recovery / 'results'
+    results.mkdir(parents=True)
+    runtime.write_json(evaluation / 'job.json', dict(operation='evaluate', status='failed',
+                       settings=dict(method='beacon', benchmark='browsecomp-plus')))
+    runtime.write_json(recovery / 'job.json', dict(operation='recover_browsecomp_plus', status='complete',
+                       settings=dict(evaluation_dir=evaluation, retrieval_only=retrieval_only)))
+    predictions = recovery / 'predictions.jsonl'
+    predictions.write_text(json.dumps(dict(id='q', query='Question', status='completed')) + '\n', encoding='utf-8')
+    recovery_manifest = dict(original_evaluation=evaluation, predictions_sha256=runtime.digest(predictions))
+    runtime.write_json(recovery / 'recovery.json', recovery_manifest)
+    judge = results / 'judge.jsonl'
+    judgment = dict(id='q', correct=True, score_source='model') if not retrieval_only else dict(id='q')
+    judge.write_text(json.dumps(judgment) + '\n', encoding='utf-8')
+
+    settings = dict(ENVIRONMENT={}, METHOD='beacon', BENCHMARK='browsecomp-plus',
+                    EVALUATION_DIR=str(recovery), SCORE_DIR=None, TITLE='Recovery')
+    monkeypatch.setattr(shell_config, 'load_settings', lambda *_: settings)
+    monkeypatch.setattr(runtime, 'configure', lambda _: None)
+    launcher = SCRIPT.parents[2] / 'scripts/tools/py/81_prediction_report.py'
+    runpy.run_path(str(launcher), run_name='__main__')
+
+    report, = recovery.glob('reports/*/predictions.html')
+    payload = report.read_text(encoding='utf-8').split('<script id="report-data" type="application/json">')[1]
+    data = json.loads(payload.split('</script>')[0])
+    assert data['source'] == str(predictions)
+    assert data['judge_source'] == (None if retrieval_only else str(judge))
+    assert data['rows'][0].get('llm_judge', {}).get('status') == (None if retrieval_only else 'correct')
+    assert not (recovery / 'evaluation.json').exists()
+
+    with pytest.raises(ValueError, match='method, or benchmark'):
+        renderer.resolve_report_inputs('plain', 'browsecomp-plus', recovery)
+    with pytest.raises(ValueError, match='same recovery directory'):
+        renderer.resolve_report_inputs('beacon', 'browsecomp-plus', recovery, tmp_path / 'other_score')
+    predictions.write_text('{}\n', encoding='utf-8')
+    with pytest.raises(ValueError, match='SHA256'):
+        renderer.resolve_report_inputs('beacon', 'browsecomp-plus', recovery)

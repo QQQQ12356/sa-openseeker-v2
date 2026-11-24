@@ -23,10 +23,10 @@ export SA_METHOD=plain
 # BENCHMARK：browsecomp / browsecomp-plus / hotpotqa；必须匹配测试清单
 export SA_BENCHMARK=hotpotqa
 
-# EVALUATION_DIR：作用及修改约束见 docs/60_parameters.md。
+# EVALUATION_DIR 可填常规测试根目录或已完成的 BrowseComp-Plus recovery/<运行标签> 目录。
 export SA_EVALUATION_DIR=artifacts/experiments/plain/openseeker/REPLACE_WITH_RUN/evaluation/hotpotqa/REPLACE_WITH_EVALUATION
 
-# SCORE_DIR：留空自动选择本测试最新完成且匹配的 LLM Judge 评分；也可填写 scores 下某次评分根目录。
+# SCORE_DIR 常规测试留空时自动选择匹配的评分，也可指定 scores 下的评分根目录。查看 recovery 时留空。
 export SA_SCORE_DIR=''
 
 # TITLE：HTML 标题
