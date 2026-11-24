@@ -26,6 +26,7 @@ export SA_OVERLAP=off  # off 保留完整题集；filter 对训练实验排除�
 export SA_OVERLAP_THRESHOLD=0.30
 export SA_RESUME_FROM=''  # 从已完成评测扩展题数时填写旧评测根目录。
 export SA_EVALUATION_DIR=''  # 填已有评测根目录时，仅重新评分。
+export SA_SCORE_AFTER_GENERATION=true  # EVALUATION_DIR 为空时生效。false 仅生成。
 
 # -1 全量；初次运行可改为 5。每个 worker 占用一张可见 GPU 并加载一份模型。
 export SA_GENERATION__LIMIT=-1
@@ -44,13 +45,11 @@ export SA_GENERATION__TEMPERATURE=1.0
 export SA_GENERATION__TOP_P=1.0
 export SA_GENERATION__GENERATION_SEED=42
 
-# bm25=本地 SQLite；qwen3-embedding-8b=本地向量；search-service=上游 /search。
+# bm25=本地 SQLite（31）；qwen3-embedding-8b=本地向量（31、33）。
 export SA_GENERATION__RETRIEVER=bm25
 export SA_GENERATION__VECTOR_INDEX_DIR=''  # 本地向量模式填 33 的输出目录。
 export SA_GENERATION__EMBEDDING_MODEL_PATH=''  # 本地向量模式填匹配的 Qwen3-Embedding-8B。
 export SA_GENERATION__EMBEDDING_DEVICE=cuda:0
-export SA_GENERATION__SEARCH_SERVICE_URL=''  # 服务模式填 http://127.0.0.1:8007 等地址。
-export SA_GENERATION__SEARCH_SERVICE_TIMEOUT=90
 export SA_GENERATION__VERIFY_INDEX=true
 export SA_GENERATION__TITLE_WEIGHT=1.0
 export SA_GENERATION__TOPK=15

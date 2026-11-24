@@ -80,28 +80,6 @@ def test_observation_masking_changes_model_context_and_preserves_trace(window):
         assert "final_messages" not in result
 
 
-def test_bcp_search_service_resolves_rankings_against_official_ids(tmp_path, monkeypatch):
-    from search_comp.offline import tools as module
-
-    root = prepared_bcp(tmp_path)
-    with LocalIndex(root / "index.sqlite") as index:
-        doc = index.search("bridge")[0]
-
-        def request_body(request, timeout):
-            assert request.full_url == "http://127.0.0.1:8007/search"
-            assert timeout == 5
-            assert json.loads(request.data) == dict(query="bridge", topn=3, reasoning="Look for a bridge.")
-            return io.BytesIO(json.dumps({"results": [{"url": doc["source_url"]}]}).encode())
-
-        monkeypatch.setattr(module, "urlopen", request_body)
-        retrieval = module.SearchServiceIndex(index, "http://127.0.0.1:8007", 5)
-        tools = LocalTools(retrieval, CharacterTokenizer(), topk=3)
-        tools.set_reasoning("<think>Look for a bridge.</think>")
-        results = json.loads(tools.search(["bridge"]))[0]["results"]
-        assert [item["docid"] for item in results] == [doc["docid"]]
-        assert tools.retrieved == {doc["docid"]}
-
-
 def test_bcp_openai_judge_uses_reasoning_model_request_format(monkeypatch):
     from search_comp.evaluation import judging
 
@@ -117,6 +95,47 @@ def test_bcp_openai_judge_uses_reasoning_model_request_format(monkeypatch):
     judge = judging.ChatJudge("https://judge.invalid/v1", "gpt-5-mini", "test-key",
                              max_tokens=4096, timeout=30, openai_api=True)
     assert judge([dict(role="user", content="Prompt")]) == "correct: yes"
+
+
+@pytest.mark.parametrize(("existing_run", "score_after_generation", "stages"), [
+    (False, True, ["evaluate", "score"]),
+    (False, False, ["evaluate"]),
+    (True, False, ["score"]),
+])
+def test_bcp_launcher_routes_generation_and_scoring_independently(
+        tmp_path, monkeypatch, existing_run, score_after_generation, stages):
+    from search_comp.experiments import benchmarks
+
+    base = tmp_path / "base"
+    base.mkdir()
+    (base / "config.json").write_text(json.dumps(dict(model_type="qwen3_5", text_config=dict(
+        hidden_size=2560, intermediate_size=9216, num_hidden_layers=32))))
+    evaluation_dir = tmp_path / "evaluation"
+    calls = []
+
+    def evaluate(**settings):
+        calls.append("evaluate")
+        assert settings["generation"] == {"retriever": "bm25"}
+        return evaluation_dir
+
+    def score(**settings):
+        calls.append("score")
+        assert settings["evaluation_dir"] == evaluation_dir
+        return evaluation_dir / "scores" / "test"
+
+    monkeypatch.setattr(benchmarks, "evaluate", evaluate)
+    monkeypatch.setattr(benchmarks, "score", score)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    judge = (dict(judge_backend="local", judge_model=str(base), judge_url="", judge_timeout=30,
+                  judge_attempts=3, judge_max_tokens=4096) if "score" in stages else {})
+    benchmarks.run_browsecomp_plus(
+        method="baseline", benchmark_dir=tmp_path, training_run=None,
+        model_path=None if existing_run else base, checkpoint=None, prompt_data=None,
+        run_name="test", overlap="off", overlap_threshold=0.30, resume_from=None,
+        evaluation_dir=evaluation_dir if existing_run else None,
+        score_after_generation=score_after_generation, generation={"retriever": "bm25"},
+        judge=judge, environment={})
+    assert calls == stages
 
 
 def hotpot_sources(tmp_path):

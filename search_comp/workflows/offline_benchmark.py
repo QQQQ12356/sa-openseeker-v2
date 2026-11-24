@@ -24,7 +24,7 @@ from search_comp.offline.data import prepare, records
 from search_comp.offline.index import LocalIndex, build_index
 from search_comp.offline.qwen_embedding import BACKEND as DENSE_BACKEND, DenseIndex, read_vector_manifest
 from search_comp.offline.scoring import LocalJudge, load_predictions, score_browsecomp, score_hotpot
-from search_comp.offline.tools import BCP_INSTRUCTION, HOTPOT_INSTRUCTION, LocalTools, SearchServiceIndex
+from search_comp.offline.tools import BCP_INSTRUCTION, HOTPOT_INSTRUCTION, LocalTools
 from search_comp.utils.devices import worker_devices
 from search_comp.utils.progress import CompletionProgress, generation_label
 
@@ -67,10 +67,6 @@ def verify_index(args, manifest):
         if getattr(args, "retriever", "bm25") == "bm25" and index.manifest["title_weight"] != args.title_weight:
             raise ValueError("TITLE_WEIGHT differs from the built index; rebuild in a new ROOT")
         metadata = index.manifest
-        if getattr(args, "retriever", "bm25") == "search-service":
-            service = SearchServiceIndex(index, args.search_service_url, args.search_service_timeout)
-            metadata = dict(metadata, retriever="search-service", search_service_url=args.search_service_url,
-                            active_searcher=service.check_endpoint())
     if getattr(args, "retriever", "bm25") == DENSE_BACKEND:
         dense = read_vector_manifest(args.vector_index_dir, manifest, args.embedding_model_path, args.verify_index)
         metadata = dict(metadata, retriever=DENSE_BACKEND, vector_index=dense)
@@ -114,8 +110,6 @@ def run_phase(args, output, rows, manifest, index_metadata=None, prompt=None):
         if getattr(args, "retriever", "bm25") == DENSE_BACKEND:
             retrieval = DenseIndex(index, args.vector_index_dir, args.embedding_model_path,
                                    args.embedding_device, index_metadata["vector_index"])
-        elif getattr(args, "retriever", "bm25") == "search-service":
-            retrieval = SearchServiceIndex(index, args.search_service_url, args.search_service_timeout)
         tools = LocalTools(retrieval, tokenizer, args.topk, args.snippet_tokens, args.read_tokens,
                            args.allow_visit, args.tool_count)
         for position, row in enumerate(rows):
@@ -382,9 +376,7 @@ def make_parser():
     parser.add_argument("--wiki-url", default=WIKI_URL, help="Hotpot abstracts mirror; official MD5 is still required")
     parser.add_argument("--title-weight", type=float, default=1.0)
     parser.add_argument("--verify-index", action="store_true", help="SHA256 scan of full index before run")
-    parser.add_argument("--retriever", choices=["bm25", DENSE_BACKEND, "search-service"], default="bm25")
-    parser.add_argument("--search-service-url")
-    parser.add_argument("--search-service-timeout", type=float, default=90)
+    parser.add_argument("--retriever", choices=["bm25", DENSE_BACKEND], default="bm25")
     parser.add_argument("--vector-index-dir", type=Path)
     parser.add_argument("--embedding-model-path", type=Path)
     parser.add_argument("--embedding-device", default="cuda:0")
@@ -448,14 +440,8 @@ def run(args):
         parser.error(str(error))
     args.root = args.root or ROOT / "artifacts/benchmarks" / args.benchmark
     retriever = getattr(args, "retriever", "bm25")
-    if retriever not in {"bm25", DENSE_BACKEND, "search-service"}:
-        parser.error("RETRIEVER must be bm25, qwen3-embedding-8b or search-service")
-    if retriever == "search-service":
-        if args.benchmark != "browsecomp-plus" or args.action not in {"run", "all"}:
-            parser.error("search-service is supported for BrowseComp-Plus generation only")
-        if not args.search_service_url or not 0 < args.search_service_timeout < float("inf"):
-            parser.error("search-service requires a URL and a positive finite timeout")
-        args.search_service_url = http_endpoint(args.search_service_url)
+    if retriever not in {"bm25", DENSE_BACKEND}:
+        parser.error("RETRIEVER must be bm25 or qwen3-embedding-8b")
     if retriever == DENSE_BACKEND:
         if args.benchmark != "browsecomp-plus" or args.action not in {"run", "all"}:
             parser.error("Qwen3-Embedding-8B is supported for BrowseComp-Plus generation only")
@@ -545,7 +531,7 @@ def run(args):
     output = args.output_dir or ((args.run_dir / "evaluation" if args.run_dir else ROOT / "artifacts/unassigned") /
                                  f"offline_{args.benchmark}_{stamp}")
     output.mkdir(parents=True, exist_ok=False)
-    run_manifest = dict(benchmark=args.benchmark, offline=retriever != "search-service" and judge_backend != "openai",
+    run_manifest = dict(benchmark=args.benchmark, offline=judge_backend != "openai",
         model=model, kind=kind,
         cuda_visible_devices=os.environ.get("CUDA_VISIBLE_DEVICES"),
         created_at=datetime.now(timezone.utc).isoformat(), selected_ids=[row["id"] for row in rows],

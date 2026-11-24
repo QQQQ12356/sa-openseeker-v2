@@ -331,9 +331,6 @@ def run_agent(messages, tokenizer, generate, tools, max_turns=32,
             if log:
                 log(f"turn={turn + 1}/{max_turns} tools start calls={len(calls)}")
             start = time.monotonic()
-            set_reasoning = getattr(tools, 'set_reasoning', None)
-            if set_reasoning is not None:
-                set_reasoning(text)
             replies = tools.execute(calls)
         except ToolError as error:
             if log:

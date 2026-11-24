@@ -36,7 +36,7 @@ def offline_options(benchmark, benchmark_dir, **values):
                    corpus_revision=None, dev_url=None, wiki_url=None, title_weight=1.0,
                    verify_index=True, run_dir=None, prompt_data=None, model=None,
                    retriever="bm25", vector_index_dir=None, embedding_model_path=None, embedding_device="cuda:0",
-                   search_service_url=None, search_service_timeout=90, observation_window=0,
+                   observation_window=0,
                    model_origin="checkpoint", kind=None, output_dir=None, predictions=None,
                    num_workers=1, shard_index=0, shard_count=1, limit=-1, topk=5,
                    snippet_tokens=512, allow_visit=True, tool_call_retries=1, read_tokens=4096,
@@ -143,7 +143,8 @@ def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prom
                 raise ValueError(f"续测配置与原测试不一致: {key}")
         old_options = offline_options(benchmark, benchmark_dir, **previous["generation"])
         new_options = offline_options(benchmark, benchmark_dir, **generation)
-        adjustable = {"limit", "num_workers", "verify_index"}
+        # Older local runs may have archived unused settings for the retired HTTP retriever.
+        adjustable = {"limit", "num_workers", "verify_index", "search_service_url", "search_service_timeout"}
         for key in sorted((previous["generation"].keys() | generation.keys()) - adjustable):
             if getattr(old_options, key, None) != getattr(new_options, key, None):
                 raise ValueError(f"续测生成配置与原测试不一致: {key}")
@@ -248,18 +249,11 @@ def score(*, method, benchmark, evaluation_dir, run_name, judge, environment):
     return output
 
 
-def evaluate_and_score_browsecomp_plus(*, method, benchmark_dir, training_run, model_path,
-                                      checkpoint, prompt_data, run_name, overlap,
-                                      overlap_threshold, resume_from, evaluation_dir,
-                                      generation, judge, environment):
-    """Run a single BrowseComp-Plus configuration or rescore an existing evaluation."""
+def _browsecomp_plus_judge_options(judge):
     import os
 
     from search_comp.offline.assets import http_endpoint
 
-    benchmark = "browsecomp-plus"
-    if method not in {"baseline", "plain", "beacon"}:
-        raise ValueError("SA_METHOD must be baseline, plain or beacon")
     judge = dict(judge)
     if judge["judge_backend"] == "openai":
         if not os.environ.get("OPENAI_API_KEY"):
@@ -275,6 +269,18 @@ def evaluate_and_score_browsecomp_plus(*, method, benchmark_dir, training_run, m
         raise ValueError("judge model, token budget and attempts must be configured")
     if not 0 < judge["judge_timeout"] < float("inf"):
         raise ValueError("judge timeout must be positive and finite")
+    return judge
+
+
+def run_browsecomp_plus(*, method, benchmark_dir, training_run, model_path, checkpoint,
+                        prompt_data, run_name, overlap, overlap_threshold, resume_from,
+                        evaluation_dir, score_after_generation, generation, judge, environment):
+    """Generate and score one run, or run either stage on its own."""
+    benchmark = "browsecomp-plus"
+    if method not in {"baseline", "plain", "beacon"}:
+        raise ValueError("SA_METHOD must be baseline, plain or beacon")
+    if evaluation_dir or score_after_generation:
+        judge = _browsecomp_plus_judge_options(judge)
 
     if not evaluation_dir:
         if method == "baseline":
@@ -293,14 +299,13 @@ def evaluate_and_score_browsecomp_plus(*, method, benchmark_dir, training_run, m
                     or (text.get("hidden_size"), text.get("intermediate_size"),
                         text.get("num_hidden_layers")) != (2560, 9216, 32)):
                 raise ValueError("BrowseComp-Plus requires a Qwen3.5-4B backbone")
-        generation = dict(generation)
-        if generation["retriever"] == "search-service":
-            generation["search_service_url"] = http_endpoint(generation["search_service_url"])
         evaluation_dir = evaluate(method=method, benchmark=benchmark, benchmark_dir=benchmark_dir,
                                   training_run=training_run, model_path=model_path, checkpoint=checkpoint,
                                   prompt_data=prompt_data, run_name=run_name, generation=generation,
                                   environment=environment, overlap=overlap,
                                   overlap_threshold=overlap_threshold, resume_from=resume_from)
+        if not score_after_generation:
+            return evaluation_dir
     score_dir = score(method=method, benchmark=benchmark, evaluation_dir=evaluation_dir,
                       run_name="judge", judge=judge, environment=environment)
     print(f"BrowseComp-Plus summary: {score_dir / 'results/summary.metrics.json'}", flush=True)

@@ -171,7 +171,7 @@ def http_endpoint(value):
 
 @contextmanager
 def benchmark_request():
-    """Allow network only for an explicit search service or remote judge request."""
+    """Allow the configured remote judge request inside the offline workflow."""
     token = _ALLOW_BENCHMARK_REQUEST.set(True)
     try:
         yield

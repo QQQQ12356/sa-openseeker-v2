@@ -144,10 +144,3 @@ class LocalIndex:
         if result is None:
             raise ValueError(f"document not found: {docid}")
         return self._document(result)
-
-    def get_by_source_url(self, url):
-        rows = self.connection.execute(
-            "SELECT * FROM documents WHERE source_url=? LIMIT 2", (url,)).fetchall()
-        if len(rows) != 1:
-            raise ValueError(f"search service URL must map to one local document: {url}")
-        return self._document(rows[0])

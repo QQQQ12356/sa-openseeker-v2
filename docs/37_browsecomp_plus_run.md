@@ -1,12 +1,12 @@
 # 37 BrowseComp-Plus 一次运行生成与评分
 
-`scripts/tools/sh/46_run_browsecomp_plus.sh` 每次运行一个方法、一个检索器和一个观测窗口设置。它先生成逐题预测，再自动把该次评测目录交给评分流程。Baseline、Plain 和 Beacon 都使用 Qwen3.5-4B 基座。原有 42、43 脚本仍可用于分开执行。 [参考仓库](https://github.com/i-DeepSearch/observation-masking) · [论文实验设置](https://arxiv.org/html/2606.00408#S3)
+`scripts/tools/sh/46_run_browsecomp_plus.sh` 每次运行一个方法、一个本地检索器和一个观测窗口设置。它借鉴参考实验的结构，将逐题生成、工具轨迹保存和判分串起来，三个方法都使用 Qwen3.5-4B 基座。检索、生成和结果归档均由本仓库实现。 [流程参考](https://github.com/i-DeepSearch/observation-masking) · [论文实验设置](https://arxiv.org/html/2606.00408#S3)
 
 ## 1. Linux 上准备环境与资产
 
 1. 激活 [Linux 运行环境](10_environment.md)，把原始 Qwen3.5-4B 权重与 tokenizer 准备到本地。Baseline 直接加载该目录。Plain、Beacon 使用本项目训练实验的最终模型或周期检查点，原训练基座路径和提示词数据须能在 Linux 上访问。 [检查点格式](33_checkpoint_evaluation.md)
 2. 按 [数据准备流程](20_data.md#8-准备-browsecomp-plus) 用 31 脚本依次完成 `download → prepare → index`。三种方法共用一个 `SA_BENCHMARK_DIR`。有已建好的同版本资产时直接复用。正式成绩使用全量题和独立全量语料。
-3. 默认裁判为 `gpt-5-mini`。运行前从 Linux 环境或作业密钥管理器导出 `OPENAI_API_KEY`。选择 `openai` 会向指定裁判端点发送题目、模型回答和标准答案。若评测机器无法访问裁判服务，可将 `SA_JUDGE__JUDGE_BACKEND=local`，并把 `SA_JUDGE__JUDGE_MODEL` 改为本地裁判目录。启动脚本和归档文件中都无需填写密钥。
+3. 默认裁判为 `gpt-5-mini`。运行前从 Linux 环境或作业密钥管理器导出 `OPENAI_API_KEY`。选择 `openai` 会向指定裁判端点发送题目、模型回答和标准答案。需要全离线评分时，将 `SA_JUDGE__JUDGE_BACKEND=local`，并把 `SA_JUDGE__JUDGE_MODEL` 改为本地裁判目录。仅生成预测时设 `SA_SCORE_AFTER_GENERATION=false`。
 
 ## 2. 编辑一次测试的配置
 
@@ -26,23 +26,17 @@
 |---|---|
 | `bm25` | 默认。本项目的 SQLite FTS5 索引，由 31 构建。设置与建索引一致的 `TITLE_WEIGHT`。 |
 | `qwen3-embedding-8b` | 用 [33 脚本](35_browsecomp_plus_dense.md) 准备向量索引。设置 `VECTOR_INDEX_DIR`、`EMBEDDING_MODEL_PATH` 和查询编码设备 `EMBEDDING_DEVICE`。 |
-| `search-service` | 使用参考仓库的 HTTP 检索服务，可选择其 Lucene BM25、Qwen3-Embedding-8B 或 AgentIR-4B。设置 `SEARCH_SERVICE_URL` 和 `SEARCH_SERVICE_TIMEOUT`。服务先在 Linux 上启动，使用与本项目相同版本的文档语料。 |
 
-AgentIR 的 `scripts/start_search_service.sh` 位于 **observation-masking** 仓库。首次部署时，从当前 `sa-reconstruction` 目录把它克隆到同级目录，并在独立子 shell 中安装和启动：
+两个检索器都在评测进程内读取本地资产，准备和运行命令均从 `sa-reconstruction` 执行。默认 BM25 在 31 完成后可直接运行 46。测试 Qwen3-Embedding-8B 时，用相同的 `SA_VERSION` 执行 33 的 `download → prepare`，再在 46 脚本填入 33 打印的路径。例如：
 
 ```bash
-git clone https://github.com/i-DeepSearch/observation-masking.git ../observation-masking
-(
-  cd ../observation-masking || exit 1
-  unset HF_HUB_OFFLINE HF_DATASETS_OFFLINE TRANSFORMERS_OFFLINE
-  bash setup.sh &&
-    bash scripts/start_search_service.sh agentir 8007 0
-)
+export SA_GENERATION__RETRIEVER=qwen3-embedding-8b
+export SA_GENERATION__VECTOR_INDEX_DIR=artifacts/benchmarks/browsecomp-plus/v1/vector_indexes/qwen3-embedding-8b-official
+export SA_GENERATION__EMBEDDING_MODEL_PATH=/path/to/Qwen3-Embedding-8B/commit
+export SA_GENERATION__EMBEDDING_DEVICE=cuda:0
 ```
 
-已有该仓库和服务依赖时，在 `sa-reconstruction` 目录可直接运行 `bash ../observation-masking/scripts/start_search_service.sh agentir 8007 0`。服务在前台运行，在同一台 Linux 机器的另一个终端执行 `curl -fsS http://127.0.0.1:8007/`，确认返回的 `endpoints` 包含 `/search`。
-
-然后在 **本项目**的 46 脚本设 `SA_GENERATION__RETRIEVER=search-service` 和 `SA_GENERATION__SEARCH_SERVICE_URL=http://127.0.0.1:8007`。查询带上可提取的当前 `<think>…</think>`，AgentIR 可将它用于排序。服务返回的 URL 用来查本地索引，转换为官方 docid。排名沿用服务顺序，工具观察和访问仍由本地语料生成。每个 URL 应唯一对应一篇本地文档。服务和生成共用一台机器时，按显存需要分配不同 GPU。 [参考仓库检索部署](https://github.com/i-DeepSearch/observation-masking#deploy-search)
+向量模型和生成模型在同一个 worker 加载。GPU 显存不足时可将 `EMBEDDING_DEVICE` 改为 `cpu`。两种检索器都通过同一份本地语料生成观察内容，召回按官方 docid 计算。 [向量资产准备与校验](35_browsecomp_plus_dense.md)
 
 ### 设置 CM 与解码
 
@@ -77,7 +71,15 @@ git clone https://github.com/i-DeepSearch/observation-masking.git ../observation
 bash scripts/tools/sh/46_run_browsecomp_plus.sh
 ```
 
-每次执行创建独立评测目录，并把已完成的评测传给同一方法的评分流程。可在终端找到对应的产物路径：
+默认每次执行创建独立评测目录，并把已完成的评测传给同一方法的评分流程。按需在同一个脚本切换阶段。
+
+| 运行方式 | `SA_EVALUATION_DIR` | `SA_SCORE_AFTER_GENERATION` |
+|---|---|---|
+| 生成并评分（默认） | 空 | `true` |
+| 仅生成 | 空 | `false` |
+| 对已有预测评分 | 已完成的评测根目录 | 任意值 |
+
+可在终端找到对应的产物路径：
 
 | 文件 | 内容 |
 |---|---|

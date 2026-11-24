@@ -47,6 +47,8 @@ bash scripts/data/sh/33_prepare_browsecomp_plus_dense.sh
 
 ## 3. 运行评测和评分
 
+一次完成生成与评分时，把下述向量参数填入 [46 共用入口](37_browsecomp_plus_run.md#选择检索器)。以下说明适用于分别运行 42、43 的情况。
+
 编辑对应方法的 `scripts/plain/sh/42_test_browsecomp_plus.sh`、`scripts/beacon/sh/42_test_browsecomp_plus.sh` 或 `scripts/baseline/sh/42_test_browsecomp_plus.sh`。训练检查点和提示词设置继续按 [检查点测试说明](33_checkpoint_evaluation.md) 填写。向量模式增加以下四项：
 
 ```bash
