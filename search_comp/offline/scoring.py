@@ -29,6 +29,8 @@ def load_predictions(path, questions):
         response = row.get("final_response", row.get("prediction"))
         if not isinstance(response, str):
             raise ValueError("predictions require text final_response/prediction")
+        if "exact_answer" in row and not isinstance(row["exact_answer"], str):
+            raise ValueError("exact_answer must be text")
         row["final_response"] = response
         for name in ("retrieved_docids", "visited_docids"):
             if not isinstance(row.get(name, []), list):
@@ -306,8 +308,13 @@ def score_browsecomp(root, questions, predictions, output, judge=None, retrieval
         metrics.update(accuracy=correct / len(questions), **{"Accuracy (%)": round(100 * correct / len(questions), 2),
                                                            "Recall (%)": round(100 * recalls["evidence_recall"], 2)})
         from search_comp.evaluation.answer_metrics import answer_metrics
-        metrics.update(answer_metrics(questions, list(predictions.values()), strip_citations=True))
+        metrics.update(answer_metrics(questions, [
+            dict(row, final_response=row.get("exact_answer", row["final_response"]))
+            for row in predictions.values()
+        ], strip_citations=True))
         metrics['llm_judge_accuracy'] = metrics['accuracy']
+        metrics["judged_count"] = len(correctness)
+        metrics["judged_accuracy"] = correct / len(correctness) if correctness else None
     metrics["citation_coverage"] = len(citation_scores) / len(questions)
     for name in ("precision", "recall"):
         metrics["citation_" + name] = (sum(item[name] for item in citation_scores) / len(citation_scores)

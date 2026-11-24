@@ -25,6 +25,8 @@ Baseline 是原始、未训练的 Qwen3.5 基座，使用专用 `base_qwen35` �
 
 ## 3. 三项测试
 
+Qwen3.5-4B 的 BrowseComp-Plus 完整评测入口是 `scripts/baseline/sh/46_run_browsecomp_plus.sh`。 [准备资产、参数与评分流程](37_browsecomp_plus_run.md)
+
 | Benchmark | 入口 | 前置条件 |
 |---|---|---|
 | BrowseComp | `scripts/baseline/sh/40_test_browsecomp.sh` | 在线搜索、读取、总结服务；准备好的官方工具与题目 |

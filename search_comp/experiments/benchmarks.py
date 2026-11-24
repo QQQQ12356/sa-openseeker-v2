@@ -36,7 +36,7 @@ def offline_options(benchmark, benchmark_dir, **values):
                    corpus_revision=None, dev_url=None, wiki_url=None, title_weight=1.0,
                    verify_index=True, run_dir=None, prompt_data=None, model=None,
                    retriever="bm25", vector_index_dir=None, embedding_model_path=None, embedding_device="cuda:0",
-                   observation_window=0,
+                   observation_window=0, prompt_profile="legacy",
                    model_origin="checkpoint", kind=None, output_dir=None, predictions=None,
                    num_workers=1, shard_index=0, shard_count=1, limit=-1, topk=5,
                    snippet_tokens=512, allow_visit=True, tool_call_retries=1, read_tokens=4096,
@@ -118,7 +118,10 @@ def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prom
         raise ValueError("不支持的 benchmark")
     dataset_name, training_run, model, kind, origin = resolve_target(method, training_run, model_path, checkpoint)
     spec = read_json(training_run / "experiment.json") if training_run else {}
-    if dataset_name == "mixed" and not prompt_data:
+    shared_prompt = benchmark == "browsecomp-plus" and generation.get("prompt_profile") == "benchmark"
+    if shared_prompt and prompt_data:
+        raise ValueError("SA_PROMPT_DATA requires the training prompt profile")
+    if dataset_name == "mixed" and not shared_prompt and not prompt_data:
         raise ValueError("混合训练实验须用 PROMPT_DATA 指定一套 system/tools 提示词")
     source = spec.get("dataset_manifest", {}).get("arguments", {}).get("source")
     if method != "baseline" and dataset_name != "mixed" and source != BROWSECOMP_SFT and prompt_data:
@@ -272,13 +275,13 @@ def _browsecomp_plus_judge_options(judge):
     return judge
 
 
-def run_browsecomp_plus(*, method, benchmark_dir, training_run, model_path, checkpoint,
-                        prompt_data, run_name, overlap, overlap_threshold, resume_from,
+def run_browsecomp_plus(*, method, benchmark_dir, training_run=None, model_path=None, checkpoint=None,
+                        prompt_data, run_name, overlap="off", overlap_threshold=0.30, resume_from,
                         evaluation_dir, score_after_generation, generation, judge, environment):
     """Generate and score one run, or run either stage on its own."""
     benchmark = "browsecomp-plus"
     if method not in {"baseline", "plain", "beacon"}:
-        raise ValueError("SA_METHOD must be baseline, plain or beacon")
+        raise ValueError("method must be baseline, plain or beacon")
     if evaluation_dir or score_after_generation:
         judge = _browsecomp_plus_judge_options(judge)
 

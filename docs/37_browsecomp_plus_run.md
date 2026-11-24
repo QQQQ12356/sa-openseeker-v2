@@ -1,24 +1,30 @@
 # 37 BrowseComp-Plus 一次运行生成与评分
 
-`scripts/tools/sh/46_run_browsecomp_plus.sh` 每次运行一个方法、一个本地检索器和一个观测窗口设置。它借鉴参考实验的结构，将逐题生成、工具轨迹保存和判分串起来，三个方法都使用 Qwen3.5-4B 基座。检索、生成和结果归档均由本仓库实现。 [流程参考](https://github.com/i-DeepSearch/observation-masking) · [论文实验设置](https://arxiv.org/html/2606.00408#S3)
+Baseline、Plain 和 Beacon 各有一个 `46_run_browsecomp_plus.sh`。每次执行评测一个 Qwen3.5-4B 模型或检查点、一个本地检索器和一个观测窗口。三个入口共用题目格式、提示词、答案提取、轨迹归档和判分代码。 [参考仓库](https://github.com/i-DeepSearch/observation-masking) · [论文实验设置](https://arxiv.org/html/2606.00408#S3)
 
 ## 1. Linux 上准备环境与资产
 
 1. 激活 [Linux 运行环境](10_environment.md)，把原始 Qwen3.5-4B 权重与 tokenizer 准备到本地。Baseline 直接加载该目录。Plain、Beacon 使用本项目训练实验的最终模型或周期检查点，原训练基座路径和提示词数据须能在 Linux 上访问。 [检查点格式](33_checkpoint_evaluation.md)
-2. 按 [数据准备流程](20_data.md#8-准备-browsecomp-plus) 用 31 脚本依次完成 `download → prepare → index`。三种方法共用一个 `SA_BENCHMARK_DIR`。有已建好的同版本资产时直接复用。正式成绩使用全量题和独立全量语料。
+2. 按 [数据准备流程](20_data.md#8-准备-browsecomp-plus) 用 `scripts/data/sh/31_prepare_browsecomp_plus.sh` 依次完成 `download → prepare → index`。题目 Parquet 只读取 `query_id`、`query` 和 `answer`，本地解密后写入 `prepared/questions.jsonl`。官方 qrels 提供相关文档 ID，独立语料用于检索。推理只接收问题，标准答案和 qrels 用于离线评分。三种方法共用一个 `SA_BENCHMARK_DIR`，已有同版本资产可直接复用。
 3. 默认裁判为 `gpt-5-mini`。运行前从 Linux 环境或作业密钥管理器导出 `OPENAI_API_KEY`。选择 `openai` 会向指定裁判端点发送题目、模型回答和标准答案。需要全离线评分时，将 `SA_JUDGE__JUDGE_BACKEND=local`，并把 `SA_JUDGE__JUDGE_MODEL` 改为本地裁判目录。仅生成预测时设 `SA_SCORE_AFTER_GENERATION=false`。
 
 ## 2. 编辑一次测试的配置
 
-打开 `scripts/tools/sh/46_run_browsecomp_plus.sh`。相对路径以项目根目录为准。
+打开对应方法的 Bash 入口并在文件顶部编辑参数。相对路径以项目根目录为准。
 
-| `SA_METHOD` | `SA_MODEL_PATH` | `SA_TRAINING_RUN` | `SA_CHECKPOINT` |
-|---|---|---|---|
-| `baseline` | 原始 Qwen3.5-4B 本地目录 | 空 | 空 |
-| `plain` | 空 | Plain 的 Qwen3.5-4B 训练实验根目录 | 空表示最终模型，或填如 `checkpoint-200` |
-| `beacon` | 空 | Beacon 的 Qwen3.5-4B 训练实验根目录 | 空表示最终模型，或填如 `checkpoint-200` |
+| 方法 | Bash 入口 | 模型配置 |
+|---|---|---|
+| Baseline | `scripts/baseline/sh/46_run_browsecomp_plus.sh` | `SA_MODEL_PATH` 填原始 Qwen3.5-4B 本地目录。 |
+| Plain | `scripts/plain/sh/46_run_browsecomp_plus.sh` | `SA_TRAINING_RUN` 填 Plain 的 Qwen3.5-4B 实验根目录。 |
+| Beacon | `scripts/beacon/sh/46_run_browsecomp_plus.sh` | `SA_TRAINING_RUN` 填 Beacon 的 Qwen3.5-4B 实验根目录。 |
 
-`SA_PROMPT_DATA` 留空时，Baseline 用内置 Polar 提示词，Plain 和 Beacon 沿用所属训练实验的提示词。要对齐提示词时，Baseline 可以指向同一套规范化训练 JSONL。混合训练实验须显式指定一套 system/tools 来源。若做训练重合筛选，使用 `SA_OVERLAP=filter` 并记录筛选范围。报告全量分数使用 `SA_OVERLAP=off` 和 `SA_GENERATION__LIMIT=-1`。首次可先将 LIMIT 设为 5 验证模型加载、搜索与裁判。
+Plain 和 Beacon 的 `SA_CHECKPOINT` 留空时使用最终模型，也可填如 `checkpoint-200`。若做训练重合筛选，使用 `SA_OVERLAP=filter` 并记录筛选范围。报告全量分数时保留默认的 `SA_GENERATION__LIMIT=-1`，Plain 和 Beacon 同时设 `SA_OVERLAP=off`。首次可先将 LIMIT 设为 5 验证模型加载、搜索与裁判。
+
+### 系统提示词与答案提取
+
+`SA_GENERATION__PROMPT_PROFILE=benchmark` 为默认值。三种方法共享同一系统提示词，由深度检索任务说明、本地 `search/visit` 工具定义、调用格式和最终回复指令组成。用户消息只有题目。若需要沿用训练时的系统提示词，设为 `training`。Baseline 此时用内置 Polar 提示词，也可通过 `SA_PROMPT_DATA` 指定规范化 JSONL。Plain 和 Beacon 从训练记录定位提示词来源，混合训练实验使用 `training` 时要指定一套 `SA_PROMPT_DATA`。
+
+两种提示词都要求最终回复含 `Explanation`、`Exact Answer` 和 `Confidence`。解释可写 `[docid]` 引用。程序从最终 assistant 回复移除推理和工具包装，完整可见文本写入 `final_response`，用于语义裁判与引用评分。单独提取的答案写入 `exact_answer` 和 `prediction`，用于补充 EM/F1。也兼容 `Final Answer`、`Answer` 和旧检查点的纯文本回答。若出现结构化字段却没有有效答案，记录为 `empty_answer`。
 
 ### 选择检索器
 
@@ -54,7 +60,7 @@ export SA_GENERATION__EMBEDDING_DEVICE=cuda:0
 
 对同一方法做 No CM / CM 对照时，只切换窗口及用于识别结果的 `SA_RUN_NAME`。旧的工具返回会在送入模型的新一轮上下文中变成占位符。原始调用及完整返回仍存于轨迹。Plain 在窗口滚动时重建被改写的缓存前缀。Beacon 可同时使用自己的观测压缩与外部窗口，比较 Beacon 压缩本身时将外部窗口设为 0。
 
-本实现沿用项目的 OpenSeeker `search/visit` 工具格式、Transformers 和 Beacon 推理入口。参考仓库使用原生浏览器工具与 vLLM。两者的观察渲染、执行并行度和默认上下文预算有差异，公开论文分数可用于对照。
+本实现沿用项目的 OpenSeeker `search/visit` 工具格式、Transformers 和 Beacon 推理入口。检索资产和执行参数按本项目清单归档，便于核对方法之间的实验条件。
 
 ### 设置评分
 
@@ -68,7 +74,10 @@ export SA_GENERATION__EMBEDDING_DEVICE=cuda:0
 ## 3. 运行、核验与重新评分
 
 ```bash
-bash scripts/tools/sh/46_run_browsecomp_plus.sh
+bash scripts/baseline/sh/46_run_browsecomp_plus.sh
+# 选择其他方法时执行对应的 46
+# bash scripts/plain/sh/46_run_browsecomp_plus.sh
+# bash scripts/beacon/sh/46_run_browsecomp_plus.sh
 ```
 
 默认每次执行创建独立评测目录，并把已完成的评测传给同一方法的评分流程。按需在同一个脚本切换阶段。
@@ -83,9 +92,11 @@ bash scripts/tools/sh/46_run_browsecomp_plus.sh
 
 | 文件 | 内容 |
 |---|---|
-| `results/predictions.jsonl` | 完整 `messages`、逐轮 `turn_stats`、检索 docid、工具调用计数和最终回答。开启 CM 时另有 `final_messages` 和 `masked_observations`。 |
+| `results/predictions.jsonl` | 完整 `messages`、逐轮 `turn_stats`、检索 docid、工具调用计数、`final_response` 和 `exact_answer`。开启 CM 时另有 `final_messages` 和 `masked_observations`。 |
 | `results/manifest.json` / `evaluation.json` | 题目范围、检索索引、模型、运行参数和预测指纹。 |
 | `scores/<评分记录>/results/judge.jsonl` | 逐题语义裁判、失败原因、召回与引用判定。 |
-| `scores/<评分记录>/results/summary.metrics.json` | 全部已选题作为分母的语义准确率、证据与金标准文档召回、每题工具调用统计。全量时应核对 `count=830`、`subset=false`、`judge_errors=0`。 |
+| `scores/<评分记录>/results/summary.metrics.json` | `accuracy` 使用全部已选题作分母，`judged_accuracy` 只统计有有效裁判结果的题，另有 EM/F1、证据与金标准文档召回、每题工具调用统计。全量时应核对 `count=830`、`subset=false`、`judge_errors=0`。 |
 
-生成成功后，如果裁判服务中断或需要更换裁判，将该次**评测根目录**填入 `SA_EVALUATION_DIR` 并保留相同的 `SA_METHOD`。同一脚本会读取原预测并创建新评分目录。要扩展一个已完成的测试，清空 `SA_EVALUATION_DIR`，将原评测填入 `SA_RESUME_FROM`，提高 `LIMIT`，并沿用原生成参数。 [续测与中断恢复](36_browsecomp_plus_resume.md) · [逐题报告](33_checkpoint_evaluation.md#3-核对结果并评分)
+语义裁判沿用官方 BrowseComp-Plus 评分提示词，输入题目、完整可见回复和标准答案。默认 GPT-5-mini，判定可重试并保留原始返回和失败记录。
+
+生成成功后，如果裁判服务中断或需要更换裁判，将该次**评测根目录**填入同一个方法脚本的 `SA_EVALUATION_DIR`，再次运行会读取原预测并创建新评分目录。要扩展一个已完成的测试，清空 `SA_EVALUATION_DIR`，将原评测填入 `SA_RESUME_FROM`，提高 `LIMIT`，并沿用原生成参数和提示词档案。 [续测与中断恢复](36_browsecomp_plus_resume.md) · [逐题报告](33_checkpoint_evaluation.md#3-核对结果并评分)

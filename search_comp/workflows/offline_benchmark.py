@@ -20,6 +20,7 @@ from search_comp.evaluation.benchmark_resume import publish_continuation, resume
 from search_comp.evaluation.checkpoints import load_evaluation_model, resolve_checkpoint
 from search_comp.offline.assets import (DEV_URL, WIKI_URL, benchmark_request, digest, download_assets,
                                         dump, enforce_offline, http_endpoint, verify_official)
+from search_comp.offline.browsecomp_plus import extract_exact_answer, system_prompt
 from search_comp.offline.data import prepare, records
 from search_comp.offline.index import LocalIndex, build_index
 from search_comp.offline.qwen_embedding import BACKEND as DENSE_BACKEND, DenseIndex, read_vector_manifest
@@ -76,6 +77,9 @@ def verify_index(args, manifest):
 def agent_prompt(args):
     from search_comp.data.agent_prompt import build_system_prompt, resolve_system_prompt
 
+    profile = getattr(args, "prompt_profile", "legacy")
+    if args.benchmark == "browsecomp-plus" and profile != "legacy":
+        return system_prompt(profile, args.prompt_data, args.run_dir, args.allow_visit)
     original_system, source = resolve_system_prompt(getattr(args, "prompt_data", None), args.run_dir)
     instruction = HOTPOT_INSTRUCTION if args.benchmark == "hotpotqa" else BCP_INSTRUCTION
     return build_system_prompt(system=original_system, local=True, allow_visit=args.allow_visit,
@@ -90,6 +94,8 @@ def run_phase(args, output, rows, manifest, index_metadata=None, prompt=None):
     from search_comp.evaluation.tool_agent import decoding_options
     generation_options = decoding_options(args)
     system, prompt_source = prompt if prompt is not None else agent_prompt(args)
+    structured_answer = (args.benchmark == "browsecomp-plus"
+                         and getattr(args, "prompt_profile", "legacy") != "legacy")
     if index_metadata is None:
         index_metadata = verify_index(args, manifest)
     from search_comp.evaluation.tool_agent import ModelGenerator, run_agent
@@ -122,9 +128,15 @@ def run_phase(args, output, rows, manifest, index_metadata=None, prompt=None):
                                max_call_retries=args.tool_call_retries,
                                observation_window=getattr(args, "observation_window", 0),
                                record_turn_stats=args.benchmark == "browsecomp-plus")
+            final_response = result["prediction"]
+            if structured_answer:
+                exact_answer = extract_exact_answer(final_response)
+                result.update(prediction=exact_answer, exact_answer=exact_answer)
+                if result["status"] == "completed" and not exact_answer:
+                    result["status"] = "empty_answer"
             result.update(id=row["id"], sample_index=args.shard_index + position * args.shard_count,
                           prompt_source=prompt_source,
-                          query=row["query"], answer=row["answer"], final_response=result["prediction"],
+                          query=row["query"], answer=row["answer"], final_response=final_response,
                           seconds=time.monotonic() - tick, retrieved_docids=sorted(tools.retrieved),
                           visited_docids=sorted(tools.visited), retrieval_trace=tools.trace,
                           tool_call_counts=dict(tools.counts))
@@ -383,6 +395,7 @@ def make_parser():
     parser.add_argument("--run-dir", type=Path)
     parser.add_argument("--prompt-data", type=Path,
                         help="training JSONL providing original system/tools; default: RUN_DIR train_data_path or Polar profile")
+    parser.add_argument("--prompt-profile", choices=["legacy", "benchmark", "training"], default="legacy")
     parser.add_argument("--model")
     parser.add_argument("--model-origin", choices=['checkpoint', 'base-qwen35'], default='checkpoint')
     parser.add_argument("--kind", choices=["plain", "beacon"])
@@ -475,6 +488,9 @@ def run(args):
         parser.error("score requires --predictions")
     if args.tool_call_retries < 0:
         parser.error("--tool-call-retries must be nonnegative")
+    profile = getattr(args, "prompt_profile", "legacy")
+    if profile not in {"legacy", "benchmark", "training"} or (profile != "legacy" and args.benchmark != "browsecomp-plus"):
+        parser.error("structured prompt profiles are supported for BrowseComp-Plus only")
     window = getattr(args, "observation_window", 0)
     if window < 0 or window and args.benchmark != "browsecomp-plus":
         parser.error("observation-window must be nonnegative and is only supported for BrowseComp-Plus")

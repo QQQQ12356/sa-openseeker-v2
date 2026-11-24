@@ -40,7 +40,7 @@ Baseline 指未训练的原始 Qwen3.5 基座。Plain 默认使用 LoRA；Beacon
 2. 激活环境后直接运行该文件，例如 `bash scripts/plain/sh/10_train_openseeker.sh`。不需要追加参数或设置命令行覆盖。
 3. 方法 SH 各自包含完整配置，仅调用同目录体系内的同名 PY，不调用其他方法的 SH。公共数据和 benchmark 版本可以复用。
 4. 将训练实验目录填入测试脚本的 `SA_TRAINING_RUN`。测试周期检查点时填写 `SA_CHECKPOINT`，留空测试成功训练的最终模型。
-5. BrowseComp-Plus 可用 [46 共用入口](docs/37_browsecomp_plus_run.md) 一次运行生成与评分。使用分步入口时，将测试目录填入对应评分脚本的 `SA_EVALUATION_DIR`，评分自动沿用数据版本与题目范围。
+5. BrowseComp-Plus 用 [各方法的 46 入口](docs/37_browsecomp_plus_run.md) 一次生成并评分。使用分步入口时，将测试目录填入对应评分脚本的 `SA_EVALUATION_DIR`，评分自动沿用数据版本与题目范围。
 6. 所有运行产物写入 `artifacts/`。每次运行创建独立目录；失败保留清单和日志，修正后重新运行。
 7. 评分完成后，编辑并运行 `bash scripts/tools/sh/82_benchmark_excel.sh`，将一份或多份 benchmark 评分结果汇总到 Excel；详细步骤见 [82 Excel 导出](docs/82_benchmark_excel.md)。
 
@@ -49,7 +49,7 @@ Baseline 指未训练的原始 Qwen3.5 基座。Plain 默认使用 LoRA；Beacon
 ```text
 scripts/                  按 sh/、py/ 分离的独立运行文件
   data/sh/、data/py/       模型下载、数据处理、筛选和 benchmark 准备
-  plain/sh/               两个训练入口 + 三项测试/评分（编辑与运行）
+  plain/sh/               训练、分步测试与评分、BrowseComp-Plus 一次运行入口
   plain/py/               同名 Python 执行适配器（不维护参数默认值）
   beacon/sh/、beacon/py/   Beacon 独立入口与执行适配器
   baseline/sh/、baseline/py/  Baseline 独立入口与执行适配器

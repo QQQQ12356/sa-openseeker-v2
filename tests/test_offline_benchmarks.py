@@ -97,6 +97,30 @@ def test_bcp_openai_judge_uses_reasoning_model_request_format(monkeypatch):
     assert judge([dict(role="user", content="Prompt")]) == "correct: yes"
 
 
+@pytest.mark.parametrize(("response", "answer"), [
+    ("Explanation: The article says so [20].\n**Exact Answer:** Paris\nConfidence: 90%", "Paris"),
+    ("**Final Answer**: Paris\nConfidence: 90%", "Paris"),
+    ("Paris", "Paris"),
+    ("Explanation: The passage is ambiguous.\nConfidence: 20%", ""),
+    ("Exact Answer:\nConfidence: 20%", ""),
+    ("Exact Answer: Paris\nExact Answer: London", ""),
+])
+def test_bcp_answer_label_excludes_explanation_confidence_and_conflicts(response, answer):
+    from search_comp.offline.browsecomp_plus import extract_exact_answer
+
+    assert extract_exact_answer(response) == answer
+
+
+def test_bcp_shared_prompt_is_independent_of_training_run(tmp_path):
+    args = SimpleNamespace(benchmark="browsecomp-plus", prompt_profile="benchmark",
+                           prompt_data=None, run_dir=tmp_path / "absent", allow_visit=True)
+    system, source = workflow.agent_prompt(args)
+    args.run_dir = None
+    assert workflow.agent_prompt(args) == (system, source)
+    assert 'browsecomp-plus/benchmark-v1' in source
+    assert 'Exact Answer:' in system and 'Confidence:' in system and 'local://docid' in system
+
+
 @pytest.mark.parametrize(("existing_run", "score_after_generation", "stages"), [
     (False, True, ["evaluate", "score"]),
     (False, False, ["evaluate"]),
@@ -385,7 +409,10 @@ def test_hotpot_missing_failed_and_real_supporting_facts(tmp_path):
 def test_bcp_official_prompt_judge_recall_and_missing_denominator(tmp_path):
     root = prepared_bcp(tmp_path)
     rows, _ = workflow.prepared_questions(root, 'browsecomp-plus')
-    predictions = {rows[0]['id']: dict(status='completed', final_response='answer [' + rows[0]['evidence_docs'][0] + ']',
+    response = ('Explanation: verified [' + rows[0]['evidence_docs'][0] + ']\n'
+                'Exact Answer: REFERENCE_DO_NOT_PROMPT\nConfidence: 90%')
+    predictions = {rows[0]['id']: dict(status='completed', final_response=response,
+          exact_answer='REFERENCE_DO_NOT_PROMPT',
           retrieved_docids=rows[0]['evidence_docs'], tool_call_counts={'search': 1})}
     prompts = []
     def judge(prompt):
@@ -395,8 +422,10 @@ def test_bcp_official_prompt_judge_recall_and_missing_denominator(tmp_path):
     output.mkdir()
     metrics = score_browsecomp(root, rows, predictions, output, judge, judge_preflight=False)
     assert metrics['accuracy'] == metrics['evidence_recall'] == 0.5
+    assert metrics['em'] == metrics['f1'] == 0.5
+    assert metrics['judged_count'] == 1 and metrics['judged_accuracy'] == 1.0
     assert metrics['avg_tool_stats']['search'] == 0.5
-    assert len(prompts) == 1 and 'REFERENCE_DO_NOT_PROMPT' in prompts[0]
+    assert len(prompts) == 1 and response in prompts[0]
     assert metrics['complete']
     assert not metrics['calibration_available']
     assert metrics['citation_coverage'] == 0.5

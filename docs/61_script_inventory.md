@@ -1,6 +1,6 @@
 # 61 各 SH 脚本的完整参数清单
 
-`scripts/tools/sh/46_run_browsecomp_plus.sh` 的模型、检索、生成与裁判参数见 [BrowseComp-Plus 一次运行生成与评分](37_browsecomp_plus_run.md)。
+Baseline、Plain、Beacon 各自目录下 `sh/46_run_browsecomp_plus.sh` 的模型、检索、提示词、生成与裁判参数见 [BrowseComp-Plus 一次运行生成与评分](37_browsecomp_plus_run.md)。
 
 `scripts/tools/sh/84_test_training_data.sh` 的变量、默认值及修改提示见 [训练数据评测参数表](34_training_data_evaluation.md#参数表)。
 

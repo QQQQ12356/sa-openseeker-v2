@@ -20,7 +20,7 @@ def iter_jsonl(source):
                 raise ValueError(f"invalid JSONL line {number}") from error
 
 
-def records(path):
+def records(path, *, parquet_columns=None):
     """Read local JSON/JSONL, compressed JSONL, Parquet, tar archives or a directory."""
     path = Path(path)
     if path.is_dir():
@@ -30,7 +30,7 @@ def records(path):
         if not paths:
             raise ValueError(f"no supported source files: {path}")
         for child in paths:
-            yield from records(child)
+            yield from records(child, parquet_columns=parquet_columns)
     elif tarfile.is_tarfile(path):
         with tarfile.open(path, "r:*") as archive:
             for member in archive:
@@ -46,8 +46,7 @@ def records(path):
                             yield from iter_jsonl(text)
     elif path.suffix == ".parquet":
         import pyarrow.parquet as pq
-        # Query records include long nested evidence text; keep the batch bounded.
-        for batch in pq.ParquetFile(path).iter_batches(batch_size=8):
+        for batch in pq.ParquetFile(path).iter_batches(batch_size=8, columns=parquet_columns):
             yield from batch.to_pylist()
     elif path.suffix == ".json":
         values = json.loads(path.read_text(encoding="utf-8"))
@@ -142,7 +141,10 @@ def questions(path, benchmark, official, encrypted=False):
                                        {"derive_key", "decrypt_string", "DEFAULT_CANARY"})
         decode = lambda value: funcs["decrypt_string"](value, funcs["DEFAULT_CANARY"])
     seen = set()
-    for row in records(path):
+    # Use the question shard only for IDs, questions and answers. Qrels and
+    # searchable documents come from their own assets.
+    columns = ["query_id", "query", "answer"] if benchmark == "browsecomp-plus" else None
+    for row in records(path, parquet_columns=columns):
         if benchmark == "hotpotqa":
             qid = str(row.get("_id", row.get("id", "")))
             facts = row["supporting_facts"]
@@ -158,10 +160,6 @@ def questions(path, benchmark, official, encrypted=False):
             qid = str(row["query_id"])
             item = dict(id=qid, query=decode(row["query"]) if decode else row["query"],
                         answer=decode(row["answer"]) if decode else row["answer"])
-            for field in ("gold_docs", "evidence_docs"):
-                docs = row.get(field, [])
-                item[field] = [str(decode(doc["docid"]) if decode else doc["docid"])
-                               if isinstance(doc, dict) else str(decode(doc) if decode else doc) for doc in docs]
         if not qid or qid in seen:
             raise ValueError(f"missing or duplicate question ID: {qid}")
         seen.add(qid)

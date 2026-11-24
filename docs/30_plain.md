@@ -51,6 +51,8 @@ bash scripts/plain/sh/11_train_research.sh
 
 ## 5. 配置测试
 
+Qwen3.5-4B 的 BrowseComp-Plus 完整评测入口是 `scripts/plain/sh/46_run_browsecomp_plus.sh`。 [准备资产、参数与评分流程](37_browsecomp_plus_run.md)
+
 三个测试文件相互独立。分别修改：
 
 - `SA_TRAINING_RUN`：同方法的训练实验根目录，Research 实验位于 `plain/research/`。

@@ -318,7 +318,7 @@ class ExperimentContracts(unittest.TestCase):
                              [label for label in labels if mode == "any" or label == mode])
 
     def test_every_method_entry_imports_without_running_or_loading_models(self):
-        for method, count in (("plain", 8), ("beacon", 8), ("baseline", 6)):
+        for method, count in (("plain", 9), ("beacon", 9), ("baseline", 7)):
             scripts = list((ROOT / "scripts" / method / "py").glob("*.py"))
             self.assertEqual(len(scripts), count)
             for script in scripts:

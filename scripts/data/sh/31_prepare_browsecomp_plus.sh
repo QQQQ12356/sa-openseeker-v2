@@ -23,7 +23,7 @@ export CUDA_VISIBLE_DEVICES=0
 # VERSION：共享 benchmark 版本名；改变语料/来源/索引权重时新建版本
 export SA_VERSION=v1
 
-# PHASE：BrowseComp 只需 download；另外两项依次改为 download → prepare → index，每次运行一个阶段
+# PHASE：依次运行 download（题目、独立语料、qrels）、prepare（解密与规范化）、index（BM25）。
 export SA_PHASE=download
 
 # DATA：可选本地官方题目路径；空字符串 使用 download 阶段的默认文件
