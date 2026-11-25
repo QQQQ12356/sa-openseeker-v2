@@ -23,7 +23,7 @@ export CUDA_VISIBLE_DEVICES=0
 # VERSION：共享 benchmark 版本名；改变语料/来源/索引权重时新建版本
 export SA_VERSION=v2
 
-# PHASE：依次运行 download（题目、语料、qrels、预建 Lucene BM25）、prepare（解密与规范化）、index（文档库）。
+# PHASE：依次运行 download（题目、语料、qrels、Lucene 索引和高亮 JAR）、prepare、index。
 export SA_PHASE=download
 
 # DATA：可选本地官方题目路径；空字符串 使用 download 阶段的默认文件

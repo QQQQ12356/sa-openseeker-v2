@@ -176,13 +176,13 @@ class ModelGenerator:
         if self.plain_state is not None:
             self.plain_state = PlainGenerationState(self.tokenizer)
 
-    def __call__(self, encoded, max_new_tokens):
+    def __call__(self, encoded, max_new_tokens, *, stop_texts=None):
         import torch
         from transformers import GenerationConfig, StoppingCriteriaList
         from ..generation_stopping import GeneratedTextStop
         tokenizer = self.tokenizer
         ids = torch.tensor([encoded['input_ids']], device=next(self.model.parameters()).device)
-        stops = [CALL_END, '</answer>', '<|im_end|>']
+        stops = stop_texts if stop_texts is not None else [CALL_END, '</answer>', '<|im_end|>']
         eos = self.model.config.eos_token_id
         eos_ids = [] if eos is None else list(eos) if isinstance(eos, (list, tuple)) else [eos]
         with torch.inference_mode():

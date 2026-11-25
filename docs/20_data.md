@@ -127,7 +127,7 @@ bash scripts/data/sh/30_prepare_browsecomp.sh
 
 | 执行顺序 | 修改 `SA_PHASE` | 行为 |
 |---|---|---|
-| 1 | `download` | 下载官方题目、独立语料、预建 Lucene BM25 和评测资产。 |
+| 1 | `download` | 下载官方题目、独立语料、预建 Lucene BM25、原生浏览器高亮 JAR 和评测资产。 |
 | 2 | `prepare` | 验证 Parquet 快照，解密题目和答案，解析文档标题与正文，合并官方 qrels。 |
 | 3 | `index` | 建立按原始 docid 读取正文的 SQLite 文档库。正式 BM25 排序使用第 1 步的 Lucene 索引。 |
 
@@ -138,6 +138,8 @@ bash scripts/data/sh/31_prepare_browsecomp_plus.sh
 ```
 
 首次下载时，`SA_QUERY_REVISION`、`SA_CORPUS_REVISION` 和 `SA_INDEX_REVISION` 留空会解析各自仓库的 `main`。后续下载复用 `assets.json` 中的 commit；也可在首次下载前填写用于对照的 commit。这三项和分片 SHA256 会随准备产物记录。对齐测试应使用完整的 830 题和 100,195 篇文档。Lucene 文件位于 `raw/indexes/bm25/`。
+
+Baseline 原生浏览器使用 `raw/lucene/` 中的 Lucene 9.9.1 高亮模块。已有 `v2` 资产时，可重跑同版本的 `download` 补齐这三个文件。31 会复用已有快照 commit。
 
 题目 Parquet 只读取 `query_id`、`query` 和 `answer`，语料 Parquet 只读取 `docid`、`url` 和 `text`。预处理以原始 docid 关联官方 qrels，模型生成时接收题目，通过工具访问文档。已有 `v1` 或自定义数据目录的 SQLite FTS5 BM25 仍可用于原流程。自定义路径用 `SA_DATA` / `SA_CORPUS` 指定；题目已解密时设 `SA_DECRYPTED=true`。切换检索索引后需重新生成预测。
 

@@ -23,7 +23,7 @@ def launcher_schema(method):
                   "GENERATION__TEMPERATURE GENERATION__TOP_P JUDGE__JUDGE_TIMEOUT"),
     }.items():
         schema.update({name: {"env": f"SA_{name}", "type": kind} for name in names.split()})
-    method_fields = {"MODEL_PATH": "str"} if method == "baseline" else {
+    method_fields = {"MODEL_PATH": "str", "GENERATION__PROMPT_DATE": "optional"} if method == "baseline" else {
         "TRAINING_RUN": "str", "CHECKPOINT": "optional", "OVERLAP": "str", "OVERLAP_THRESHOLD": "float",
     }
     schema.update({name: {"env": f"SA_{name}", "type": kind} for name, kind in method_fields.items()})

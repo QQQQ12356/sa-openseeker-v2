@@ -96,9 +96,10 @@ def build_index(root, title_weight=1.0):
 
 
 class LocalIndex:
-    def __init__(self, path, verify=False):
+    def __init__(self, path, verify=False, *, threaded=False):
         self.path = Path(path).resolve()
-        self.connection = sqlite3.connect(f"file:{quote(str(self.path))}?mode=ro", uri=True)
+        self.connection = sqlite3.connect(f"file:{quote(str(self.path))}?mode=ro", uri=True,
+                                          check_same_thread=not threaded)
         self.connection.row_factory = sqlite3.Row
         try:
             row = self.connection.execute("SELECT value FROM metadata WHERE key='manifest'").fetchone()
@@ -155,6 +156,13 @@ class LocalIndex:
         result = self.connection.execute("SELECT * FROM documents WHERE docid=?", (str(docid),)).fetchone()
         if result is None:
             raise ValueError(f"document not found: {docid}")
+        return self._document(result)
+
+    def get_url(self, url):
+        result = self.connection.execute(
+            "SELECT * FROM documents WHERE source_url=? ORDER BY rowid DESC LIMIT 1", (url,)).fetchone()
+        if result is None:
+            raise ValueError(f"URL is absent from the fixed corpus: {url}")
         return self._document(result)
 
 

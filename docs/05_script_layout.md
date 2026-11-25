@@ -25,7 +25,7 @@ scripts/
 
 调用链只有 `SH → 同名 PY → 共享实现`。各 SH 不 source 其他公共配置，不调用另一个方法的 SH，不拼接训练/评测命令行选项。训练与离线 GPU worker 保留必要的进程隔离。
 
-Baseline、Plain 和 Beacon 的 `sh/46_run_browsecomp_plus.sh` 各自保存参数。同名 Python 适配器通过 `search_comp/experiments/browsecomp_plus_entry.py` 共用类型定义，`search_comp/offline/browsecomp_plus.py` 负责提示词和最终答案规则。数据下载与预处理在 `scripts/data/`。 [流程与参数](37_browsecomp_plus_run.md)
+Baseline、Plain 和 Beacon 的 `sh/46_run_browsecomp_plus.sh` 各自保存参数。同名 Python 适配器通过 `search_comp/experiments/browsecomp_plus_entry.py` 共用类型定义。Baseline 原生推理在 `search_comp/evaluation/qwen_native_browser.py`，本地浏览工具在 `search_comp/offline/native_browser.py`，答案提取在 `search_comp/offline/browsecomp_plus.py`。数据下载与预处理在 `scripts/data/`。 [流程与参数](37_browsecomp_plus_run.md)
 
 ## 2. 编辑与执行
 

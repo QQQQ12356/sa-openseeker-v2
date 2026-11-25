@@ -23,8 +23,10 @@ export SA_RESUME_FROM=''  # 从已完成评测扩展题数时填写旧评测根�
 export SA_EVALUATION_DIR=''  # 填已有评测根目录时，仅重新评分。
 export SA_SCORE_AFTER_GENERATION=true  # EVALUATION_DIR 为空时生效。false 仅生成。
 
-# benchmark 使用统一深度检索提示词；training 使用训练提示词并追加相同的答案格式。
-export SA_GENERATION__PROMPT_PROFILE=benchmark
+# qwen-native 使用原始 Qwen chat template 和 browser.search/open/find。
+export SA_GENERATION__PROMPT_PROFILE=qwen-native
+# 留空使用 Linux 的运行日期，同一任务固定。复现实验可填 YYYY-MM-DD。
+export SA_GENERATION__PROMPT_DATE=''
 
 # -1 全量；初次运行可改为 5。每个 worker 占用一张可见 GPU 并加载一份模型。
 export SA_GENERATION__LIMIT=-1
@@ -34,9 +36,9 @@ export SA_GENERATION__OBSERVATION_WINDOW=0
 export SA_GENERATION__MAX_TURNS=500
 export SA_GENERATION__MAX_CONTEXT=131072
 export SA_GENERATION__MAX_NEW_TOKENS=8192
-export SA_GENERATION__MAX_TOOL_TOKENS=32768
+export SA_GENERATION__MAX_TOOL_TOKENS=32768  # 仅 benchmark/training profile。
 export SA_GENERATION__TOOL_COUNT=4096
-export SA_GENERATION__TOOL_CALL_RETRIES=1
+export SA_GENERATION__TOOL_CALL_RETRIES=1  # 仅 benchmark/training profile。
 export SA_GENERATION__DECODING=sample
 export SA_GENERATION__REPETITION_PENALTY=1.0
 export SA_GENERATION__TEMPERATURE=1.0
@@ -51,9 +53,9 @@ export SA_GENERATION__EMBEDDING_DEVICE=cuda:0
 export SA_GENERATION__VERIFY_INDEX=true
 export SA_GENERATION__TITLE_WEIGHT=1.0  # 仅旧版或自定义语料的 SQLite BM25 使用。
 export SA_GENERATION__TOPK=15
-export SA_GENERATION__SNIPPET_TOKENS=512
-export SA_GENERATION__READ_TOKENS=4096
-export SA_GENERATION__ALLOW_VISIT=true
+export SA_GENERATION__SNIPPET_TOKENS=512  # 仅 benchmark/training profile。
+export SA_GENERATION__READ_TOKENS=4096  # 仅 benchmark/training profile。
+export SA_GENERATION__ALLOW_VISIT=true  # 仅 benchmark/training profile。
 
 # openai 使用 OPENAI_API_KEY（从 Linux 环境传入）；local 使用本地裁判路径。
 export SA_JUDGE__JUDGE_BACKEND=openai

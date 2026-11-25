@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from contextlib import ExitStack, closing
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import gc
 import heapq
 import json
@@ -18,7 +18,7 @@ from types import SimpleNamespace
 
 from search_comp.evaluation.benchmark_resume import publish_continuation, resume_prefix
 from search_comp.evaluation.checkpoints import load_evaluation_model, resolve_checkpoint
-from search_comp.offline.assets import (BCP_LUCENE_DIR, DEV_URL, WIKI_URL, benchmark_request, digest, download_assets,
+from search_comp.offline.assets import (BCP_HIGHLIGHT_JARS, BCP_LUCENE_DIR, DEV_URL, WIKI_URL, benchmark_request, digest, download_assets,
                                         dump, enforce_offline, http_endpoint, verify_official)
 from search_comp.offline.browsecomp_plus import extract_exact_answer, system_prompt
 from search_comp.offline.data import prepare, records
@@ -78,6 +78,16 @@ def verify_index(args, manifest):
     else:
         dense = read_vector_manifest(args.vector_index_dir, manifest, args.embedding_model_path, args.verify_index)
         metadata = dict(metadata, retriever=DENSE_BACKEND, vector_index=dense, ranking="faiss-index-flat-ip")
+    if getattr(args, "prompt_profile", "legacy") == "qwen-native":
+        assets = json.loads((args.root / "assets.json").read_text(encoding="utf-8"))
+        expected = assets.get("lucene_highlighter_sha256", {})
+        for name in BCP_HIGHLIGHT_JARS:
+            jar = args.root / "raw/lucene" / name
+            if name not in expected or not jar.is_file():
+                raise FileNotFoundError("native browser needs Lucene highlighter JARs; rerun 31 download")
+            if args.verify_index and digest(jar) != expected[name]:
+                raise ValueError(f"Lucene highlighter JAR checksum changed: {jar}")
+        metadata = dict(metadata, browser_highlighter_sha256=expected)
     return metadata
 
 
@@ -85,6 +95,10 @@ def agent_prompt(args):
     from search_comp.data.agent_prompt import build_system_prompt, resolve_system_prompt
 
     profile = getattr(args, "prompt_profile", "legacy")
+    if profile == "qwen-native":
+        from search_comp.evaluation.qwen_native_browser import system_prompt as native_prompt
+
+        return native_prompt(args.prompt_date), "browsecomp-plus/qwen-native-v1"
     if args.benchmark == "browsecomp-plus" and profile != "legacy":
         return system_prompt(profile, args.prompt_data, args.run_dir, args.allow_visit)
     original_system, source = resolve_system_prompt(getattr(args, "prompt_data", None), args.run_dir)
@@ -101,6 +115,7 @@ def run_phase(args, output, rows, manifest, index_metadata=None, prompt=None):
     from search_comp.evaluation.tool_agent import decoding_options
     generation_options = decoding_options(args)
     system, prompt_source = prompt if prompt is not None else agent_prompt(args)
+    native = getattr(args, "prompt_profile", "legacy") == "qwen-native"
     structured_answer = (args.benchmark == "browsecomp-plus"
                          and getattr(args, "prompt_profile", "legacy") != "legacy")
     if index_metadata is None:
@@ -111,15 +126,22 @@ def run_phase(args, output, rows, manifest, index_metadata=None, prompt=None):
     origin = getattr(args, 'model_origin', 'checkpoint')
     if origin == 'base-qwen35':
         generation_options['reuse_plain_cache'] = False
+    if native:
+        from search_comp.evaluation.qwen_native_browser import run_agent as run_native_agent
+        from search_comp.offline.native_browser import NativeBrowser, load_highlighter
+
+        highlight = load_highlighter(args.root)
     model, tokenizer = load_evaluation_model(model_path, kind, origin, args.run_dir)
     generate = ModelGenerator(model, tokenizer, kind == "beacon", **generation_options)
     generate.metadata.update(checkpoint=model_path, model_origin=origin)
     if origin == 'base-qwen35':
         generate.metadata['base_model_path'] = model_path
+    if native:
+        generate.metadata['tool_protocol'] = "qwen-native"
     statuses = Counter()
     start = time.monotonic()
     with ExitStack() as stack:
-        index = stack.enter_context(LocalIndex(args.root / "index.sqlite"))
+        index = stack.enter_context(LocalIndex(args.root / "index.sqlite", threaded=native))
         retrieval = index
         if getattr(args, "retriever", "bm25") == DENSE_BACKEND:
             retrieval = DenseIndex(index, args.vector_index_dir, args.embedding_model_path,
@@ -127,18 +149,26 @@ def run_phase(args, output, rows, manifest, index_metadata=None, prompt=None):
         elif isinstance(index_metadata.get("ranking"), dict):
             retrieval = stack.enter_context(closing(LuceneIndex(index, args.root / BCP_LUCENE_DIR)))
         target = stack.enter_context((output / "predictions.jsonl").open("x", encoding="utf-8"))
-        tools = LocalTools(retrieval, tokenizer, args.topk, args.snippet_tokens, args.read_tokens,
-                           args.allow_visit, args.tool_count)
+        if native:
+            tools = stack.enter_context(closing(NativeBrowser(retrieval, index, highlight, args.topk, args.tool_count)))
+        else:
+            tools = LocalTools(retrieval, tokenizer, args.topk, args.snippet_tokens, args.read_tokens,
+                               args.allow_visit, args.tool_count)
         for position, row in enumerate(rows):
             tools.reset()
             tick = time.monotonic()
             # Only question text, no reference, qrels, supporting facts or source context.
             messages = [dict(role="system", content=system), dict(role="user", content=row["query"])]
-            result = run_agent(messages, tokenizer, generate, tools, args.max_turns,
-                               args.max_context, args.max_new_tokens, args.max_tool_tokens,
-                               max_call_retries=args.tool_call_retries,
-                               observation_window=getattr(args, "observation_window", 0),
-                               record_turn_stats=args.benchmark == "browsecomp-plus")
+            if native:
+                result = run_native_agent(messages, tokenizer, generate, tools, max_turns=args.max_turns,
+                                          max_context=args.max_context, max_new_tokens=args.max_new_tokens,
+                                          observation_window=args.observation_window)
+            else:
+                result = run_agent(messages, tokenizer, generate, tools, args.max_turns,
+                                   args.max_context, args.max_new_tokens, args.max_tool_tokens,
+                                   max_call_retries=args.tool_call_retries,
+                                   observation_window=getattr(args, "observation_window", 0),
+                                   record_turn_stats=args.benchmark == "browsecomp-plus")
             final_response = result["prediction"]
             if structured_answer:
                 exact_answer = extract_exact_answer(final_response)
@@ -408,7 +438,8 @@ def make_parser():
     parser.add_argument("--run-dir", type=Path)
     parser.add_argument("--prompt-data", type=Path,
                         help="training JSONL providing original system/tools; default: RUN_DIR train_data_path or Polar profile")
-    parser.add_argument("--prompt-profile", choices=["legacy", "benchmark", "training"], default="legacy")
+    parser.add_argument("--prompt-profile", choices=["legacy", "benchmark", "training", "qwen-native"], default="legacy")
+    parser.add_argument("--prompt-date", help="fixed ISO date in the Qwen-native system prompt")
     parser.add_argument("--model")
     parser.add_argument("--model-origin", choices=['checkpoint', 'base-qwen35'], default='checkpoint')
     parser.add_argument("--kind", choices=["plain", "beacon"])
@@ -502,8 +533,17 @@ def run(args):
     if args.tool_call_retries < 0:
         parser.error("--tool-call-retries must be nonnegative")
     profile = getattr(args, "prompt_profile", "legacy")
-    if profile not in {"legacy", "benchmark", "training"} or (profile != "legacy" and args.benchmark != "browsecomp-plus"):
+    if profile not in {"legacy", "benchmark", "training", "qwen-native"} or (profile != "legacy" and args.benchmark != "browsecomp-plus"):
         parser.error("structured prompt profiles are supported for BrowseComp-Plus only")
+    if profile == "qwen-native":
+        if getattr(args, "model_origin", None) != "base-qwen35" or args.prompt_data:
+            parser.error("qwen-native requires the original Qwen3.5 baseline and no prompt override")
+        prompt_date = getattr(args, "prompt_date", None)
+        resume = getattr(args, "resume_from", None)
+        if not prompt_date and resume:
+            saved = json.loads((Path(resume) / "results/manifest.json").read_text(encoding="utf-8"))
+            prompt_date = saved.get("arguments", {}).get("prompt_date")
+        args.prompt_date = date.fromisoformat(prompt_date).isoformat() if prompt_date else date.today().isoformat()
     window = getattr(args, "observation_window", 0)
     if window < 0 or window and args.benchmark != "browsecomp-plus":
         parser.error("observation-window must be nonnegative and is only supported for BrowseComp-Plus")

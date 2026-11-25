@@ -18,6 +18,7 @@ BCP_QUERY_REPO = "Tevatron/browsecomp-plus"
 BCP_CORPUS_REPO = "Tevatron/browsecomp-plus-corpus"
 BCP_INDEX_REPO = "Tevatron/browsecomp-plus-indexes"
 BCP_LUCENE_DIR = "raw/indexes/bm25"
+BCP_HIGHLIGHT_JARS = tuple(f"lucene-{module}-9.9.1.jar" for module in ("highlighter", "queries", "memory"))
 WIKI_URL = "https://nlp.stanford.edu/projects/hotpotqa/enwiki-20171001-pages-meta-current-withlinks-abstracts.tar.bz2"
 WIKI_MD5 = "01edf64cd120ecc03a2745352779514c"
 DEV_URL = "https://curtis.ml.cmu.edu/datasets/hotpot/hotpot_dev_fullwiki_v1.json"
@@ -131,6 +132,15 @@ def download_browsecomp_plus(root, records, query_revision, corpus_revision, ind
         if key in records and records[key] != value:
             raise ValueError(f"downloaded {key} differs from assets.json; restore the archived files")
         records[key] = value
+    jars = {}
+    for name in BCP_HIGHLIGHT_JARS:
+        artifact = name.removesuffix("-9.9.1.jar")
+        url = f"https://repo.maven.apache.org/maven2/org/apache/lucene/{artifact}/9.9.1/{name}"
+        file = download_file(url, root / "raw/lucene" / name)
+        jars[name] = digest(file)
+    if records.get("lucene_highlighter_sha256", jars) != jars:
+        raise ValueError("Lucene highlighter JAR changed; restore the downloaded asset")
+    records["lucene_highlighter_sha256"] = jars
 
 
 def download_assets(benchmark, root, corpus_revision=None, official_only=False, dev_url=DEV_URL, wiki_url=WIKI_URL,

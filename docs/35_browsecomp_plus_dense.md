@@ -6,7 +6,7 @@
 
 ## 1. 准备题目、语料和文档库
 
-在已激活的 Linux 评测环境中安装检索依赖。官方 BM25 需要 Java 21，确保 `java -version` 显示 21 且 `JAVA_HOME` 指向同一安装。
+在已激活的 Linux 评测环境中安装检索依赖。官方 BM25 排序和 Baseline 原生浏览器的摘要高亮均需要 Java 21，确保 `java -version` 显示 21 且 `JAVA_HOME` 指向同一安装。
 
 ```bash
 python -m pip install -r requirements.browsecomp-plus.txt

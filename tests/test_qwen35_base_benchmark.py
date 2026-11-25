@@ -82,6 +82,87 @@ def test_offline_base_generation_does_not_load_plain_model(tmp_path, monkeypatch
     assert json.loads(path.read_text())['generation_config']['model_origin'] == 'base-qwen35'
 
 
+def test_native_bcp_uses_qwen_template_with_browser_roles_and_keeps_full_trace():
+    from search_comp.evaluation.qwen_native_browser import run_agent, system_prompt
+    from search_comp.offline.native_browser import NativeBrowser
+
+    doc = dict(docid="1", title="Bridge", source_url="https://example.invalid/bridge", text="A red bridge.")
+    retrieval = SimpleNamespace(search=lambda query, topk: [doc], get_url=lambda url: doc)
+    browser = NativeBrowser(retrieval, retrieval, lambda query, text: text, topk=15)
+
+    class Tokenizer:
+        def __init__(self):
+            self.contexts = []
+
+        def apply_chat_template(self, messages, **kwargs):
+            assert kwargs["tools"][0]["function"]["name"] == "browser.search"
+            assert kwargs["add_generation_prompt"] and not kwargs["tokenize"]
+            self.contexts.append(list(messages))
+            return "encoded"
+
+        def encode(self, prompt, *, add_special_tokens):
+            assert prompt == "encoded" and not add_special_tokens
+            return [1, 2]
+
+    class Generator:
+        metadata = {}
+
+        def __init__(self):
+            self.replies = iter([
+                'Need a source.</think><tool_call><function=browser.search>'
+                '<parameter=query>bridge</parameter></function></tool_call>',
+                'Read it.</think><tool_call>{"name":"browser.open","arguments":{"id":0}}</tool_call>',
+                'Explanation: the page says red.\nExact Answer: Red\nConfidence: 95%',
+            ])
+
+        def start_question(self, question):
+            assert question == "What color?"
+
+        def __call__(self, inputs, budget, *, stop_texts):
+            assert inputs["input_ids"] == [1, 2] and budget == 10 and "<tool_response>" in stop_texts
+            return next(self.replies), True, 1
+
+    tokenizer = Tokenizer()
+    try:
+        result = run_agent([dict(role="system", content=system_prompt("2026-11-25")),
+                            dict(role="user", content="What color?")],
+                           tokenizer, Generator(), browser,
+                           max_turns=3, max_context=100, max_new_tokens=10, observation_window=1)
+    finally:
+        browser.close()
+    assert result["status"] == "completed"
+    assert "Exact Answer: Red" in result["prediction"]
+    assert result["messages"][2]["reasoning_content"] == "Need a source."
+    assert result["messages"][3]["tool_call_id"] == "1"
+    assert "example.invalid" in result["messages"][3]["content"]
+    assert "[Auto-archived browser result]" in tokenizer.contexts[-1][3]["content"]
+    assert browser.retrieved == browser.visited == {"1"}
+
+
+def test_native_bcp_batch_cursors_use_state_from_before_the_turn():
+    from search_comp.evaluation.qwen_native_browser import parse_assistant
+    from search_comp.offline.native_browser import NativeBrowser
+
+    doc = dict(docid="1", title="Bridge", source_url="https://example.invalid/bridge", text="A red bridge.")
+    index = SimpleNamespace(search=lambda query, topk: [doc], get_url=lambda url: doc)
+    browser = NativeBrowser(index, index, lambda query, text: text)
+    try:
+        calls = parse_assistant(
+            '<tool_call>{"name":"browser.search","arguments":{"query":["bridge","red"]}}</tool_call>'
+            '<tool_call>{"name":"browser.open","arguments":{"id":0}}</tool_call>', 1)["tool_calls"]
+        results = browser.execute(calls)
+        assert [ok for _, ok in results] == [True, True, False]
+        assert results[0][0].startswith("[0] bridge")
+        assert results[1][0].startswith("[1] red")
+        opened = browser.execute([calls[-1]])
+        assert opened[0][1] and "L0: A red bridge." in opened[0][0]
+        find = parse_assistant('<tool_call>{"name":"browser.find","arguments":{"pattern":"RED"}}</tool_call>',
+                               3)["tool_calls"]
+        assert "match at L0" in browser.execute(find)[0][0]
+    finally:
+        browser.close()
+
+
 def test_online_base_generation_does_not_load_plain_model(tmp_path, monkeypatch):
     from search_comp.workflows import benchmark_openseeker as workflow
     from search_comp.evaluation import tool_agent

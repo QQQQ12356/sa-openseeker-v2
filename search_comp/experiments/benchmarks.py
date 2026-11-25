@@ -121,7 +121,8 @@ def evaluate(*, method, benchmark, benchmark_dir, training_run, model_path, prom
         raise ValueError("不支持的 benchmark")
     dataset_name, training_run, model, kind, origin = resolve_target(method, training_run, model_path, checkpoint)
     spec = read_json(training_run / "experiment.json") if training_run else {}
-    shared_prompt = benchmark == "browsecomp-plus" and generation.get("prompt_profile") == "benchmark"
+    shared_prompt = (benchmark == "browsecomp-plus"
+                     and generation.get("prompt_profile") in {"benchmark", "qwen-native"})
     if shared_prompt and prompt_data:
         raise ValueError("SA_PROMPT_DATA requires the training prompt profile")
     if dataset_name == "mixed" and not shared_prompt and not prompt_data:

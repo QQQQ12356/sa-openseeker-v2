@@ -1,11 +1,11 @@
 # 37 BrowseComp-Plus 一次运行生成与评分
 
-Baseline、Plain 和 Beacon 各有一个 `46_run_browsecomp_plus.sh`。每次执行评测一个 Qwen3.5-4B 模型或检查点、一个本地检索器和一个观测窗口。三个入口共用题目格式、提示词、答案提取、轨迹归档和判分代码。 [参考仓库](https://github.com/i-DeepSearch/observation-masking) · [论文实验设置](https://arxiv.org/html/2606.00408#S3)
+Baseline、Plain 和 Beacon 各有一个 `46_run_browsecomp_plus.sh`。每次执行评测一个 Qwen3.5-4B 模型或检查点、一个本地检索器和一个观测窗口。三个入口共用原始题目顺序、逐题种子生成规则、结果归档和判分代码。Baseline 默认使用 Qwen 原生浏览器工具循环，Plain 和 Beacon 使用训练协议。 [参考仓库](https://github.com/i-DeepSearch/observation-masking) · [论文实验设置](https://arxiv.org/html/2606.00408#S3)
 
 ## 1. Linux 上准备环境与资产
 
 1. 激活 [Linux 运行环境](10_environment.md)，把原始 Qwen3.5-4B 权重与 tokenizer 准备到本地。Baseline 直接加载该目录。Plain、Beacon 使用本项目训练实验的最终模型或周期检查点，原训练基座路径和提示词数据须能在 Linux 上访问。 [检查点格式](33_checkpoint_evaluation.md)
-2. 按 [检索依赖说明](35_browsecomp_plus_dense.md#1-准备题目语料和文档库) 在 Linux 安装 Pyserini／FAISS。使用官方 BM25 时启用 Java 21。按 [数据准备流程](20_data.md#8-准备-browsecomp-plus) 运行 31 的 `download → prepare → index`，三个方法默认共用 `v2`。题目 Parquet 只读取 `query_id`、`query` 和 `answer`，本地解密后写入 `prepared/questions.jsonl`。官方 qrels 提供相关文档 ID。推理只接收问题，标准答案和 qrels 用于评分。
+2. 按 [检索依赖说明](35_browsecomp_plus_dense.md#1-准备题目语料和文档库) 在 Linux 安装 Pyserini／FAISS。官方 BM25 和 Baseline 原生浏览器均需 Java 21。按 [数据准备流程](20_data.md#8-准备-browsecomp-plus) 运行 31 的 `download → prepare → index`，三个方法默认共用 `v2`。已有 `v2` 时用同一版本重跑 31 的 `download` 补齐高亮 JAR，无需重建 prepared 和索引。推理只接收问题，标准答案和 qrels 用于评分。
 3. 默认裁判为 `gpt-5-mini`。运行前从 Linux 环境或作业密钥管理器导出 `OPENAI_API_KEY`。选择 `openai` 会向指定裁判端点发送题目、模型回答和标准答案。需要全离线评分时，将 `SA_JUDGE__JUDGE_BACKEND=local`，并把 `SA_JUDGE__JUDGE_MODEL` 改为本地裁判目录。仅生成预测时设 `SA_SCORE_AFTER_GENERATION=false`。
 
 ## 2. 编辑一次测试的配置
@@ -22,9 +22,17 @@ Plain 和 Beacon 的 `SA_CHECKPOINT` 留空时使用最终模型，也可填如 
 
 ### 系统提示词与答案提取
 
-`SA_GENERATION__PROMPT_PROFILE=benchmark` 为默认值。三种方法共享同一系统提示词，由深度检索任务说明、本地 `search/visit` 工具定义、调用格式和最终回复指令组成。用户消息只有题目。若需要沿用训练时的系统提示词，设为 `training`。Baseline 此时用内置 Polar 提示词，也可通过 `SA_PROMPT_DATA` 指定规范化 JSONL。Plain 和 Beacon 从训练记录定位提示词来源，混合训练实验使用 `training` 时要指定一套 `SA_PROMPT_DATA`。
+`SA_GENERATION__PROMPT_PROFILE=qwen-native` 是 Baseline 46 的默认值。它用原始 Qwen tokenizer 的 `apply_chat_template(..., tools=..., add_generation_prompt=True)`，把推理、函数调用和工具结果分别作为原生消息交给模型。固定的深度检索指令含日期、行号引用和同轮多工具调用提示。 `SA_GENERATION__PROMPT_DATE` 留空时，全程使用 Linux 启动日期；需要指定时填 `YYYY-MM-DD`。自动续测沿用源运行的日期。
 
-两种提示词都要求最终回复含 `Explanation`、`Exact Answer` 和 `Confidence`。解释可写 `[docid]` 引用。程序从最终 assistant 回复移除推理和工具包装，完整可见文本写入 `final_response`，用于语义裁判与引用评分。单独提取的答案写入 `exact_answer` 和 `prediction`，用于补充 EM/F1。也兼容 `Final Answer`、`Answer` 和旧检查点的纯文本回答。若出现结构化字段却没有有效答案，记录为 `empty_answer`。
+Plain 和 Beacon 46 默认使用 `benchmark`，配合训练兼容的 OpenSeeker `search/visit` 工具格式。需要让 Baseline、Plain、Beacon 使用相同提示词和工具协议做消融时，可将 Baseline 也切到 `benchmark`。要沿用训练系统提示词，设为 `training`。Baseline 此时用内置 Polar 提示词，也可通过 `SA_PROMPT_DATA` 指定规范化 JSONL。Plain 和 Beacon 从训练记录定位提示词来源，混合训练实验使用 `training` 时要指定一套 `SA_PROMPT_DATA`。
+
+最终回复要求含 `Explanation`、`Exact Answer` 和 `Confidence`。解释可写 `[docid]` 引用。程序从最终 assistant 回复移除推理和工具包装，完整可见文本写入 `final_response`，用于语义裁判与引用评分。单独提取的答案写入 `exact_answer` 和 `prediction`，用于 EM/F1。原生循环识别带标签的答案或闭合的 `<answer>`。OpenSeeker 入口也兼容旧检查点的纯文本回答。
+
+### Baseline 原生浏览器
+
+- `browser.search` 返回带原始 URL 和链接 ID 的结果，默认每条查询取 15 篇。使用 Lucene 查询相关摘要，限制为 180 字符。该高亮处理同样用于 FAISS 检索结果。
+- `browser.open` 可用 URL 或 cursor 上的链接 ID 打开固定语料内文档，也可按 `loc`、`num_lines` 翻页。默认文档视口为 50 行。 `browser.find` 在已打开的页面定位文本并返回可继续打开的匹配位置。
+- 同一轮的工具调用使用执行前的 cursor 状态，各工具结果按调用顺序回填。检索器内部串行使用，页面读取和查找可并行。工具错误作为反馈回填，旧成功观察才参与 CM。原生模型上下文中的单条成功观察超过 12,000 字符时截取，完整观察仍保存到轨迹。
 
 ### 选择检索器
 
@@ -60,7 +68,7 @@ export SA_GENERATION__EMBEDDING_DEVICE=cuda:0
 
 对同一方法做 No CM / CM 对照时，只切换窗口及用于识别结果的 `SA_RUN_NAME`。旧的工具返回会在送入模型的新一轮上下文中变成占位符。原始调用及完整返回仍存于轨迹。Plain 在窗口滚动时重建被改写的缓存前缀。Beacon 可同时使用自己的观测压缩与外部窗口，比较 Beacon 压缩本身时将外部窗口设为 0。
 
-本实现沿用项目的 OpenSeeker `search/visit` 工具格式、摘录 token 预算、Transformers 和 Beacon 推理入口。官方索引来源和执行参数按本项目清单归档。若要对照另一台机器或参考实验，先核对题目、语料、索引和 embedding 模型的 commit。
+Baseline 原生路径使用本项目的 Transformers 生成器和本地浏览页面渲染，参考仓库使用 vLLM 和自己的浏览器渲染。对照参考实验时同时核对资产 commit、tokenizer、提示日期和实际观察。表中的摘录／读取 token 预算、`ALLOW_VISIT` 和格式修正次数用于 OpenSeeker 路径。三种方法的 46 入口继续按原顺序选题，并以 `SA_GENERATION__GENERATION_SEED=42` 为默认种子。
 
 ### 设置评分
 
