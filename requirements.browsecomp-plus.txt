@@ -1,4 +1,6 @@
-# Official BrowseComp-Plus retrieval. Install into the existing Linux eval environment.
+# BrowseComp-Plus retrieval in the existing Linux cu126 evaluation environment.
 # Pyserini also needs Java 21 available through JAVA_HOME or PATH.
-pyserini==1.5.0
+-c requirements.train-cu126.txt
+# 1.4.0 uses Lucene 9.9.1 and supports torch 2.7. Pyserini 1.5.0 requires torch>=2.9.
+pyserini==1.4.0
 faiss-cpu==1.13.2

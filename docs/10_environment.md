@@ -45,10 +45,11 @@ python -c 'import sys, torch; print(sys.executable, torch.__version__, torch.ver
 python -c 'from torch.utils.cpp_extension import CUDA_HOME; print(CUDA_HOME)'
 ```
 
-如果编译报错显示 CUDA Toolkit 为 12.6、PyTorch 为 13.2，先把 PyTorch 恢复到项目固定的 `2.7.0+cu126`。CUDA Toolkit 已经是 12.6 时可继续使用。安装后检查依赖；若该环境还有需要 CUDA 13.2 PyTorch 的任务，可用 00 安装脚本建独立环境。 [PyTorch 官方版本与安装源](https://pytorch.org/get-started/previous-versions/#v270)
+若安装 Pyserini 1.5.0 后发生此问题，先查看 `torch.cuda.is_available()`。只做 Baseline 小样本验证时，可移除损坏的可选 `causal-conv1d` 并测试 Qwen3.5 导入。PyTorch 原生卷积路径速度可能较慢。要恢复项目 CUDA 12.6 环境，将 PyTorch 和已修正的检索依赖放在同一条 pip 命令中解析，然后运行 `pip check`。 [PyTorch 官方版本与安装源](https://pytorch.org/get-started/previous-versions/#v270)
 
 ```bash
-python -m pip install --index-url https://download.pytorch.org/whl/cu126 'torch==2.7.0+cu126'
+python -m pip install --extra-index-url https://download.pytorch.org/whl/cu126 \
+  'torch==2.7.0+cu126' -r requirements.browsecomp-plus.txt
 python -m pip check
 ```
 

@@ -13,6 +13,8 @@ python -m pip install -r requirements.browsecomp-plus.txt
 java -version
 ```
 
+检索依赖固定为 Pyserini 1.4.0 和 FAISS 1.13.2，并使用训练版本清单作为 pip 约束。Pyserini 1.4.0 使用 Lucene 9.9.1，支持项目的 PyTorch 2.7.0+cu126。旧的 Pyserini 1.5.0 要求 PyTorch 至少为 2.9，安装时可能替换原 CUDA wheel。 [Pyserini 1.4.0 发布说明](https://github.com/castorini/pyserini/blob/master/docs/release-notes/release-notes-v1.4.0.md) · [Pyserini 1.5.0 依赖](https://pypi.org/pypi/pyserini/1.5.0/json)
+
 用 [BrowseComp-Plus 数据准备流程](20_data.md#8-准备-browsecomp-plus)完成 `31_prepare_browsecomp_plus.sh` 的 `download → prepare → index` 三个阶段。如果对应版本已完成，可直接复用。三种评测入口的 `SA_BENCHMARK_DIR` 和下文 33 脚本的 `SA_VERSION` 应指向同一数据版本。
 
 向量准备默认读取该版本 `prepared/` 下的 `manifest.json` 和 `corpus.jsonl`。可用 `SA_PREPARED_DIR` 复用其他位置的已准备语料。评测仍需要与该语料匹配的 `index.sqlite` 和 `index.manifest.json`，其中保存按原 `docid` 读取的正文。官方导入要求完整的官方语料及完全匹配的文档 ID。指定自定义或裁剪语料时，走自行编码路径。
