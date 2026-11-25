@@ -37,6 +37,17 @@ class CharacterTokenizer:
         return bytes(tokens).decode('utf-8', errors='ignore')
 
 
+def test_bcp_missing_document_store_identifies_the_index_stage(tmp_path):
+    root = tmp_path / "v2"
+    root.mkdir()
+    partial = root / "index.building.sqlite"
+    partial.touch()
+    args = SimpleNamespace(root=root, benchmark="browsecomp-plus", verify_index=True)
+    with pytest.raises(FileNotFoundError, match="SA_VERSION=v2 and SA_PHASE=index") as error:
+        workflow.verify_index(args, {})
+    assert str(partial) in str(error.value)
+
+
 @pytest.mark.parametrize("window", [0, 1])
 def test_observation_masking_changes_model_context_and_preserves_trace(window):
     from search_comp.evaluation.plain_generation import PlainGenerationState

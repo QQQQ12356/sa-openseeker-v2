@@ -62,7 +62,23 @@ def prepare_phase(args):
 
 def verify_index(args, manifest):
     print(f"[offline {args.benchmark}] checking local index; verify_checksum={args.verify_index}", flush=True)
-    with LocalIndex(args.root / "index.sqlite", args.verify_index) as index:
+    index_path = args.root / "index.sqlite"
+    try:
+        index = LocalIndex(index_path, args.verify_index)
+    except FileNotFoundError as error:
+        if args.benchmark != "browsecomp-plus":
+            raise
+        if index_path.is_file():
+            raise FileNotFoundError(
+                f"{error}. Restore the matching manifest, or stop any index job and move "
+                f"{index_path} aside before rebuilding with 31."
+            ) from error
+        raise FileNotFoundError(
+            f"{error}. Set SA_VERSION={args.root.name} and SA_PHASE=index in "
+            "scripts/data/sh/31_prepare_browsecomp_plus.sh, then run it on Linux. "
+            "The download stage prepares Lucene/highlighter assets; the index stage publishes the SQLite document store."
+        ) from error
+    with index:
         if index.manifest["benchmark"] != args.benchmark or index.manifest["corpus_sha256"] != manifest["corpus_sha256"]:
             raise ValueError("index and dataset have different corpus/benchmark provenance")
         metadata = index.manifest

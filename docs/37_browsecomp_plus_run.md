@@ -81,6 +81,8 @@ Baseline 原生路径使用本项目的 Transformers 生成器和本地浏览页
 
 ## 3. 运行、核验与重新评分
 
+启动前确认 `SA_BENCHMARK_DIR` 中同时有 `index.sqlite` 和 `index.manifest.json`。如果只有官方 Lucene 文件或已准备的 Parquet／JSONL，在 `scripts/data/sh/31_prepare_browsecomp_plus.sh` 设同一 `SA_VERSION` 和 `SA_PHASE=index` 后运行 31。这一步生成本地文档库，BM25 和 FAISS 都用它读取正文。若只看到 `index.building.sqlite`，先检查对应的 index 任务是否还在运行。任务已终止时，将残留文件移到另一个名字后重跑 index。若两个成品都存在却仍打不开，请从评测节点检查文件读权限和各级目录的访问权限。
+
 ```bash
 bash scripts/baseline/sh/46_run_browsecomp_plus.sh
 # 选择其他方法时执行对应的 46

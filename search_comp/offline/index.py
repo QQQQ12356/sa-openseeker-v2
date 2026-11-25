@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+import stat
 import time
 from urllib.parse import quote
 
@@ -98,15 +99,33 @@ def build_index(root, title_weight=1.0):
 class LocalIndex:
     def __init__(self, path, verify=False, *, threaded=False):
         self.path = Path(path).resolve()
-        self.connection = sqlite3.connect(f"file:{quote(str(self.path))}?mode=ro", uri=True,
-                                          check_same_thread=not threaded)
+        try:
+            mode = self.path.stat().st_mode
+        except FileNotFoundError as error:
+            partial = self.path.with_name("index.building.sqlite")
+            detail = f"; found unfinished build at {partial}" if partial.is_file() else ""
+            raise FileNotFoundError(f"SQLite document store is missing: {self.path}{detail}") from error
+        if not stat.S_ISREG(mode):
+            raise ValueError(f"SQLite document store path must be a regular file: {self.path}")
+        try:
+            self.connection = sqlite3.connect(f"file:{quote(str(self.path))}?mode=ro", uri=True,
+                                              check_same_thread=not threaded)
+        except sqlite3.OperationalError as error:
+            raise sqlite3.OperationalError(
+                f"Cannot open SQLite document store read-only: {self.path}: {error}. "
+                "Check file permissions, parent-directory access and the filesystem mount."
+            ) from error
         self.connection.row_factory = sqlite3.Row
         try:
             row = self.connection.execute("SELECT value FROM metadata WHERE key='manifest'").fetchone()
             if row is None:
                 raise ValueError("index build is incomplete")
             self.manifest = json.loads(row[0])
-            sidecar = json.loads(self.path.with_name("index.manifest.json").read_text())
+            sidecar_path = self.path.with_name("index.manifest.json")
+            try:
+                sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+            except FileNotFoundError as error:
+                raise FileNotFoundError(f"SQLite document store manifest is missing: {sidecar_path}") from error
             if self.manifest["version"] not in {VERSION, CORPUS_VERSION}:
                 raise ValueError("unsupported index version")
             for name in ("version", "benchmark", "count", "corpus_sha256", "title_weight"):
