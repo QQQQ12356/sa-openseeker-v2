@@ -37,12 +37,27 @@ bash scripts/tools/sh/90_validate.sh
 
 ### Qwen3.5 causal-conv1d 导入失败
 
-如果 worker 日志显示 `causal_conv1d_cuda...so: undefined symbol`，已安装的扩展和当前解释器里的 PyTorch 二进制不兼容。激活评测实际使用的环境，确认 CUDA 工具链中的 `nvcc` 可用，再按当前 PyTorch 从源码重建原版本的扩展：
+如果 worker 日志显示 `causal_conv1d_cuda...so: undefined symbol`，已安装的扩展和当前解释器里的 PyTorch 二进制不兼容。激活评测实际使用的环境，并检查 PyTorch 和扩展编译器的 CUDA 版本：
 
 ```bash
 conda activate search-comp-qwen35-cu126
 python -c 'import sys, torch; print(sys.executable, torch.__version__, torch.version.cuda)'
-nvcc --version
+python -c 'from torch.utils.cpp_extension import CUDA_HOME; print(CUDA_HOME)'
+```
+
+如果编译报错显示 CUDA Toolkit 为 12.6、PyTorch 为 13.2，先把 PyTorch 恢复到项目固定的 `2.7.0+cu126`。CUDA Toolkit 已经是 12.6 时可继续使用。安装后检查依赖；若该环境还有需要 CUDA 13.2 PyTorch 的任务，可用 00 安装脚本建独立环境。 [PyTorch 官方版本与安装源](https://pytorch.org/get-started/previous-versions/#v270)
+
+```bash
+python -m pip install --index-url https://download.pytorch.org/whl/cu126 'torch==2.7.0+cu126'
+python -m pip check
+```
+
+确认 PyTorch 和实际编译器均为 CUDA 12.6，再从源码重建原版本的扩展：
+
+```bash
+python -c 'import torch; print(torch.__version__, torch.version.cuda); assert torch.version.cuda == "12.6"'
+cuda_home="$(python -c 'from torch.utils.cpp_extension import CUDA_HOME; print(CUDA_HOME or "")')"
+"${cuda_home:?CUDA_HOME not detected}/bin/nvcc" --version
 conv_version="$(python -c 'from importlib.metadata import version; print(version("causal-conv1d"))')"
 CAUSAL_CONV1D_FORCE_BUILD=TRUE python -m pip install \
   --force-reinstall --no-deps --no-build-isolation --no-binary=causal-conv1d \
