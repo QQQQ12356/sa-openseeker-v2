@@ -90,4 +90,4 @@ Plain 和 Beacon 的生成停止检查使用 Transformers `StopStringCriteria`�
 
 - `done` 是已写入的预测数和本次选中的总题数，分母受 `SA_GENERATION__LIMIT` 影响。遇到工具失败或达到预算的题也会写入预测并计入完成数，具体结果看 `status`。
 - `sample` 是该题的耗时，`elapsed` 是生成进度开始以来的累计耗时。离线索引校验会先显示 `checking local index`，长题运行期间完成数会停在上一条。
-- 离线多卡运行时，终端的 `done` 汇总所有 worker。各卡的日志保存在 `results/workers/worker_<rank>.log`。
+- 离线多卡运行时，终端的 `done` 汇总所有 worker。各卡的原始日志保存在 `results/workers/worker_<rank>.log`。worker 异常退出时，主进程会打印该日志的末尾以及具体文件路径。

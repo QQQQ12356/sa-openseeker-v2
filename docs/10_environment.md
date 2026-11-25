@@ -35,6 +35,23 @@ bash scripts/tools/sh/90_validate.sh
 
 脚本先安装指定 CUDA PyTorch，再安装统一依赖，按需安装 DeepSpeed，并将实际依赖写入环境内 `installed_requirements.txt`。安装失败时按终端提示修复系统条件，再重新执行。后续 SH 默认通过 PYTHON_BIN 使用已激活环境中的 python。
 
+### Qwen3.5 causal-conv1d 导入失败
+
+如果 worker 日志显示 `causal_conv1d_cuda...so: undefined symbol`，已安装的扩展和当前解释器里的 PyTorch 二进制不兼容。激活评测实际使用的环境，确认 CUDA 工具链中的 `nvcc` 可用，再按当前 PyTorch 从源码重建原版本的扩展：
+
+```bash
+conda activate search-comp-qwen35-cu126
+python -c 'import sys, torch; print(sys.executable, torch.__version__, torch.version.cuda)'
+nvcc --version
+conv_version="$(python -c 'from importlib.metadata import version; print(version("causal-conv1d"))')"
+CAUSAL_CONV1D_FORCE_BUILD=TRUE python -m pip install \
+  --force-reinstall --no-deps --no-build-isolation --no-binary=causal-conv1d \
+  --no-cache-dir "causal-conv1d==$conv_version"
+python -c 'import torch, causal_conv1d; from transformers import Qwen3_5ForCausalLM; print("Qwen3.5 imports OK")'
+```
+
+`CAUSAL_CONV1D_FORCE_BUILD=TRUE` 阻止扩展自己的安装脚本选择预编译 wheel。`--no-build-isolation` 使用当前环境的 PyTorch 头文件和库，`--no-deps` 保留已安装的 PyTorch。先确认最后一条导入命令成功，再重跑评测。没有 CUDA 编译器时，可在独立的 Baseline 评测环境移除这个可选扩展，让 Transformers 使用它的 PyTorch 实现；该路径可能更慢。 [扩展构建逻辑](https://github.com/Dao-AILab/causal-conv1d/blob/main/setup.py) · [Transformers Qwen3.5 实现](https://raw.githubusercontent.com/huggingface/transformers/v5.9.0/src/transformers/models/qwen3_5/modeling_qwen3_5.py)
+
 ## 3. 每个脚本的环境参数
 
 SH 先 export 环境变量；PY 在导入模型、tokenizer 或 Hub 客户端前读取它们。修改待运行文件即可，不依赖其他方法的环境文件。

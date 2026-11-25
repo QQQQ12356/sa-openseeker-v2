@@ -31,6 +31,23 @@ def test_base_loader_validates_architecture_and_calls_raw_text_loader(tmp_path, 
         load_base_qwen35(str(adapter))
 
 
+def test_base_loader_reports_causal_conv1d_abi_mismatch(monkeypatch):
+    from transformers import AutoConfig
+    from search_comp.milestones import qwen35_text
+    from search_comp.models.base_qwen35 import load_base_qwen35
+
+    monkeypatch.setattr(AutoConfig, "from_pretrained", lambda *a, **k: SimpleNamespace(model_type="qwen3_5"))
+    original = ImportError("causal_conv1d_cuda.so: undefined symbol: materialize_cow_storage")
+
+    def failed_load(path):
+        raise original
+
+    monkeypatch.setattr(qwen35_text, "load_text_causal_model", failed_load)
+    with pytest.raises(RuntimeError, match="incompatible with the PyTorch") as error:
+        load_base_qwen35("/original-qwen")
+    assert error.value.__cause__ is original
+
+
 
 
 

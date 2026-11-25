@@ -321,7 +321,15 @@ def run_parallel(args, output, rows, manifest):
                     if code is None:
                         continue
                     if code:
-                        raise RuntimeError(f"offline worker {processes.index(process)} exited with code {code}; see {directory}")
+                        rank = processes.index(process)
+                        log_path = directory / f"worker_{rank}.log"
+                        with log_path.open("rb") as failed_log:
+                            failed_log.seek(max(0, log_path.stat().st_size - 16384))
+                            log_tail = "\n".join(failed_log.read().decode("utf-8", errors="replace").splitlines()[-35:])
+                        raise RuntimeError(
+                            f"offline worker {rank} (GPU={devices[rank]}) exited with code {code}; log: {log_path}\n"
+                            f"Worker log tail:\n{log_tail}"
+                        )
                     pending.remove(process)
                 now = time.monotonic()
                 if pending and now - last_progress_or_heartbeat >= 60:

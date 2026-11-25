@@ -1,5 +1,6 @@
 """Load the original Qwen3.5 text backbone for independent baseline inference."""
 from pathlib import Path
+import sys
 
 
 def load_base_qwen35(model_path):
@@ -15,4 +16,13 @@ def load_base_qwen35(model_path):
         raise ValueError(f'baseline requires the original Qwen3.5 multimodal checkpoint, got {config.model_type}')
     if getattr(config, 'enable_beacon', False) or getattr(getattr(config, 'text_config', None), 'enable_beacon', False):
         raise ValueError('Beacon checkpoint cannot be used as an original Qwen3.5 baseline')
-    return load_text_causal_model(model_path)
+    try:
+        return load_text_causal_model(model_path)
+    except ImportError as error:
+        if "causal_conv1d_cuda" not in str(error) or "undefined symbol" not in str(error):
+            raise
+        raise RuntimeError(
+            f"causal-conv1d is incompatible with the PyTorch loaded by {sys.executable}. "
+            "Rebuild causal-conv1d from source in this Linux environment before rerunning. "
+            "See docs/10_environment.md, Qwen3.5 causal-conv1d troubleshooting."
+        ) from error
